@@ -1,5 +1,7 @@
 {
   "name": "WinGet Web Interface",
   "description": "A modern web-based interface for discovering and generating scripts for Windows Package Manager (winget). Search for apps, build bulk install scripts, and explore essential packages.",
-  "requestFramePermissions": []
+  "requestFramePermissions": [
+    "microphone"
+  ]
 }
