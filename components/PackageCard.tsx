@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { WingetPackage, AppMode } from '../types';
-import { Plus, Check, Copy, RefreshCw, Trash2, ChevronDown, ChevronUp, Globe, Tag, Info, Layers, Sparkles, Terminal } from 'lucide-react';
+import { Plus, Check, Copy, RefreshCw, Trash2, ChevronDown, ChevronUp, Globe, Tag, Info, Layers, Sparkles, Terminal, GitFork, Microscope, Star } from 'lucide-react';
 
 interface PackageCardProps {
   pkg: WingetPackage;
@@ -8,10 +8,12 @@ interface PackageCardProps {
   onToggleCart: (pkg: WingetPackage) => void;
   onCopyCommand: (id: string, mode: AppMode) => void;
   onAskAI: (pkg: WingetPackage) => void;
+  onFindAlternatives?: (pkg: WingetPackage) => void;
+  onAnalyze?: (pkg: WingetPackage) => void;
   mode: AppMode;
 }
 
-export const PackageCard: React.FC<PackageCardProps> = ({ pkg, isInCart, onToggleCart, onCopyCommand, onAskAI, mode }) => {
+export const PackageCard: React.FC<PackageCardProps> = ({ pkg, isInCart, onToggleCart, onCopyCommand, onAskAI, onFindAlternatives, onAnalyze, mode }) => {
   const [isExpanded, setIsExpanded] = useState(false);
   const [isAnimating, setIsAnimating] = useState(false);
   const [showCopied, setShowCopied] = useState(false);
@@ -182,29 +184,50 @@ export const PackageCard: React.FC<PackageCardProps> = ({ pkg, isInCart, onToggl
 
       {/* Footer Actions */}
       <div className="mt-auto space-y-3">
-        <div className="flex items-center justify-between gap-2">
+        {/* Action Grid */}
+        <div className="grid grid-cols-4 gap-1.5">
           {/* Ask AI Button */}
           <button 
              onClick={() => onAskAI(pkg)}
-             className="flex-1 flex items-center justify-center gap-1.5 py-1.5 px-3 bg-[var(--app-bg)] hover:bg-[var(--app-primary)]/20 text-[var(--app-text-muted)] hover:text-[var(--app-primary)] rounded-lg text-xs font-medium transition-colors border border-transparent hover:border-[var(--app-primary)]/30"
-             title="Ask AI about this package"
+             className="col-span-1 flex flex-col items-center justify-center py-1.5 bg-[var(--app-bg)] hover:bg-[var(--app-primary)]/20 text-[var(--app-text-muted)] hover:text-[var(--app-primary)] rounded-lg text-[10px] font-medium transition-colors border border-transparent hover:border-[var(--app-primary)]/30"
+             title="Ask AI"
            >
-             <Sparkles size={14} />
-             <span>Ask AI</span>
+             <Sparkles size={14} className="mb-0.5" />
+             Ask
+           </button>
+           
+           {/* Find Alternatives */}
+           <button 
+             onClick={() => onFindAlternatives && onFindAlternatives(pkg)}
+             className="col-span-1 flex flex-col items-center justify-center py-1.5 bg-[var(--app-bg)] hover:bg-[var(--app-primary)]/20 text-[var(--app-text-muted)] hover:text-[var(--app-primary)] rounded-lg text-[10px] font-medium transition-colors border border-transparent hover:border-[var(--app-primary)]/30"
+             title="Find Alternatives"
+           >
+             <GitFork size={14} className="mb-0.5" />
+             Similars
+           </button>
+
+           {/* Evaluate/Analyze */}
+           <button 
+             onClick={() => onAnalyze && onAnalyze(pkg)}
+             className="col-span-1 flex flex-col items-center justify-center py-1.5 bg-[var(--app-bg)] hover:bg-[var(--app-primary)]/20 text-[var(--app-text-muted)] hover:text-[var(--app-primary)] rounded-lg text-[10px] font-medium transition-colors border border-transparent hover:border-[var(--app-primary)]/30"
+             title="Evaluate (Pros/Cons)"
+           >
+             <Star size={14} className="mb-0.5" />
+             Review
            </button>
 
            {/* Copy Command Button */}
            <button 
              onClick={handleCopy}
-             className={`flex-1 flex items-center justify-center gap-1.5 py-1.5 px-3 rounded-lg text-xs font-medium transition-colors border ${
+             className={`col-span-1 flex flex-col items-center justify-center py-1.5 rounded-lg text-[10px] font-medium transition-colors border ${
                showCopied 
                 ? 'bg-green-500/20 text-green-400 border-green-500/30' 
                 : 'bg-[var(--app-bg)] hover:bg-[var(--app-surface)] text-[var(--app-text-muted)] hover:text-[var(--app-text)] border-transparent'
              }`}
-             title={`Copy: winget ${mode} ${pkg.id} -e`}
+             title={`Copy Command`}
            >
-             {showCopied ? <Check size={14} /> : <Terminal size={14} />}
-             <span>{showCopied ? 'Copied' : 'Command'}</span>
+             {showCopied ? <Check size={14} className="mb-0.5" /> : <Terminal size={14} className="mb-0.5" />}
+             {showCopied ? 'Copied' : 'Cmd'}
            </button>
         </div>
 
