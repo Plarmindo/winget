@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
-import { Search, Package, Terminal, Loader2, Info as InfoIcon, Github, Menu, ShoppingBag, Download, RefreshCw, Trash2, ClipboardPaste, ArrowRight, ChevronLeft, ChevronRight, Command, Monitor, Zap, X, Grid, Shield, LayoutGrid, PlusCircle, Ban, XCircle, Settings, HardDrive, Database, Sparkles, BrainCircuit, Activity, Moon, Sun, MonitorSmartphone, Check, Palette, Plus, Minus, FileText, Edit2, Save, RotateCcw } from 'lucide-react';
+import { Search, Package, Terminal, Loader2, Info as InfoIcon, Github, Menu, ShoppingBag, Download, RefreshCw, Trash2, ClipboardPaste, ArrowRight, ChevronLeft, ChevronRight, Command, Monitor, Zap, X, Grid, Shield, LayoutGrid, PlusCircle, Ban, XCircle, Settings, HardDrive, Database, Sparkles, BrainCircuit, Activity, Moon, Sun, MonitorSmartphone, Check, Palette, Plus, Minus, FileText, Edit2, Save, RotateCcw, Copy, Undo2 } from 'lucide-react';
 import { WingetPackage, AppMode, AppSettings, ChatModelType, AppTheme } from './types';
-import { searchPackages, parseWingetOutput, generateAppDetailsPrompt } from './services/wingetService';
+import { searchPackages, parseWingetOutput, generateAppDetailsPrompt, generateAlternativesPrompt, generateEvaluationPrompt } from './services/wingetService';
 import { PackageCard } from './components/PackageCard';
 import { ScriptDrawer } from './components/ScriptDrawer';
 import { ChatInterface } from './components/ChatInterface';
@@ -152,8 +152,20 @@ const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose, settings
   };
 
   const startEditingTheme = (theme: AppTheme) => {
-    setEditingThemeId(theme.id);
-    setEditedTheme({ ...theme, isCustom: true });
+    // If it's a default theme, we should ideally clone it to a new custom theme
+    if (!theme.isCustom) {
+       const clonedTheme: AppTheme = {
+         ...theme,
+         id: `custom-${Date.now()}`,
+         name: `${theme.name} (Copy)`,
+         isCustom: true
+       };
+       setEditedTheme(clonedTheme);
+       setEditingThemeId(clonedTheme.id);
+    } else {
+       setEditingThemeId(theme.id);
+       setEditedTheme({ ...theme });
+    }
   };
 
   const handleSaveTheme = () => {
@@ -181,7 +193,7 @@ const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose, settings
   const createNewTheme = () => {
     const newTheme: AppTheme = {
       id: `custom-${Date.now()}`,
-      name: 'New Theme',
+      name: 'New Custom Theme',
       colors: { ...DEFAULT_THEMES[0].colors },
       isCustom: true
     };
@@ -255,63 +267,82 @@ const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose, settings
           <div className="flex-1 p-6 overflow-y-auto bg-[var(--app-surface)]">
             
             {activeTab === 'general' && (
-              <div className="space-y-6">
+              <div className="space-y-8">
                  {/* Theme Selector / Editor */}
                  <div>
                    <div className="flex items-center justify-between mb-4">
-                      <h3 className="text-lg font-semibold">Theme</h3>
+                      <div>
+                         <h3 className="text-lg font-semibold">Themes</h3>
+                         <p className="text-xs text-[var(--app-text-muted)]">Select or customize the interface look.</p>
+                      </div>
                       {!editingThemeId && (
                          <button 
                            onClick={createNewTheme}
-                           className="flex items-center gap-1 text-xs px-2 py-1 bg-[var(--app-primary)] text-white rounded hover:opacity-90 transition-opacity"
+                           className="flex items-center gap-1 text-xs px-3 py-1.5 bg-[var(--app-primary)] text-white rounded-lg hover:opacity-90 transition-opacity shadow-sm font-medium"
                          >
-                            <Plus size={12} /> New Theme
+                            <Plus size={14} /> New Custom Theme
                          </button>
                       )}
                    </div>
 
                    {editingThemeId && editedTheme ? (
-                      <div className="bg-[var(--app-bg)] p-4 rounded-xl border border-[var(--app-border)] mb-6 animate-in slide-in-from-right-4">
-                         <div className="flex items-center justify-between mb-4">
-                            <h4 className="font-medium">Edit Theme</h4>
+                      <div className="bg-[var(--app-bg)]/50 p-5 rounded-xl border border-[var(--app-border)] mb-6 animate-in slide-in-from-right-4 relative">
+                         <div className="flex items-center justify-between mb-6">
+                            <h4 className="font-semibold flex items-center gap-2">
+                               <Palette size={16} className="text-[var(--app-primary)]" />
+                               {editedTheme.id.startsWith('custom-') ? 'Edit Custom Theme' : 'Edit Theme'}
+                            </h4>
                             <div className="flex gap-2">
-                               <button onClick={handleSaveTheme} className="p-1.5 bg-green-600/20 text-green-500 rounded hover:bg-green-600/30" title="Save"><Save size={16} /></button>
-                               <button onClick={() => { setEditingThemeId(null); setEditedTheme(null); }} className="p-1.5 bg-[var(--app-surface)] text-[var(--app-text-muted)] rounded border border-[var(--app-border)]" title="Cancel"><X size={16} /></button>
+                               <button 
+                                 onClick={() => {
+                                    const original = settings.themes.find(t => t.id === editingThemeId);
+                                    if(original) setEditedTheme({ ...original, isCustom: true });
+                                 }}
+                                 className="p-1.5 text-[var(--app-text-muted)] hover:text-[var(--app-text)] rounded border border-transparent hover:border-[var(--app-border)] transition-all" 
+                                 title="Reset Changes"
+                               >
+                                 <Undo2 size={16} />
+                               </button>
+                               <button onClick={handleSaveTheme} className="flex items-center gap-1 px-3 py-1.5 bg-green-600 hover:bg-green-500 text-white rounded-lg text-xs font-bold transition-colors shadow-sm">
+                                  <Save size={14} /> Save
+                               </button>
+                               <button onClick={() => { setEditingThemeId(null); setEditedTheme(null); }} className="p-1.5 bg-[var(--app-surface)] text-[var(--app-text-muted)] hover:text-[var(--app-text)] rounded border border-[var(--app-border)] hover:border-red-500/50 transition-colors" title="Cancel">
+                                  <X size={16} />
+                               </button>
                             </div>
                          </div>
-                         <div className="space-y-3">
+                         <div className="space-y-4">
                             <div>
-                               <label className="text-xs text-[var(--app-text-muted)] block mb-1">Theme Name</label>
+                               <label className="text-xs font-semibold text-[var(--app-text-muted)] block mb-1.5 uppercase tracking-wider">Theme Name</label>
                                <input 
                                  type="text" 
                                  value={editedTheme.name}
                                  onChange={(e) => setEditedTheme({ ...editedTheme, name: e.target.value })}
-                                 className="w-full bg-[var(--app-surface)] border border-[var(--app-border)] rounded px-2 py-1 text-sm text-[var(--app-text)]"
+                                 className="w-full bg-[var(--app-surface)] border border-[var(--app-border)] rounded-lg px-3 py-2 text-sm text-[var(--app-text)] focus:ring-1 focus:ring-[var(--app-primary)] focus:border-[var(--app-primary)] outline-none"
+                                 placeholder="e.g., Neon Nights"
                                />
                             </div>
-                            <div className="grid grid-cols-2 gap-3">
+                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                                {Object.entries(editedTheme.colors).map(([key, val]) => (
-                                  <div key={key}>
-                                     <label className="text-xs text-[var(--app-text-muted)] block mb-1 capitalize">{key.replace(/([A-Z])/g, ' $1').trim()}</label>
-                                     <div className="flex gap-2">
-                                        <input 
+                                  <div key={key} className="bg-[var(--app-surface)] p-2 rounded-lg border border-[var(--app-border)] flex items-center gap-3">
+                                     <div className="relative w-10 h-10 rounded-lg overflow-hidden border border-[var(--app-border)] shadow-sm flex-shrink-0">
+                                       <input 
                                           type="color" 
                                           value={val}
                                           onChange={(e) => setEditedTheme({ 
                                             ...editedTheme, 
                                             colors: { ...editedTheme.colors, [key]: e.target.value } 
                                           })}
-                                          className="h-8 w-8 rounded cursor-pointer bg-transparent border-none"
+                                          className="absolute -top-2 -left-2 w-16 h-16 cursor-pointer border-none p-0"
                                         />
-                                        <input 
-                                          type="text" 
-                                          value={val}
-                                          onChange={(e) => setEditedTheme({ 
-                                            ...editedTheme, 
-                                            colors: { ...editedTheme.colors, [key]: e.target.value } 
-                                          })}
-                                          className="flex-1 bg-[var(--app-surface)] border border-[var(--app-border)] rounded px-2 py-1 text-xs font-mono"
-                                        />
+                                     </div>
+                                     <div className="flex-1 min-w-0">
+                                        <label className="text-[10px] font-bold text-[var(--app-text-muted)] block capitalize truncate mb-0.5">
+                                           {key.replace(/([A-Z])/g, ' $1').trim()}
+                                        </label>
+                                        <div className="flex items-center gap-1">
+                                           <span className="text-xs font-mono text-[var(--app-text)]">{val}</span>
+                                        </div>
                                      </div>
                                   </div>
                                ))}
@@ -323,22 +354,33 @@ const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose, settings
                           {settings.themes.map(t => (
                             <div
                               key={t.id}
-                              className={`group relative p-3 rounded-lg border text-sm font-medium capitalize flex items-center justify-between cursor-pointer transition-all ${
+                              className={`group relative p-3 rounded-xl border text-sm font-medium flex items-center justify-between cursor-pointer transition-all ${
                                 settings.activeThemeId === t.id 
-                                ? 'bg-[var(--app-primary)]/10 border-[var(--app-primary)] text-[var(--app-primary)]' 
-                                : 'bg-[var(--app-bg)] border-[var(--app-border)] text-[var(--app-text-muted)] hover:text-[var(--app-text)]'
+                                ? 'bg-[var(--app-primary)]/10 border-[var(--app-primary)] text-[var(--app-primary)] ring-1 ring-[var(--app-primary)]/20' 
+                                : 'bg-[var(--app-bg)] border-[var(--app-border)] text-[var(--app-text-muted)] hover:text-[var(--app-text)] hover:border-[var(--app-text-muted)]/50'
                               }`}
                               onClick={() => onUpdateSettings({ ...settings, activeThemeId: t.id })}
                             >
-                              <span>{t.name}</span>
                               <div className="flex items-center gap-2">
-                                 {settings.activeThemeId === t.id && <Check size={14} />}
-                                 {t.isCustom && (
-                                    <div className="flex gap-1" onClick={(e) => e.stopPropagation()}>
-                                       <button onClick={() => startEditingTheme(t)} className="hover:text-[var(--app-primary)]"><Edit2 size={12} /></button>
-                                       <button onClick={() => deleteTheme(t.id)} className="hover:text-red-500"><Trash2 size={12} /></button>
-                                    </div>
-                                 )}
+                                <div className="w-4 h-4 rounded-full border border-white/10 shadow-sm" style={{ backgroundColor: t.colors.primary }}></div>
+                                <span>{t.name}</span>
+                              </div>
+                              <div className="flex items-center gap-2">
+                                 {settings.activeThemeId === t.id && <Check size={16} className="text-[var(--app-primary)]" />}
+                                 <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity" onClick={(e) => e.stopPropagation()}>
+                                    <button 
+                                       onClick={() => startEditingTheme(t)} 
+                                       className="p-1 hover:bg-[var(--app-surface)] rounded text-[var(--app-text-muted)] hover:text-[var(--app-primary)]" 
+                                       title={t.isCustom ? "Edit" : "Clone & Edit"}
+                                    >
+                                       {t.isCustom ? <Edit2 size={12} /> : <Copy size={12} />}
+                                    </button>
+                                    {t.isCustom && (
+                                       <button onClick={() => deleteTheme(t.id)} className="p-1 hover:bg-[var(--app-surface)] rounded text-[var(--app-text-muted)] hover:text-red-500">
+                                          <Trash2 size={12} />
+                                       </button>
+                                    )}
+                                 </div>
                               </div>
                             </div>
                           ))}
@@ -351,20 +393,25 @@ const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose, settings
                           <Grid size={20} className="text-[var(--app-text-muted)]" />
                           <div>
                             <p className="font-medium text-[var(--app-text)]">Items Per Page</p>
-                            <p className="text-xs text-[var(--app-text-muted)]">Number of cards to display in the grid</p>
+                            <p className="text-xs text-[var(--app-text-muted)]">Set how many cards to display at once (Min 3)</p>
                           </div>
                        </div>
-                       <select 
-                         value={settings.itemsPerPage}
-                         onChange={(e) => onUpdateSettings({ ...settings, itemsPerPage: parseInt(e.target.value) })}
-                         className="bg-[var(--app-surface)] border border-[var(--app-border)] text-[var(--app-text)] rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:border-[var(--app-primary)]"
-                       >
-                         <option value={6}>6 items</option>
-                         <option value={9}>9 items</option>
-                         <option value={12}>12 items</option>
-                         <option value={18}>18 items</option>
-                         <option value={24}>24 items</option>
-                       </select>
+                       <div className="flex items-center gap-2">
+                          <input 
+                            type="number"
+                            min="3"
+                            max="100"
+                            value={settings.itemsPerPage || 9}
+                            onChange={(e) => {
+                               const val = parseInt(e.target.value);
+                               if (!isNaN(val) && val >= 0) {
+                                  onUpdateSettings({ ...settings, itemsPerPage: val });
+                               }
+                            }}
+                            className="w-20 bg-[var(--app-surface)] border border-[var(--app-border)] text-[var(--app-text)] rounded-lg px-3 py-1.5 text-sm text-center focus:outline-none focus:border-[var(--app-primary)] focus:ring-1 focus:ring-[var(--app-primary)]"
+                          />
+                          <span className="text-xs text-[var(--app-text-muted)]">cards</span>
+                       </div>
                    </div>
 
                    <h3 className="text-lg font-semibold mb-4">Dashboard Shortcuts</h3>
@@ -373,7 +420,7 @@ const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose, settings
                         <input 
                            type="text" 
                            placeholder="New subject (e.g. 'Browsers')" 
-                           className="flex-1 bg-[var(--app-surface)] border border-[var(--app-border)] rounded px-3 py-2 text-sm text-[var(--app-text)] focus:outline-none focus:border-[var(--app-primary)]"
+                           className="flex-1 bg-[var(--app-surface)] border border-[var(--app-border)] rounded-lg px-3 py-2 text-sm text-[var(--app-text)] focus:outline-none focus:border-[var(--app-primary)] focus:ring-1 focus:ring-[var(--app-primary)]"
                            value={newSubject}
                            onChange={e => setNewSubject(e.target.value)}
                            onKeyDown={e => e.key === 'Enter' && handleAddSubject()}
@@ -381,16 +428,16 @@ const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose, settings
                         <button 
                           onClick={handleAddSubject}
                           disabled={!newSubject.trim()}
-                          className="px-3 bg-[var(--app-primary)] text-white rounded hover:opacity-90 disabled:opacity-50 disabled:cursor-not-allowed"
+                          className="px-4 bg-[var(--app-primary)] text-white rounded-lg hover:opacity-90 disabled:opacity-50 disabled:cursor-not-allowed transition-all"
                         >
                           <Plus size={16} />
                         </button>
                       </div>
                       <div className="flex flex-wrap gap-2">
                         {settings.customSubjects.map(subject => (
-                           <div key={subject} className="flex items-center gap-1 bg-[var(--app-border)] text-[var(--app-text)] px-2 py-1 rounded text-xs">
+                           <div key={subject} className="flex items-center gap-1 bg-[var(--app-surface)] border border-[var(--app-border)] text-[var(--app-text)] px-3 py-1.5 rounded-full text-xs font-medium shadow-sm">
                               {subject}
-                              <button onClick={() => handleRemoveSubject(subject)} className="hover:text-red-400 ml-1">
+                              <button onClick={() => handleRemoveSubject(subject)} className="hover:text-red-400 ml-1 p-0.5 rounded-full hover:bg-[var(--app-bg)] transition-colors">
                                 <X size={12} />
                               </button>
                            </div>
@@ -841,7 +888,18 @@ function App() {
   const handleAskAI = (pkg: WingetPackage) => {
     const prompt = generateAppDetailsPrompt(pkg.name, pkg.id);
     setPendingChatQuery(prompt);
-    // Chat interface will detect this change and open/send
+  };
+
+  const handleFindAlternatives = (pkg: WingetPackage) => {
+    setMode('install');
+    const prompt = generateAlternativesPrompt(pkg.name);
+    // Directly trigger search
+    handleSearch(prompt);
+  };
+
+  const handleAnalyze = (pkg: WingetPackage) => {
+    const prompt = generateEvaluationPrompt(pkg.name);
+    setPendingChatQuery(prompt);
   };
 
   const getThemeColor = () => {
@@ -1160,6 +1218,8 @@ function App() {
                     onToggleCart={toggleCart}
                     onCopyCommand={copySingleCommand}
                     onAskAI={handleAskAI}
+                    onFindAlternatives={handleFindAlternatives}
+                    onAnalyze={handleAnalyze}
                     mode={mode}
                   />
                 ))}
@@ -1288,6 +1348,8 @@ function App() {
                 onToggleCart={toggleCart}
                 onCopyCommand={copySingleCommand}
                 onAskAI={handleAskAI}
+                onFindAlternatives={handleFindAlternatives}
+                onAnalyze={handleAnalyze}
                 mode={mode}
               />
             ))}

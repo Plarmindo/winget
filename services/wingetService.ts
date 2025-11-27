@@ -15,6 +15,19 @@ export const generateAppDetailsPrompt = (appName: string, pkgId: string): string
   return `Tell me more about the software "${appName}" (ID: ${pkgId}). What does it do, key features, and is it recommended?`;
 };
 
+export const generateAlternativesPrompt = (appName: string): string => {
+  return `alternatives to ${appName}`;
+};
+
+export const generateEvaluationPrompt = (appName: string): string => {
+  return `Evaluate the software "${appName}" honestly. No sugar coating.
+  Provide:
+  1. What is it?
+  2. The Pros.
+  3. The Cons.
+  4. A final Verdict (Recommended/Not Recommended).`;
+};
+
 export const searchPackages = async (query: string, excludeIds: string[] = [], signal?: AbortSignal): Promise<WingetPackage[]> => {
   try {
     const model = "gemini-2.5-flash";
