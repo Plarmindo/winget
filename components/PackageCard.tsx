@@ -104,7 +104,7 @@ export const PackageCard: React.FC<PackageCardProps> = ({ pkg, isInCart, onToggl
   const paddingClass = compactMode ? 'p-3' : 'p-5';
 
   return (
-    <div className={`group relative bg-[var(--app-surface)] hover:bg-[var(--app-surface)] border border-[var(--app-border)] ${config.borderClass} rounded-xl ${paddingClass} transition-all duration-200 flex flex-col h-full shadow-lg hover:shadow-xl`}>
+    <div className={`group relative bg-[var(--app-surface)] hover:bg-[var(--app-surface)] border border-[var(--app-border)] ${config.borderClass} rounded-xl ${paddingClass} transition-all duration-300 transform hover:scale-[1.02] hover:shadow-2xl flex flex-col h-full shadow-lg`}>
       
       {/* Status Badges */}
       <div className={`absolute ${compactMode ? 'top-2 right-2' : 'top-3 right-3'} flex gap-2`}>

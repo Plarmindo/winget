@@ -1,22 +1,193 @@
 import { GoogleGenAI, Modality } from "@google/genai";
-import { WingetPackage, ChatModelType } from "../types";
+import { WingetPackage, ChatModelType, AppSettings, AiConfig, PackageManagerType } from "../types";
 
-const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
+// Helper to get package manager specific instructions
+const getManagerContext = (pm: PackageManagerType) => {
+  switch (pm) {
+    case 'chocolatey':
+      return {
+        name: 'Chocolatey',
+        cmd: 'choco install',
+        idExample: 'git.install, googlechrome, vscode',
+        validation: 'Use valid Chocolatey package IDs.'
+      };
+    case 'scoop':
+      return {
+        name: 'Scoop',
+        cmd: 'scoop install',
+        idExample: 'git, googlechrome, vscode',
+        validation: 'Use valid Scoop bucket/app names.'
+      };
+    case 'brew':
+      return {
+        name: 'Homebrew',
+        cmd: 'brew install',
+        idExample: 'git, google-chrome, visual-studio-code',
+        validation: 'Use valid Homebrew formulae or cask names.'
+      };
+    case 'apt':
+      return {
+        name: 'APT (Advanced Package Tool)',
+        cmd: 'sudo apt install',
+        idExample: 'git, chromium-browser, code',
+        validation: 'Use valid Debian/Ubuntu package names.'
+      };
+    case 'winget':
+    default:
+      return {
+        name: 'Windows Package Manager (winget)',
+        cmd: 'winget install',
+        idExample: 'Mozilla.Firefox, Microsoft.VSCode, Valve.Steam',
+        validation: 'Use REAL Winget Package IDs (e.g., Publisher.App).'
+      };
+  }
+};
 
-// Simple in-memory cache for search results to improve latency (addressing critique)
+// --- AI ABSTRACTION LAYER ---
+
+const cleanBaseUrl = (url: string) => {
+  if (!url) return '';
+  return url.replace(/\/+$/, '');
+};
+
+const callOpenAICompatible = async (config: AiConfig, messages: any[], systemInstruction?: string, signal?: AbortSignal) => {
+  const headers: Record<string, string> = {
+    'Content-Type': 'application/json',
+  };
+  if (config.apiKey) {
+    headers['Authorization'] = `Bearer ${config.apiKey}`;
+  }
+
+  const finalMessages = systemInstruction 
+    ? [{ role: 'system', content: systemInstruction }, ...messages]
+    : messages;
+
+  const body = {
+    model: config.modelId || 'gpt-3.5-turbo',
+    messages: finalMessages,
+    temperature: 0.7
+  };
+
+  const baseUrl = cleanBaseUrl(config.baseUrl || 'https://api.openai.com/v1');
+
+  try {
+    const response = await fetch(`${baseUrl}/chat/completions`, {
+      method: 'POST',
+      headers,
+      body: JSON.stringify(body),
+      signal
+    });
+
+    if (!response.ok) {
+      const errText = await response.text();
+      throw new Error(`AI Provider Error (${response.status}): ${errText}`);
+    }
+
+    const data = await response.json();
+    return data.choices[0]?.message?.content || "";
+  } catch (error: any) {
+    if (signal?.aborted || error.name === 'AbortError') throw error;
+    
+    console.error("AI Call Failed:", error);
+    
+    if (error.name === 'TypeError' && error.message.includes('Failed to fetch')) {
+        throw new Error(`Connection failed to ${baseUrl}. Check your URL, CORS settings, or Mixed Content (HTTPS accessing HTTP) restrictions.`);
+    }
+    
+    throw error;
+  }
+};
+
+const callGemini = async (settings: AppSettings, prompt: string | any, systemInstruction?: string, tools?: any, signal?: AbortSignal) => {
+  // Use env key if config key is missing for Gemini
+  const apiKey = settings.aiConfig.apiKey || process.env.API_KEY;
+  if (!apiKey) throw new Error("No API Key available for Google Gemini. Please check Settings.");
+
+  const ai = new GoogleGenAI({ apiKey });
+  
+  // Map ChatModelType logic or use config model
+  let modelName = settings.aiConfig.modelId || "gemini-2.5-flash";
+  
+  const performGenerate = async (currentTools?: any) => {
+      const config: any = {
+        systemInstruction,
+        tools: currentTools
+      };
+      
+      const response = await ai.models.generateContent({
+        model: modelName,
+        contents: prompt,
+        config
+      });
+      return response.text || "";
+  };
+
+  try {
+    return await performGenerate(tools);
+  } catch (error: any) {
+    const errStr = error.message || JSON.stringify(error);
+    // Check for Search Grounding Quota limit (429 Resource Exhausted specific to search_grounding)
+    const isSearchQuotaError = errStr.includes('search_grounding_request_per_project_per_day_per_user') || 
+                               (errStr.includes('RESOURCE_EXHAUSTED') && tools && JSON.stringify(tools).includes('googleSearch'));
+
+    if (isSearchQuotaError) {
+        console.warn("Gemini Search Grounding quota exceeded. Retrying without search tools.");
+        try {
+            // Retry without tools (disabling search for this request)
+            return await performGenerate(undefined);
+        } catch (retryError: any) {
+             throw new Error(`Gemini API Error (Retry failed): ${retryError.message || 'Unknown error'}`);
+        }
+    }
+
+    console.error("Gemini API Error:", error);
+
+    if (errStr.includes('429') || errStr.includes('RESOURCE_EXHAUSTED')) {
+         throw new Error("Gemini API Quota Exceeded. Please try again later or check your billing.");
+    }
+
+    throw new Error(`Gemini API Error: ${error.message || 'Unknown error'}`);
+  }
+};
+
+// Unified AI Caller
+const generateAIResponse = async (
+  settings: AppSettings, 
+  content: string | { role: string, content: string }[], 
+  systemInstruction: string,
+  useTools: boolean = true,
+  signal?: AbortSignal
+): Promise<string> => {
+  const { provider } = settings.aiConfig;
+
+  if (provider === 'gemini') {
+    // Gemini handles tools (Google Search) natively
+    const tools = useTools ? [{ googleSearch: {} }] : undefined;
+    
+    // Map OpenAI-style messages to Gemini history if array (Simple fallback)
+    if (Array.isArray(content)) {
+       // Just concatenate for simple search usage if accidentally passed array
+       const prompt = content.map(c => `${c.role}: ${c.content}`).join('\n');
+       return await callGemini(settings, prompt, systemInstruction, tools, signal);
+    }
+
+    return await callGemini(settings, content, systemInstruction, tools, signal);
+  } else {
+    // OpenAI / Ollama / Custom
+    let sys = systemInstruction;
+    if (useTools) {
+       sys += "\n\nNOTE: You do not have real-time internet access. Rely on your internal knowledge to generate valid package data.";
+    }
+
+    const messages = typeof content === 'string' ? [{ role: 'user', content }] : content;
+    return await callOpenAICompatible(settings.aiConfig, messages, sys, signal);
+  }
+};
+
+// --- END AI ABSTRACTION ---
+
+// Simple in-memory cache
 const searchCache = new Map<string, WingetPackage[]>();
-
-const SYSTEM_INSTRUCTION = `
-You are a backend for a Windows Package Manager (winget) web interface. 
-Your goal is to return valid, real, and popular Winget package data based on user queries.
-Always return a strictly valid JSON array.
-
-CRITICAL RULES:
-1. Do NOT invent Package IDs. If you are unsure, do not list it.
-2. Use REAL Package IDs (e.g., 'Mozilla.Firefox', 'Microsoft.VSCode', 'Valve.Steam').
-3. HALLUCINATIONS OF IDs ARE FORBIDDEN.
-4. Classify them into categories like 'Development', 'Utilities', 'Browsers', 'Media', 'Gaming', 'System'.
-`;
 
 export const generateAppDetailsPrompt = (appName: string, pkgId: string): string => {
   return `Tell me more about the software "${appName}" (ID: ${pkgId}). What does it do, key features, and is it recommended?`;
@@ -27,27 +198,12 @@ export const generateAlternativesPrompt = (appName: string): string => {
 };
 
 export const generateEvaluationPrompt = (appName: string): string => {
-  return `Evaluate the software "${appName}" honestly. No sugar coating.
-  Provide:
-  1. What is it?
-  2. The Pros.
-  3. The Cons.
-  4. A final Verdict (Recommended/Not Recommended).`;
-};
-
-const isQuotaError = (error: any): boolean => {
-  const msg = error.message || JSON.stringify(error);
-  // specific grounding quota metric or general 429
-  return msg.includes('429') || 
-         msg.includes('RESOURCE_EXHAUSTED') || 
-         msg.includes('Quota exceeded') ||
-         msg.includes('search_grounding_request');
+  return `Evaluate the software "${appName}" honestly. No sugar coating. Provide Pros, Cons, and a Verdict.`;
 };
 
 const processSearchResult = (text: string | undefined): WingetPackage[] => {
   if (!text) return [];
   
-  // Cleanup markdown if present
   let jsonString = text;
   const markdownMatch = text.match(/```json\s*([\s\S]*?)\s*```/);
   if (markdownMatch) {
@@ -57,7 +213,6 @@ const processSearchResult = (text: string | undefined): WingetPackage[] => {
      if (simpleMatch) jsonString = simpleMatch[1];
   }
 
-  // Cleanup potential leading/trailing non-json text
   const firstBracket = jsonString.indexOf('[');
   const lastBracket = jsonString.lastIndexOf(']');
   if (firstBracket !== -1 && lastBracket !== -1) {
@@ -70,112 +225,100 @@ const processSearchResult = (text: string | undefined): WingetPackage[] => {
     
     return parsed.filter((pkg: any) => 
       pkg && 
-      typeof pkg.id === 'string' && 
-      typeof pkg.name === 'string'
-    ) as WingetPackage[];
+      (typeof pkg.id === 'string' || typeof pkg.name === 'string')
+    ).map(pkg => ({
+      ...pkg,
+      id: pkg.id || pkg.name, // Fallback for systems like apt
+      name: pkg.name || pkg.id,
+      description: pkg.description || 'No description provided.',
+      publisher: pkg.publisher || 'Unknown',
+      category: pkg.category || 'Utility'
+    })) as WingetPackage[];
   } catch (e) {
     console.warn("Failed to parse JSON from search result", e);
     return [];
   }
 };
 
-export const searchPackages = async (query: string, excludeIds: string[] = [], signal?: AbortSignal): Promise<WingetPackage[]> => {
-  // Check Cache first to reduce latency
-  const cacheKey = `${query}-${excludeIds.sort().join(',')}`;
+export const searchPackages = async (
+  query: string, 
+  excludeIds: string[] = [], 
+  settings: AppSettings,
+  signal?: AbortSignal
+): Promise<WingetPackage[]> => {
+  const { activePackageManager } = settings;
+  const managerInfo = getManagerContext(activePackageManager);
+
+  const cacheKey = `${activePackageManager}-${query}-${excludeIds.sort().join(',')}`;
   if (searchCache.has(cacheKey)) {
     console.log("Serving from cache:", cacheKey);
     return searchCache.get(cacheKey)!;
   }
 
-  const model = "gemini-2.5-flash"; // Use Flash for speed
   const isPopularRequest = query === "POPULAR_ESSENTIALS";
   
+  const SYSTEM_INSTRUCTION = `
+You are a backend for a ${managerInfo.name} web interface. 
+Your goal is to return valid, real, and popular package data based on user queries for ${managerInfo.name}.
+Always return a strictly valid JSON array.
+
+CRITICAL RULES:
+1. ${managerInfo.validation}
+2. Use REAL, EXISTING Package IDs compatible with \`${managerInfo.cmd}\`.
+3. HALLUCINATIONS OF IDs ARE FORBIDDEN. If you are unsure of an ID, do not invent one.
+4. Prioritize Exact Matches. If the user searches for a specific tool, ensure it is the first result.
+5. Classify them into categories like 'Development', 'Utilities', 'Browsers', 'Media', 'Gaming', 'System'.
+`;
+  
   let prompt = "";
-  const excludeStr = excludeIds.length > 0 ? `Do NOT include these Package IDs: ${excludeIds.join(', ')}.` : "";
+  const excludeStr = excludeIds.length > 0 ? `Do NOT include these IDs: ${excludeIds.join(', ')}.` : "";
 
   if (isPopularRequest) {
-    prompt = `List 24 essential and popular Windows apps for developers and power users (e.g. VS Code, Terminal, Chrome, 7zip, Docker, Discord, Spotify, PowerToys). 
+    prompt = `List 24 essential and popular apps for ${managerInfo.name} users (e.g. VS Code, Terminal, Chrome, 7zip, Docker, Discord, Spotify). 
     ${excludeStr} 
     Return ONLY a JSON array of objects with keys: id, name, description, publisher, category, version.
     Ensure the JSON is valid and strictly formatted.`;
   } else {
-    // Enhanced prompt for typo resilience and fuzzy matching
-    prompt = `The user is searching for software using the term "${query}".
-    1. First, correct any potential typos in the search term.
-    2. Identify the specific software or type of software the user wants.
-    3. Use Google Search to verify the correct Winget Package IDs.
-    4. Return around 24 relevant packages.
+    prompt = `The user is searching for software using the term "${query}" on ${managerInfo.name}.
+    1. Identify the specific software being requested. Prioritize exact matches for "${query}".
+    2. If the term is broad, provide a diverse set of top-rated packages.
+    3. Return up to 18 relevant packages.
     ${excludeStr}
     
     Return ONLY a raw JSON array of objects with keys: id, name, description, publisher, category, version.
-    Do not wrap in markdown code blocks if possible.`;
+    Example ID format: ${managerInfo.idExample}`;
   }
 
   try {
     if (signal?.aborted) throw new DOMException('Aborted', 'AbortError');
 
-    // Attempt 1: With Grounding
-    const response = await ai.models.generateContent({
-      model,
-      contents: prompt,
-      config: {
-        systemInstruction: SYSTEM_INSTRUCTION,
-        tools: [{ googleSearch: {} }], // Grounding enabled for accuracy
-      },
-    });
+    const responseText = await generateAIResponse(settings, prompt, SYSTEM_INSTRUCTION, true, signal);
 
     if (signal?.aborted) throw new DOMException('Aborted', 'AbortError');
     
-    const results = processSearchResult(response.text);
+    const results = processSearchResult(responseText);
     if (results.length > 0) searchCache.set(cacheKey, results);
     return results;
 
   } catch (error: any) {
     if (signal?.aborted || error.name === 'AbortError' || error.message === 'Aborted') {
-      console.log('Search aborted');
       throw error;
     }
-
-    // Attempt 2: Fallback if Quota Exceeded (429)
-    if (isQuotaError(error)) {
-        console.warn("Grounding Quota Exceeded. Falling back to non-grounded search.");
-        try {
-            const responseFallback = await ai.models.generateContent({
-                model,
-                contents: prompt,
-                config: {
-                  systemInstruction: SYSTEM_INSTRUCTION + "\nNOTE: Search tools are disabled. Rely on your internal knowledge base for accurate Package IDs.",
-                  // tools: undefined (removed)
-                },
-            });
-            if (signal?.aborted) throw new DOMException('Aborted', 'AbortError');
-            
-            const results = processSearchResult(responseFallback.text);
-            if (results.length > 0) searchCache.set(cacheKey, results);
-            return results;
-        } catch (fallbackError) {
-             console.error("Fallback Search Error:", fallbackError);
-             return [];
-        }
-    }
-
-    console.error("Gemini Search Error:", error);
-    return [];
+    console.error("Search Error:", error);
+    // Re-throw so UI can display it
+    throw error;
   }
 };
 
-/**
- * Parses the raw text output from 'winget list' or 'winget upgrade' into WingetPackage objects.
- */
 export const parseWingetOutput = (output: string): WingetPackage[] => {
   const lines = output.split('\n');
   const packages: WingetPackage[] = [];
   
   let startIndex = 0;
   for (let i = 0; i < lines.length; i++) {
-    if (lines[i].trim().startsWith('---')) {
+    if (lines[i].trim().startsWith('---') || lines[i].toLowerCase().includes('name')) {
       startIndex = i + 1;
-      break;
+      if (lines[i].trim().startsWith('---')) break;
     }
   }
 
@@ -189,7 +332,7 @@ export const parseWingetOutput = (output: string): WingetPackage[] => {
     
     if (columns.length >= 2) {
       const name = columns[0];
-      const id = columns[1];
+      const id = columns[1] || name; // Fallback
       const version = columns[2] || 'Unknown';
       
       let availableVersion = undefined;
@@ -197,13 +340,14 @@ export const parseWingetOutput = (output: string): WingetPackage[] => {
 
       if (columns.length >= 4) {
          const col3 = columns[3].trim();
-         if (!['winget', 'msstore', 'xwinget'].includes(col3.toLowerCase()) && /^[0-9.]+/.test(col3)) {
+         // Simple check to see if col3 looks like a version number
+         if (/^[0-9.]+/.test(col3)) {
             availableVersion = col3;
             category = 'Update Available';
          }
       }
 
-      if (id && id.length > 2 && !id.includes(' ')) {
+      if (name.length > 0) {
         packages.push({
           id: id,
           name: name,
@@ -222,17 +366,14 @@ export const parseWingetOutput = (output: string): WingetPackage[] => {
 };
 
 export const transcribeAudio = async (audioBase64: string, mimeType: string = "audio/wav"): Promise<string> => {
+  // Hardcoded to Gemini for Multimodal capabilities
   try {
+    const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
     const response = await ai.models.generateContent({
       model: "gemini-2.5-flash",
       contents: {
         parts: [
-          {
-            inlineData: {
-              mimeType: mimeType,
-              data: audioBase64
-            }
-          },
+          { inlineData: { mimeType, data: audioBase64 } },
           { text: "Transcribe this audio exactly. Do not add timestamps or speaker labels. Just the text." }
         ]
       }
@@ -245,134 +386,138 @@ export const transcribeAudio = async (audioBase64: string, mimeType: string = "a
 };
 
 export const generateSpeech = async (text: string): Promise<string | null> => {
+   // Hardcoded to Gemini for Multimodal capabilities
   try {
+    const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
     const response = await ai.models.generateContent({
       model: "gemini-2.5-flash-preview-tts",
-      contents: {
-        parts: [{ text }]
-      },
+      contents: { parts: [{ text }] },
       config: {
         responseModalities: [Modality.AUDIO],
         speechConfig: {
-          voiceConfig: {
-            prebuiltVoiceConfig: { voiceName: 'Kore' },
-          },
+          voiceConfig: { prebuiltVoiceConfig: { voiceName: 'Kore' } },
         },
       }
     });
-    
-    const base64Audio = response.candidates?.[0]?.content?.parts?.[0]?.inlineData?.data;
-    return base64Audio || null;
+    return response.candidates?.[0]?.content?.parts?.[0]?.inlineData?.data || null;
   } catch (error) {
     console.error("TTS error:", error);
     return null;
   }
 };
 
-const CHAT_SYSTEM_INSTRUCTION = `
-You are an expert, helpful assistant for the Windows Package Manager (Winget).
-Your goal is to assist users in finding, installing, upgrading, and removing software on Windows.
-
-**Response Guidelines:**
-1.  **Formatting:** Use standard Markdown. Use bold for package names and code blocks for commands.
-2.  **Commands:** When suggesting commands, use code blocks (e.g., \`winget install <id> -e\`). Always prefer the \`-e\` (exact) flag.
-3.  **Package Lists:** If the user asks to find, list, or recommends apps, YOU MUST include a structured JSON array at the end of your response in a separate \`\`\`json\`\`\` block.
-    *   The JSON must be an array of objects with keys: \`id\`, \`name\`, \`description\`, \`publisher\` (optional), \`category\` (optional).
-4.  **Tone:** Be technical but accessible. Concise and accurate.
-`;
-
 export const chatWithAI = async (
   message: string, 
   history: { role: string, parts: { text: string }[] }[],
-  modelType: ChatModelType,
+  modelType: ChatModelType, // Legacy param, ignored if custom provider active
+  settings: AppSettings,
   signal?: AbortSignal
 ) => {
-  let modelName = 'gemini-2.5-flash';
-  let config: any = {
-    systemInstruction: CHAT_SYSTEM_INSTRUCTION,
-    tools: [{ googleSearch: {} }],
-  };
+  const { activePackageManager, aiConfig } = settings;
+  const managerInfo = getManagerContext(activePackageManager);
 
-  if (modelType === 'fast') {
-    modelName = 'gemini-2.5-flash-lite'; // Lite for speed
-    config.tools = undefined; 
-  } else if (modelType === 'balanced') {
-    modelName = 'gemini-2.5-flash'; // Standard for balance
-  } else if (modelType === 'smart') {
-    modelName = 'gemini-3-pro-preview'; // Pro for smarts
-  } else if (modelType === 'thinking') {
-    modelName = 'gemini-3-pro-preview';
-    config.thinkingConfig = { thinkingBudget: 32768 }; // Thinking for depth
-  } else {
-      modelName = 'gemini-2.5-flash'; 
-  }
+  const CHAT_SYSTEM_INSTRUCTION = `
+You are an expert, helpful assistant for the ${managerInfo.name}.
+Your goal is to assist users in finding, installing, upgrading, and removing software on using ${managerInfo.cmd}.
 
-  const runChat = async (currentConfig: any) => {
-      const chat = ai.chats.create({
-        model: modelName,
-        history: history,
-        config: currentConfig
-      });
-      return await chat.sendMessage({ message });
-  };
+**Response Guidelines:**
+1. **Formatting:** Use standard Markdown. Use bold for package names and code blocks for commands.
+2. **Commands:** When suggesting commands, use code blocks (e.g., \`${managerInfo.cmd} <id>\`).
+3. **Package Lists:** If asked to find apps, include a structured JSON array at the end in a \`\`\`json\`\`\` block.
+4. **Context:** You are currently configured for **${managerInfo.name}**. Do not provide commands for other package managers unless asked.
+`;
 
-  try {
-    if (signal?.aborted) throw new DOMException('Aborted', 'AbortError');
-    
-    // Attempt 1
-    const result = await runChat(config);
-    
-    if (signal?.aborted) throw new DOMException('Aborted', 'AbortError');
+  // If Provider is Gemini
+  if (aiConfig.provider === 'gemini') {
+      const apiKey = aiConfig.apiKey || process.env.API_KEY;
+      if (!apiKey) throw new Error("No API Key. Check Settings.");
+      
+      const ai = new GoogleGenAI({ apiKey });
+      
+      // Determine model from config OR legacy logic
+      let modelName = aiConfig.modelId || 'gemini-2.5-flash';
+      // Preserve the "Thinking" mode logic if using Gemini
+      let thinkingConfig = undefined;
 
-    const sources = result.candidates?.[0]?.groundingMetadata?.groundingChunks
-      ?.map((chunk: any) => ({
-        uri: chunk.web?.uri,
-        title: chunk.web?.title || 'Source Link'
-      }))
-      .filter((s: any) => s.uri) || [];
+      // If user selected specific modes in the legacy UI but didn't override model ID manually in settings:
+      if (!aiConfig.modelId) {
+          if (modelType === 'fast') modelName = 'gemini-2.5-flash-lite';
+          else if (modelType === 'smart') modelName = 'gemini-3-pro-preview';
+          else if (modelType === 'thinking') {
+             modelName = 'gemini-3-pro-preview';
+             thinkingConfig = { thinkingBudget: 32768 };
+          }
+      }
 
-    return {
-      text: result.text,
-      sources: sources
-    };
-  } catch (error: any) {
-    if (signal?.aborted || (error as any).name === 'AbortError') {
-      throw new DOMException('Aborted', 'AbortError');
-    }
+      const createChatAndSend = async (useSearch: boolean) => {
+          const config: any = {
+            systemInstruction: CHAT_SYSTEM_INSTRUCTION,
+            thinkingConfig
+          };
+          
+          if (useSearch) {
+              config.tools = [{ googleSearch: {} }];
+          }
 
-    // Attempt 2: Fallback for Quota
-    if (isQuotaError(error)) {
-        console.warn("Chat Grounding Quota Exceeded. Retrying without tools.");
-        try {
-            const fallbackConfig = { ...config, tools: undefined };
-            const resultFallback = await runChat(fallbackConfig);
-            if (signal?.aborted) throw new DOMException('Aborted', 'AbortError');
-            
-            return {
-                text: resultFallback.text + "\n\n*(Note: Search features unavailable due to quota limits)*",
-                sources: []
-            };
-        } catch(fallbackError) {
-             console.error("Fallback Chat Error:", fallbackError);
-             throw fallbackError;
-        }
-    }
+          const chat = ai.chats.create({
+            model: modelName,
+            history: history,
+            config
+          });
+          
+          return await chat.sendMessage({ message });
+      };
 
-    console.error("Chat error:", error);
-    throw error;
-  }
+      try {
+          // Attempt with Search enabled first
+          const result = await createChatAndSend(true);
+          
+          const sources = result.candidates?.[0]?.groundingMetadata?.groundingChunks
+          ?.map((chunk: any) => ({
+            uri: chunk.web?.uri,
+            title: chunk.web?.title || 'Source Link'
+          }))
+          .filter((s: any) => s.uri) || [];
+
+          return { text: result.text || "No response text.", sources };
+
+      } catch (error: any) {
+          const errStr = error.message || JSON.stringify(error);
+          const isSearchQuotaError = errStr.includes('search_grounding_request_per_project_per_day_per_user') || 
+                                     errStr.includes('RESOURCE_EXHAUSTED');
+          
+          if (isSearchQuotaError) {
+               console.warn("Chat Search Quota Exceeded. Retrying without search.");
+               try {
+                   // Retry without Search
+                   const retryResult = await createChatAndSend(false);
+                   return { text: retryResult.text || "No response text. (Search disabled due to quota)", sources: [] };
+               } catch (retryError: any) {
+                   throw new Error("Chat failed even after disabling search: " + (retryError.message || 'Unknown error'));
+               }
+          }
+          throw error;
+      }
+  } 
+  
+  // Generic Provider (OpenAI/Ollama)
+  const messages = history.map(h => ({
+      role: h.role === 'model' ? 'assistant' : 'user',
+      content: h.parts[0].text
+  }));
+  messages.push({ role: 'user', content: message });
+
+  const text = await callOpenAICompatible(aiConfig, messages, CHAT_SYSTEM_INSTRUCTION, signal);
+  return { text, sources: [] };
 };
 
-export const enhancePrompt = async (originalPrompt: string): Promise<string> => {
+export const enhancePrompt = async (originalPrompt: string, settings: AppSettings): Promise<string> => {
   try {
-    const response = await ai.models.generateContent({
-      model: "gemini-2.5-flash",
-      contents: `Rewrite the following user query to be more specific and effective for finding Windows software packages via Winget. 
-      If it's vague, add context (e.g. "browsers" -> "popular modern web browsers for windows").
+    const prompt = `Rewrite the following user query to be more specific and effective for finding software packages. 
       Keep it concise. Return ONLY the rewriten prompt text.
-      Original: "${originalPrompt}"`
-    });
-    return response.text?.trim() || originalPrompt;
+      Original: "${originalPrompt}"`;
+      
+    return await generateAIResponse(settings, prompt, "You are a prompt engineer.", false);
   } catch (error) {
     return originalPrompt;
   }

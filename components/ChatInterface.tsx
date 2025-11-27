@@ -1,6 +1,6 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { MessageSquare, Mic, Send, X, Bot, BrainCircuit, Zap, Volume2, Sparkles, Loader2, StopCircle, Trash2, Link as LinkIcon, Box, Copy, Check, ArrowRightCircle, Grid, ThumbsUp, ThumbsDown, Square } from 'lucide-react';
-import { ChatMessage, ChatModelType, WingetPackage } from '../types';
+import { MessageSquare, Mic, Send, X, Bot, BrainCircuit, Zap, Volume2, Sparkles, Loader2, StopCircle, Trash2, Link as LinkIcon, Box, Copy, Check, Grid, ThumbsUp, ThumbsDown, Square } from 'lucide-react';
+import { ChatMessage, ChatModelType, WingetPackage, AppSettings } from '../types';
 import { chatWithAI, transcribeAudio, generateSpeech, enhancePrompt } from '../services/wingetService';
 
 const STORAGE_KEY = 'winget_chat_history';
@@ -18,9 +18,10 @@ interface ChatInterfaceProps {
   pendingMessage?: string;
   onClearPendingMessage?: () => void;
   defaultModel: ChatModelType;
+  settings: AppSettings;
 }
 
-export const ChatInterface: React.FC<ChatInterfaceProps> = ({ onShowResults, pendingMessage, onClearPendingMessage, defaultModel }) => {
+export const ChatInterface: React.FC<ChatInterfaceProps> = ({ onShowResults, pendingMessage, onClearPendingMessage, defaultModel, settings }) => {
   const [isOpen, setIsOpen] = useState(false);
   
   // Initialize from localStorage if available
@@ -38,7 +39,7 @@ export const ChatInterface: React.FC<ChatInterfaceProps> = ({ onShowResults, pen
     return [{
       id: '1',
       role: 'model',
-      text: 'Hi! I can help you find packages, explain commands, or write complex scripts. How can I help?',
+      text: `Hi! I'm your assistant for ${settings.activePackageManager}. I can help you find packages, explain commands, or write scripts. How can I help?`,
       timestamp: Date.now()
     }];
   });
@@ -104,7 +105,7 @@ export const ChatInterface: React.FC<ChatInterfaceProps> = ({ onShowResults, pen
       const initialMsg: ChatMessage = {
         id: Date.now().toString(),
         role: 'model',
-        text: 'History cleared. How can I help you with Winget today?',
+        text: 'History cleared. How can I help you today?',
         timestamp: Date.now()
       };
       setMessages([initialMsg]);
@@ -118,7 +119,7 @@ export const ChatInterface: React.FC<ChatInterfaceProps> = ({ onShowResults, pen
     setIsEnhancing(true);
     setEnhancedProposal(null);
     try {
-      const enhanced = await enhancePrompt(input);
+      const enhanced = await enhancePrompt(input, settings);
       if (enhanced && enhanced !== input) {
         setEnhancedProposal(enhanced);
       }
@@ -189,14 +190,14 @@ export const ChatInterface: React.FC<ChatInterfaceProps> = ({ onShowResults, pen
         parts: [{ text: m.text }]
       }));
 
-      const response = await chatWithAI(userMsg.text, history, modelType, ac.signal);
+      const response = await chatWithAI(userMsg.text, history, modelType, settings, ac.signal);
       
       const botMsg: ChatMessage = {
         id: (Date.now() + 1).toString(),
         role: 'model',
         text: response.text || "I'm sorry, I couldn't generate a response.",
         timestamp: Date.now(),
-        isThinking: modelType === 'thinking',
+        isThinking: modelType === 'thinking' && settings.aiConfig.provider === 'gemini',
         sources: response.sources
       };
 
@@ -216,7 +217,7 @@ export const ChatInterface: React.FC<ChatInterfaceProps> = ({ onShowResults, pen
         const errorMsg: ChatMessage = {
             id: (Date.now() + 1).toString(),
             role: 'model',
-            text: "Sorry, something went wrong. Please try again.",
+            text: `Sorry, something went wrong with the AI provider (${settings.aiConfig.provider}). Please check your settings.`,
             timestamp: Date.now()
         };
         setMessages(prev => [...prev, errorMsg]);
@@ -379,9 +380,9 @@ export const ChatInterface: React.FC<ChatInterfaceProps> = ({ onShowResults, pen
     for (const match of backtickMatch) {
         if(match[1]) ids.add(match[1]);
     }
-    const commandMatch = text.matchAll(/winget\s+(?:install|upgrade|uninstall)\s+(?:--id\s+)?([A-Z][a-zA-Z0-9]+\.[a-zA-Z0-9.]+)/gi);
+    const commandMatch = text.matchAll(/(?:winget|choco|scoop|brew|apt)\s+(?:install|upgrade|uninstall|update|remove)\s+(?:--id\s+)?([a-zA-Z0-9.\-_]+)/gi);
     for (const match of commandMatch) {
-        if(match[1]) ids.add(match[1]);
+        if(match[1] && match[1].length > 2) ids.add(match[1]);
     }
     return Array.from(ids);
   };
@@ -439,7 +440,9 @@ export const ChatInterface: React.FC<ChatInterfaceProps> = ({ onShowResults, pen
             <div className="flex justify-between items-center">
               <div className="flex items-center space-x-2">
                 <Bot size={20} className="text-[var(--app-primary)]" />
-                <span className="font-semibold text-[var(--app-text)]">Winget Assistant</span>
+                <span className="font-semibold text-[var(--app-text)]">
+                   {settings.aiConfig.provider === 'gemini' ? 'Gemini Assistant' : settings.aiConfig.provider === 'ollama' ? 'Local AI' : 'Assistant'}
+                </span>
               </div>
               <div className="flex items-center gap-1">
                  <button 
@@ -459,6 +462,7 @@ export const ChatInterface: React.FC<ChatInterfaceProps> = ({ onShowResults, pen
               </div>
             </div>
             
+            {settings.aiConfig.provider === 'gemini' && (
             <div className="flex bg-[var(--app-bg)] rounded-lg p-1 text-[10px] w-full">
               <button 
                 onClick={() => handleSetModel('fast')}
@@ -482,6 +486,7 @@ export const ChatInterface: React.FC<ChatInterfaceProps> = ({ onShowResults, pen
                 <BrainCircuit size={10} /> Think
               </button>
             </div>
+            )}
           </div>
 
           <div className="flex-1 overflow-y-auto p-4 space-y-4 bg-[var(--app-bg)]/50">
@@ -582,15 +587,17 @@ export const ChatInterface: React.FC<ChatInterfaceProps> = ({ onShowResults, pen
                           </button>
                         </div>
                       </div>
-
-                      <button 
-                        onClick={() => playTTS(msg.text, msg.id)}
-                        disabled={!!playingMessageId}
-                        className={`p-1 rounded hover:bg-[var(--app-bg)] transition-colors ${playingMessageId === msg.id ? 'text-green-400' : 'text-[var(--app-text-muted)]'}`}
-                        title="Read aloud"
-                      >
-                         <Volume2 size={14} className={playingMessageId === msg.id ? 'animate-pulse' : ''} />
-                      </button>
+                      
+                      {settings.aiConfig.provider === 'gemini' && (
+                        <button 
+                          onClick={() => playTTS(msg.text, msg.id)}
+                          disabled={!!playingMessageId}
+                          className={`p-1 rounded hover:bg-[var(--app-bg)] transition-colors ${playingMessageId === msg.id ? 'text-green-400' : 'text-[var(--app-text-muted)]'}`}
+                          title="Read aloud"
+                        >
+                          <Volume2 size={14} className={playingMessageId === msg.id ? 'animate-pulse' : ''} />
+                        </button>
+                      )}
                     </div>
                   )}
                 </div>
@@ -614,11 +621,11 @@ export const ChatInterface: React.FC<ChatInterfaceProps> = ({ onShowResults, pen
             {isLoading && !isRecording && (
               <div className="flex justify-start">
                 <div className={`rounded-2xl rounded-bl-none p-3 border flex items-center space-x-2 transition-all ${
-                   modelType === 'thinking' 
+                   modelType === 'thinking' && settings.aiConfig.provider === 'gemini'
                    ? 'bg-rose-900/10 border-rose-500/30 text-rose-400' 
                    : 'bg-[var(--app-surface)] border-[var(--app-border)]'
                 }`}>
-                  {modelType === 'thinking' ? (
+                  {modelType === 'thinking' && settings.aiConfig.provider === 'gemini' ? (
                      <>
                        <BrainCircuit size={16} className="animate-pulse" />
                        <span className="text-xs font-medium animate-pulse">Deep Reasoning...</span>
@@ -704,18 +711,23 @@ export const ChatInterface: React.FC<ChatInterfaceProps> = ({ onShowResults, pen
                         <Sparkles size={16} />
                       </button>
 
+                      {/* Only allow Audio input if using Gemini or browser allows simple transcription handling, 
+                          but our transcribeAudio function is hardcoded to Gemini for now. */}
                       <button
                         onMouseDown={startRecording}
                         onMouseUp={stopRecording}
                         onMouseLeave={stopRecording}
                         onTouchStart={startRecording}
                         onTouchEnd={stopRecording}
+                        disabled={settings.aiConfig.provider !== 'gemini'} 
                         className={`p-1.5 rounded-full transition-all ${
+                          settings.aiConfig.provider !== 'gemini' ? 'opacity-30 cursor-not-allowed' : ''
+                        } ${
                           isRecording 
                             ? 'bg-red-500 text-white animate-pulse scale-110 shadow-lg shadow-red-500/30' 
                             : 'text-[var(--app-text-muted)] hover:text-[var(--app-text)] hover:bg-[var(--app-surface)]'
                         }`}
-                        title="Hold to speak"
+                        title={settings.aiConfig.provider === 'gemini' ? "Hold to speak" : "Voice only available with Gemini"}
                       >
                         {isRecording ? <StopCircle size={18} /> : <Mic size={18} />}
                       </button>
