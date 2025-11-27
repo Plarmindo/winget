@@ -54,6 +54,7 @@ export interface AppTheme {
 export interface AppSettings {
   reducedMotion: boolean;
   highContrast: boolean;
+  compactMode: boolean; // New setting for denser layout
   defaultModel: ChatModelType;
   activeThemeId: string;
   themes: AppTheme[];

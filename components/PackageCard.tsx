@@ -11,9 +11,10 @@ interface PackageCardProps {
   onFindAlternatives?: (pkg: WingetPackage) => void;
   onAnalyze?: (pkg: WingetPackage) => void;
   mode: AppMode;
+  compactMode?: boolean;
 }
 
-export const PackageCard: React.FC<PackageCardProps> = ({ pkg, isInCart, onToggleCart, onCopyCommand, onAskAI, onFindAlternatives, onAnalyze, mode }) => {
+export const PackageCard: React.FC<PackageCardProps> = ({ pkg, isInCart, onToggleCart, onCopyCommand, onAskAI, onFindAlternatives, onAnalyze, mode, compactMode }) => {
   const [isExpanded, setIsExpanded] = useState(false);
   const [isAnimating, setIsAnimating] = useState(false);
   const [showCopied, setShowCopied] = useState(false);
@@ -44,8 +45,8 @@ export const PackageCard: React.FC<PackageCardProps> = ({ pkg, isInCart, onToggl
     switch (mode) {
       case 'upgrade':
         return {
-          icon: <RefreshCw size={16} />,
-          text: isInCart ? 'Added to Upgrade' : 'Add to Upgrade',
+          icon: <RefreshCw size={compactMode ? 14 : 16} />,
+          text: isInCart ? 'Added' : 'Add Upgrade',
           btnClass: isInCart 
             ? 'bg-emerald-600 hover:bg-emerald-700 shadow-emerald-900/20' 
             : 'bg-emerald-600/80 hover:bg-emerald-500 shadow-emerald-900/20',
@@ -55,8 +56,8 @@ export const PackageCard: React.FC<PackageCardProps> = ({ pkg, isInCart, onToggl
         };
       case 'uninstall':
         return {
-          icon: <Trash2 size={16} />,
-          text: isInCart ? 'Added to Uninstall' : 'Add to Uninstall',
+          icon: <Trash2 size={compactMode ? 14 : 16} />,
+          text: isInCart ? 'Added' : 'Uninstall',
           btnClass: isInCart 
             ? 'bg-red-600 hover:bg-red-700 shadow-red-900/20' 
             : 'bg-red-600/80 hover:bg-red-500 shadow-red-900/20',
@@ -67,8 +68,8 @@ export const PackageCard: React.FC<PackageCardProps> = ({ pkg, isInCart, onToggl
       case 'install':
       default:
         return {
-          icon: <Plus size={16} />,
-          text: isInCart ? 'Added to Install' : 'Add to Install',
+          icon: <Plus size={compactMode ? 14 : 16} />,
+          text: isInCart ? 'Added' : 'Install',
           btnClass: isInCart 
             ? 'bg-[var(--app-primary)] hover:opacity-90 shadow-blue-900/20' 
             : 'bg-[var(--app-primary)] hover:opacity-90 shadow-blue-900/20',
@@ -80,15 +81,16 @@ export const PackageCard: React.FC<PackageCardProps> = ({ pkg, isInCart, onToggl
   };
 
   const config = getModeConfig();
+  const paddingClass = compactMode ? 'p-3' : 'p-5';
 
   return (
-    <div className={`group relative bg-[var(--app-surface)] hover:bg-[var(--app-surface)] border border-[var(--app-border)] ${config.borderClass} rounded-xl p-5 transition-all duration-200 flex flex-col h-full shadow-lg hover:shadow-xl`}>
+    <div className={`group relative bg-[var(--app-surface)] hover:bg-[var(--app-surface)] border border-[var(--app-border)] ${config.borderClass} rounded-xl ${paddingClass} transition-all duration-200 flex flex-col h-full shadow-lg hover:shadow-xl`}>
       
       {/* Status Badges */}
-      <div className="absolute top-3 right-3 flex gap-2">
+      <div className={`absolute ${compactMode ? 'top-2 right-2' : 'top-3 right-3'} flex gap-2`}>
         {isUpdateAvailable && (
           <span className="px-2 py-0.5 rounded text-[10px] font-bold uppercase tracking-wide bg-emerald-500/20 text-emerald-400 border border-emerald-500/30">
-            Update Available
+            {compactMode ? 'Upd' : 'Update Available'}
           </span>
         )}
         {!isUpdateAvailable && isInstalled && (
@@ -99,13 +101,13 @@ export const PackageCard: React.FC<PackageCardProps> = ({ pkg, isInCart, onToggl
       </div>
 
       {/* Header */}
-      <div className="flex justify-between items-start mb-3 pt-4">
+      <div className={`flex justify-between items-start ${compactMode ? 'mb-2 pt-2' : 'mb-3 pt-4'}`}>
         <div className="flex items-center space-x-3 w-full">
-          <div className={`w-12 h-12 rounded-lg bg-gradient-to-br ${config.gradientClass} flex items-center justify-center text-white font-bold text-xl shadow-inner shrink-0`}>
+          <div className={`${compactMode ? 'w-10 h-10 text-lg' : 'w-12 h-12 text-xl'} rounded-lg bg-gradient-to-br ${config.gradientClass} flex items-center justify-center text-white font-bold shadow-inner shrink-0`}>
             {displayChar}
           </div>
           <div className="min-w-0 flex-1">
-            <h3 className="font-semibold text-[var(--app-text)] leading-tight truncate pr-20" title={displayName}>{displayName}</h3>
+            <h3 className={`font-semibold text-[var(--app-text)] leading-tight truncate pr-16`} title={displayName}>{displayName}</h3>
             <p className="text-xs text-[var(--app-text-muted)] mt-0.5 truncate flex items-center gap-1">
               <Globe size={10} />
               {pkg.publisher || 'Unknown Publisher'}
@@ -115,7 +117,7 @@ export const PackageCard: React.FC<PackageCardProps> = ({ pkg, isInCart, onToggl
       </div>
 
       {/* Version Info Row */}
-      <div className="grid grid-cols-2 gap-2 text-xs mb-3 bg-[var(--app-bg)]/50 p-2 rounded-lg border border-[var(--app-border)]">
+      <div className={`grid grid-cols-2 gap-2 text-xs ${compactMode ? 'mb-2' : 'mb-3'} bg-[var(--app-bg)]/50 p-2 rounded-lg border border-[var(--app-border)]`}>
         <div className="flex flex-col border-r border-[var(--app-border)] pr-2">
            <span className="text-[var(--app-text-muted)] text-[9px] uppercase font-bold tracking-wider mb-0.5">Installed</span>
            {pkg.version ? (
@@ -137,50 +139,59 @@ export const PackageCard: React.FC<PackageCardProps> = ({ pkg, isInCart, onToggl
       </div>
 
       {/* Description */}
-      <div className="flex-grow mb-4">
-        <p className={`text-sm text-[var(--app-text-muted)] leading-relaxed ${isExpanded ? '' : 'line-clamp-2'}`}>
-          {pkg.description || 'No description available.'}
-        </p>
-        
-        {/* Expandable Details Section with CSS Grid Animation */}
-        <div className={`grid transition-[grid-template-rows] duration-300 ease-in-out ${isExpanded ? 'grid-rows-[1fr]' : 'grid-rows-[0fr]'}`}>
-           <div className="overflow-hidden">
-             <div className="pt-3 border-t border-[var(--app-border)] grid grid-cols-1 gap-3 text-xs bg-black/20 p-2 rounded mt-2">
-                <div className="grid grid-cols-3 gap-2">
-                  <div>
-                     <span className="block text-[var(--app-text-muted)] text-[10px] uppercase mb-1 font-bold">Category</span>
-                     <span className="text-[var(--app-text)] flex items-center gap-1 bg-[var(--app-bg)] px-1.5 py-0.5 rounded w-fit">
-                        <Tag size={10} /> {pkg.category || 'App'}
-                     </span>
+      {!compactMode && (
+        <div className="flex-grow mb-4">
+          <p className={`text-sm text-[var(--app-text-muted)] leading-relaxed ${isExpanded ? '' : 'line-clamp-2'}`}>
+            {pkg.description || 'No description available.'}
+          </p>
+          
+          {/* Expandable Details Section with CSS Grid Animation */}
+          <div className={`grid transition-[grid-template-rows] duration-300 ease-in-out ${isExpanded ? 'grid-rows-[1fr]' : 'grid-rows-[0fr]'}`}>
+            <div className="overflow-hidden">
+              <div className="pt-3 border-t border-[var(--app-border)] grid grid-cols-1 gap-3 text-xs bg-black/20 p-2 rounded mt-2">
+                  <div className="grid grid-cols-3 gap-2">
+                    <div>
+                      <span className="block text-[var(--app-text-muted)] text-[10px] uppercase mb-1 font-bold">Category</span>
+                      <span className="text-[var(--app-text)] flex items-center gap-1 bg-[var(--app-bg)] px-1.5 py-0.5 rounded w-fit">
+                          <Tag size={10} /> {pkg.category || 'App'}
+                      </span>
+                    </div>
+                    <div className="col-span-2">
+                      <span className="block text-[var(--app-text-muted)] text-[10px] uppercase mb-1 font-bold">Package ID</span>
+                      <span className="text-[var(--app-text)] font-mono truncate block bg-[var(--app-bg)] px-1.5 py-0.5 rounded select-all" title={pkg.id}>
+                          {pkg.id}
+                      </span>
+                    </div>
                   </div>
-                  <div className="col-span-2">
-                     <span className="block text-[var(--app-text-muted)] text-[10px] uppercase mb-1 font-bold">Package ID</span>
-                     <span className="text-[var(--app-text)] font-mono truncate block bg-[var(--app-bg)] px-1.5 py-0.5 rounded select-all" title={pkg.id}>
-                        {pkg.id}
-                     </span>
-                  </div>
-                </div>
-                {pkg.publisher && (
-                   <div>
-                     <span className="block text-[var(--app-text-muted)] text-[10px] uppercase mb-1 font-bold">Publisher</span>
-                     <span className="text-[var(--app-text)]">{pkg.publisher}</span>
-                   </div>
-                )}
-             </div>
-           </div>
-        </div>
+                  {pkg.publisher && (
+                    <div>
+                      <span className="block text-[var(--app-text-muted)] text-[10px] uppercase mb-1 font-bold">Publisher</span>
+                      <span className="text-[var(--app-text)]">{pkg.publisher}</span>
+                    </div>
+                  )}
+              </div>
+            </div>
+          </div>
 
-        <button 
-          onClick={() => setIsExpanded(!isExpanded)}
-          className="text-xs text-[var(--app-primary)] hover:text-[var(--app-primary-hover)] mt-2 flex items-center gap-1 font-medium transition-colors focus:outline-none w-full justify-center py-1 hover:bg-[var(--app-bg)] rounded"
-        >
-          {isExpanded ? (
-            <>Less Info <ChevronUp size={12} /></>
-          ) : (
-            <>More Info <ChevronDown size={12} /></>
-          )}
-        </button>
-      </div>
+          <button 
+            onClick={() => setIsExpanded(!isExpanded)}
+            className="text-xs text-[var(--app-primary)] hover:text-[var(--app-primary-hover)] mt-2 flex items-center gap-1 font-medium transition-colors focus:outline-none w-full justify-center py-1 hover:bg-[var(--app-bg)] rounded"
+          >
+            {isExpanded ? (
+              <>Less Info <ChevronUp size={12} /></>
+            ) : (
+              <>More Info <ChevronDown size={12} /></>
+            )}
+          </button>
+        </div>
+      )}
+
+      {/* Compact Mode ID Display (Since description is hidden) */}
+      {compactMode && (
+         <div className="mb-3 text-xs bg-[var(--app-bg)] px-2 py-1 rounded font-mono text-[var(--app-text-muted)] truncate" title={pkg.id}>
+            {pkg.id}
+         </div>
+      )}
 
       {/* Footer Actions */}
       <div className="mt-auto space-y-3">
