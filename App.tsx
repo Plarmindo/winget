@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
-import { Search, Package, Terminal, Loader2, Info as InfoIcon, Github, Menu, ShoppingBag, Download, RefreshCw, Trash2, ClipboardPaste, ArrowRight, ChevronLeft, ChevronRight, Command, Monitor, Zap, X, Grid, Shield, LayoutGrid, PlusCircle, Ban, XCircle, Settings, HardDrive, Database, Sparkles, BrainCircuit, Activity, Moon, Sun, MonitorSmartphone, Check, Palette, Plus, Minus, FileText, Edit2, Save, RotateCcw, Copy, Undo2, ArrowUpCircle, ArrowDownCircle, Cpu } from 'lucide-react';
+import { Search, Package, Terminal, Loader2, Info as InfoIcon, Github, Menu, ShoppingBag, Download, RefreshCw, Trash2, ClipboardPaste, ArrowRight, ChevronLeft, ChevronRight, Command, Monitor, Zap, X, Grid, Shield, LayoutGrid, PlusCircle, Ban, XCircle, Settings, HardDrive, Database, Sparkles, BrainCircuit, Activity, Moon, Sun, MonitorSmartphone, Check, Palette, Plus, Minus, FileText, Edit2, Save, RotateCcw, Copy, Undo2, ArrowUpCircle, ArrowDownCircle, Cpu, Bug, Construction } from 'lucide-react';
 import { WingetPackage, AppMode, AppSettings, ChatModelType, AppTheme } from './types';
 import { searchPackages, parseWingetOutput, generateAppDetailsPrompt, generateAlternativesPrompt, generateEvaluationPrompt } from './services/wingetService';
 import { PackageCard } from './components/PackageCard';
@@ -638,7 +638,7 @@ const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose, settings
             )}
 
             {activeTab === 'about' && (
-              <div className="flex flex-col items-center justify-center h-full text-center space-y-6">
+              <div className="flex flex-col items-center h-full text-center space-y-6 pt-4">
                  <div className="p-4 bg-[var(--app-bg)] rounded-2xl border border-[var(--app-border)] shadow-xl">
                    <Terminal size={48} className="text-[var(--app-primary)]" />
                  </div>
@@ -651,27 +651,53 @@ const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose, settings
                    Generated scripts are processed locally or via Google Gemini API.
                  </div>
                  
-                 <div className="w-full max-w-sm mt-6 p-4 bg-[var(--app-bg)]/50 rounded-xl border border-[var(--app-border)]/50 text-left space-y-2">
-                    <p className="text-xs font-semibold text-[var(--app-text-muted)] uppercase mb-2">System Debug Info</p>
-                    <div className="flex justify-between text-xs">
-                       <span className="text-[var(--app-text-muted)]">Platform</span>
-                       <span className="text-[var(--app-text)] font-mono">{navigator.platform}</span>
+                 <div className="w-full max-w-lg mt-6 text-left space-y-4">
+                    <div className="p-4 bg-[var(--app-bg)]/50 rounded-xl border border-[var(--app-border)]/50 space-y-3">
+                       <h4 className="flex items-center gap-2 text-sm font-bold uppercase text-[var(--app-text)] border-b border-[var(--app-border)] pb-2">
+                         <Construction size={14} /> Roadmap & Improvements
+                       </h4>
+                       <ul className="space-y-2">
+                         <li className="flex items-start gap-2 text-xs text-[var(--app-text-muted)]">
+                           <Bug size={12} className="text-amber-500 mt-0.5" />
+                           <span><strong>Error Boundaries:</strong> Implement React Error Boundaries to prevent app crashes from rogue components.</span>
+                         </li>
+                         <li className="flex items-start gap-2 text-xs text-[var(--app-text-muted)]">
+                           <Zap size={12} className="text-[var(--app-primary)] mt-0.5" />
+                           <span><strong>Virtualization:</strong> Use virtual lists for rendering 100+ package cards to improve scroll performance.</span>
+                         </li>
+                         <li className="flex items-start gap-2 text-xs text-[var(--app-text-muted)]">
+                           <MonitorSmartphone size={12} className="text-blue-400 mt-0.5" />
+                           <span><strong>Mobile UX:</strong> Further refine touch targets and layout shifts for mobile devices.</span>
+                         </li>
+                         <li className="flex items-start gap-2 text-xs text-[var(--app-text-muted)]">
+                           <Shield size={12} className="text-green-500 mt-0.5" />
+                           <span><strong>Verification:</strong> Add more robust ID verification against official Microsoft repos to eliminate AI hallucinations.</span>
+                         </li>
+                       </ul>
                     </div>
-                     <div className="flex justify-between text-xs">
-                       <span className="text-[var(--app-text-muted)]">User Agent</span>
-                       <span className="text-[var(--app-text)] font-mono truncate max-w-[150px]" title={navigator.userAgent}>{navigator.userAgent}</span>
-                    </div>
-                     <div className="flex justify-between text-xs">
-                       <span className="text-[var(--app-text-muted)]">Memory</span>
-                       <span className="text-[var(--app-text)] font-mono">{(performance as any).memory ? Math.round((performance as any).memory.jsHeapSizeLimit / 1024 / 1024) + ' MB' : 'N/A'}</span>
-                    </div>
-                     <div className="flex justify-between text-xs">
-                       <span className="text-[var(--app-text-muted)]">Cores</span>
-                       <span className="text-[var(--app-text)] font-mono">{navigator.hardwareConcurrency || 'N/A'}</span>
-                    </div>
+
+                    <div className="p-4 bg-[var(--app-bg)]/50 rounded-xl border border-[var(--app-border)]/50 space-y-2">
+                        <p className="text-xs font-semibold text-[var(--app-text-muted)] uppercase mb-2">System Debug Info</p>
+                        <div className="flex justify-between text-xs">
+                           <span className="text-[var(--app-text-muted)]">Platform</span>
+                           <span className="text-[var(--app-text)] font-mono">{navigator.platform}</span>
+                        </div>
+                         <div className="flex justify-between text-xs">
+                           <span className="text-[var(--app-text-muted)]">User Agent</span>
+                           <span className="text-[var(--app-text)] font-mono truncate max-w-[150px]" title={navigator.userAgent}>{navigator.userAgent}</span>
+                        </div>
+                         <div className="flex justify-between text-xs">
+                           <span className="text-[var(--app-text-muted)]">Memory</span>
+                           <span className="text-[var(--app-text)] font-mono">{(performance as any).memory ? Math.round((performance as any).memory.jsHeapSizeLimit / 1024 / 1024) + ' MB' : 'N/A'}</span>
+                        </div>
+                         <div className="flex justify-between text-xs">
+                           <span className="text-[var(--app-text-muted)]">Cores</span>
+                           <span className="text-[var(--app-text)] font-mono">{navigator.hardwareConcurrency || 'N/A'}</span>
+                        </div>
+                     </div>
                  </div>
 
-                 <div className="flex gap-4 pt-4">
+                 <div className="flex gap-4 pt-4 pb-8">
                     <a href="#" className="p-2 bg-[var(--app-bg)] rounded-full text-[var(--app-text-muted)] hover:text-[var(--app-text)] transition-colors">
                       <Github size={20} />
                     </a>
@@ -1543,7 +1569,7 @@ function App() {
                   className="w-full bg-[var(--app-bg)] border border-[var(--app-border)] rounded-full py-2 pl-12 pr-10 text-sm focus:outline-none focus:ring-2 focus:ring-[var(--app-primary)] focus:border-transparent placeholder-[var(--app-text-muted)] text-[var(--app-text)] transition-all"
                 />
                 <Search className="absolute left-4 top-2.5 text-[var(--app-text-muted)]" size={18} />
-                {loading && (
+                {loading ? (
                    <button 
                      onClick={handleStopSearch}
                      className="absolute right-3 top-2 text-[var(--app-text-muted)] hover:text-[var(--app-text)] transition-colors"
@@ -1551,6 +1577,16 @@ function App() {
                    >
                      <XCircle size={16} />
                    </button>
+                ) : (
+                  query && query !== "POPULAR_ESSENTIALS" && (
+                    <button 
+                     onClick={() => { setQuery(''); if(abortControllerRef.current) abortControllerRef.current.abort(); }}
+                     className="absolute right-3 top-2 text-[var(--app-text-muted)] hover:text-[var(--app-text)] transition-colors"
+                     title="Clear Search"
+                   >
+                     <X size={16} />
+                   </button>
+                  )
                 )}
               </div>
             )}
@@ -1655,9 +1691,26 @@ function App() {
               onChange={(e) => setQuery(e.target.value)}
               onKeyDown={(e) => e.key === 'Enter' && handleSearch(query)}
               placeholder="Search packages..."
-              className="w-full bg-[var(--app-bg)] border border-[var(--app-border)] rounded-lg py-3 pl-10 pr-4 text-sm focus:outline-none focus:ring-2 focus:ring-[var(--app-primary)] text-[var(--app-text)]"
+              className="w-full bg-[var(--app-bg)] border border-[var(--app-border)] rounded-lg py-3 pl-10 pr-10 text-sm focus:outline-none focus:ring-2 focus:ring-[var(--app-primary)] text-[var(--app-text)]"
             />
             <Search className="absolute left-3 top-3.5 text-[var(--app-text-muted)]" size={18} />
+             {loading ? (
+                 <button 
+                   onClick={handleStopSearch}
+                   className="absolute right-3 top-3 text-[var(--app-text-muted)] hover:text-[var(--app-text)]"
+                 >
+                   <XCircle size={18} />
+                 </button>
+             ) : (
+                query && query !== "POPULAR_ESSENTIALS" && (
+                   <button 
+                     onClick={() => setQuery('')}
+                     className="absolute right-3 top-3 text-[var(--app-text-muted)] hover:text-[var(--app-text)]"
+                   >
+                     <X size={18} />
+                   </button>
+                )
+             )}
           </div>
         </div>
       )}

@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { WingetPackage, AppMode } from '../types';
-import { Plus, Check, Copy, RefreshCw, Trash2, ChevronDown, ChevronUp, Globe, Tag, Info, Layers, Sparkles, Terminal, GitFork, Microscope, Star } from 'lucide-react';
+import { Plus, Check, Copy, RefreshCw, Trash2, ChevronDown, ChevronUp, Globe, Tag, Info, Layers, Sparkles, Terminal, GitFork, Microscope, Star, ShieldCheck, ThumbsUp, ThumbsDown, Heart } from 'lucide-react';
 
 interface PackageCardProps {
   pkg: WingetPackage;
@@ -18,6 +18,10 @@ export const PackageCard: React.FC<PackageCardProps> = ({ pkg, isInCart, onToggl
   const [isExpanded, setIsExpanded] = useState(false);
   const [isAnimating, setIsAnimating] = useState(false);
   const [showCopied, setShowCopied] = useState(false);
+  
+  // Feedback States (Local only for demo)
+  const [isLiked, setIsLiked] = useState<boolean | null>(null);
+  const [isSaved, setIsSaved] = useState(false);
 
   // Defensive programming for optional/missing fields
   const displayName = pkg.name || 'Unknown Package';
@@ -34,6 +38,22 @@ export const PackageCard: React.FC<PackageCardProps> = ({ pkg, isInCart, onToggl
     onCopyCommand(pkg.id, mode);
     setShowCopied(true);
     setTimeout(() => setShowCopied(false), 2000);
+  };
+  
+  const handleVerify = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    // Open Google Search to verify the package ID
+    window.open(`https://www.google.com/search?q=winget+package+"${pkg.id}"`, '_blank');
+  };
+
+  const handleLike = (e: React.MouseEvent, val: boolean) => {
+     e.stopPropagation();
+     setIsLiked(prev => prev === val ? null : val);
+  };
+
+  const handleSave = (e: React.MouseEvent) => {
+     e.stopPropagation();
+     setIsSaved(!isSaved);
   };
 
   // Determine Status Labels
@@ -145,7 +165,23 @@ export const PackageCard: React.FC<PackageCardProps> = ({ pkg, isInCart, onToggl
             {pkg.description || 'No description available.'}
           </p>
           
-          {/* Expandable Details Section with CSS Grid Animation */}
+          {/* Visible Feedback Toolbar (New) */}
+          <div className="flex items-center gap-2 mt-3 mb-2">
+             <div className="flex bg-[var(--app-bg)] rounded-lg p-0.5 border border-[var(--app-border)]">
+               <button onClick={(e) => handleLike(e, true)} className={`p-1.5 rounded hover:bg-[var(--app-surface)] transition-colors ${isLiked === true ? 'text-green-400' : 'text-[var(--app-text-muted)]'}`} title="Thumbs Up">
+                  <ThumbsUp size={14} />
+               </button>
+               <div className="w-[1px] bg-[var(--app-border)] my-1"></div>
+               <button onClick={(e) => handleLike(e, false)} className={`p-1.5 rounded hover:bg-[var(--app-surface)] transition-colors ${isLiked === false ? 'text-red-400' : 'text-[var(--app-text-muted)]'}`} title="Thumbs Down">
+                  <ThumbsDown size={14} />
+               </button>
+             </div>
+             <button onClick={handleSave} className={`flex items-center gap-1.5 text-xs px-2 py-1.5 rounded-lg border transition-all ${isSaved ? 'text-rose-400 border-rose-500/30 bg-rose-500/10' : 'text-[var(--app-text-muted)] border-[var(--app-border)] bg-[var(--app-bg)] hover:text-[var(--app-text)] hover:border-[var(--app-text-muted)]'}`}>
+                <Heart size={14} fill={isSaved ? "currentColor" : "none"} />
+                {isSaved ? "Saved" : "Save"}
+             </button>
+          </div>
+          
           <div className={`grid transition-[grid-template-rows] duration-300 ease-in-out ${isExpanded ? 'grid-rows-[1fr]' : 'grid-rows-[0fr]'}`}>
             <div className="overflow-hidden">
               <div className="pt-3 border-t border-[var(--app-border)] grid grid-cols-1 gap-3 text-xs bg-black/20 p-2 rounded mt-2">
@@ -186,7 +222,6 @@ export const PackageCard: React.FC<PackageCardProps> = ({ pkg, isInCart, onToggl
         </div>
       )}
 
-      {/* Compact Mode ID Display (Since description is hidden) */}
       {compactMode && (
          <div className="mb-3 text-xs bg-[var(--app-bg)] px-2 py-1 rounded font-mono text-[var(--app-text-muted)] truncate" title={pkg.id}>
             {pkg.id}
@@ -195,8 +230,7 @@ export const PackageCard: React.FC<PackageCardProps> = ({ pkg, isInCart, onToggl
 
       {/* Footer Actions */}
       <div className="mt-auto space-y-3">
-        {/* Action Grid */}
-        <div className="grid grid-cols-4 gap-1.5">
+        <div className="grid grid-cols-5 gap-1.5">
           {/* Ask AI Button */}
           <button 
              onClick={() => onAskAI(pkg)}
@@ -217,7 +251,7 @@ export const PackageCard: React.FC<PackageCardProps> = ({ pkg, isInCart, onToggl
              Similars
            </button>
 
-           {/* Evaluate/Analyze */}
+           {/* Evaluate */}
            <button 
              onClick={() => onAnalyze && onAnalyze(pkg)}
              className="col-span-1 flex flex-col items-center justify-center py-1.5 bg-[var(--app-bg)] hover:bg-[var(--app-primary)]/20 text-[var(--app-text-muted)] hover:text-[var(--app-primary)] rounded-lg text-[10px] font-medium transition-colors border border-transparent hover:border-[var(--app-primary)]/30"
@@ -225,6 +259,16 @@ export const PackageCard: React.FC<PackageCardProps> = ({ pkg, isInCart, onToggl
            >
              <Star size={14} className="mb-0.5" />
              Review
+           </button>
+           
+           {/* Verify ID Button (New) */}
+           <button 
+             onClick={handleVerify}
+             className="col-span-1 flex flex-col items-center justify-center py-1.5 bg-[var(--app-bg)] hover:bg-[var(--app-surface)] text-[var(--app-text-muted)] hover:text-[var(--app-text)] rounded-lg text-[10px] font-medium transition-colors border border-transparent hover:border-[var(--app-primary)]/30"
+             title="Verify ID on Google"
+           >
+             <ShieldCheck size={14} className="mb-0.5 text-amber-500" />
+             Verify
            </button>
 
            {/* Copy Command Button */}
@@ -242,7 +286,6 @@ export const PackageCard: React.FC<PackageCardProps> = ({ pkg, isInCart, onToggl
            </button>
         </div>
 
-        {/* Add/Remove Cart Button */}
         <button
           onClick={handleToggleCart}
           className={`w-full flex items-center justify-center space-x-2 py-2.5 rounded-lg text-sm font-medium transition-all duration-200 text-white shadow-lg ${config.btnClass} ${
