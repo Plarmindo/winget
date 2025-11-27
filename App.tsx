@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
-import { Search, Package, Terminal, Loader2, Info as InfoIcon, Github, Menu, ShoppingBag, Download, RefreshCw, Trash2, ClipboardPaste, ArrowRight, ChevronLeft, ChevronRight, Command, Monitor, Zap, X, Grid, Shield, LayoutGrid, PlusCircle, Ban, XCircle, Settings, HardDrive, Database, Sparkles, BrainCircuit, Activity, Moon, Sun, MonitorSmartphone, Check, Palette, Plus, Minus, FileText, Edit2, Save, RotateCcw, Copy, Undo2 } from 'lucide-react';
+import { Search, Package, Terminal, Loader2, Info as InfoIcon, Github, Menu, ShoppingBag, Download, RefreshCw, Trash2, ClipboardPaste, ArrowRight, ChevronLeft, ChevronRight, Command, Monitor, Zap, X, Grid, Shield, LayoutGrid, PlusCircle, Ban, XCircle, Settings, HardDrive, Database, Sparkles, BrainCircuit, Activity, Moon, Sun, MonitorSmartphone, Check, Palette, Plus, Minus, FileText, Edit2, Save, RotateCcw, Copy, Undo2, ArrowUpCircle, ArrowDownCircle, Cpu } from 'lucide-react';
 import { WingetPackage, AppMode, AppSettings, ChatModelType, AppTheme } from './types';
 import { searchPackages, parseWingetOutput, generateAppDetailsPrompt, generateAlternativesPrompt, generateEvaluationPrompt } from './services/wingetService';
 import { PackageCard } from './components/PackageCard';
@@ -130,7 +130,7 @@ const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose, settings
   const tabs = [
     { id: 'general', label: 'Appearance', icon: <Palette size={16} /> },
     { id: 'ai', label: 'AI Model', icon: <BrainCircuit size={16} /> },
-    { id: 'data', label: 'Data & Privacy', icon: <Database size={16} /> },
+    { id: 'data', label: 'Data', icon: <Database size={16} /> },
     { id: 'about', label: 'About', icon: <InfoIcon size={16} /> },
   ];
 
@@ -211,6 +211,49 @@ const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose, settings
         activeThemeId: newActiveId
       });
     }
+  };
+
+  const handleExportData = () => {
+     const exportData = {
+        settings: JSON.parse(localStorage.getItem(SETTINGS_STORAGE_KEY) || '{}'),
+        cart: JSON.parse(localStorage.getItem(CART_STORAGE_KEY) || '[]'),
+        chat: JSON.parse(localStorage.getItem(CHAT_STORAGE_KEY) || '[]'),
+        exportedAt: new Date().toISOString()
+     };
+     
+     const blob = new Blob([JSON.stringify(exportData, null, 2)], { type: 'application/json' });
+     const url = URL.createObjectURL(blob);
+     const a = document.createElement('a');
+     a.href = url;
+     a.download = `winget-web-backup-${new Date().toISOString().split('T')[0]}.json`;
+     document.body.appendChild(a);
+     a.click();
+     document.body.removeChild(a);
+     URL.revokeObjectURL(url);
+  };
+
+  const handleImportData = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    
+    const reader = new FileReader();
+    reader.onload = (ev) => {
+       try {
+          const result = ev.target?.result as string;
+          const parsed = JSON.parse(result);
+          
+          if (parsed.settings) localStorage.setItem(SETTINGS_STORAGE_KEY, JSON.stringify(parsed.settings));
+          if (parsed.cart) localStorage.setItem(CART_STORAGE_KEY, JSON.stringify(parsed.cart));
+          if (parsed.chat) localStorage.setItem(CHAT_STORAGE_KEY, JSON.stringify(parsed.chat));
+          
+          alert("Data imported successfully. The page will refresh to apply changes.");
+          window.location.reload();
+       } catch(err) {
+          alert("Failed to parse import file. Is it a valid JSON backup?");
+          console.error(err);
+       }
+    };
+    reader.readAsText(file);
   };
 
   return (
@@ -388,7 +431,7 @@ const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose, settings
                    )}
                    
                    <h3 className="text-lg font-semibold mb-4">View Options</h3>
-                   <div className="flex items-center justify-between p-4 bg-[var(--app-bg)]/50 rounded-xl border border-[var(--app-border)]/50 mb-6">
+                   <div className="flex items-center justify-between p-4 bg-[var(--app-bg)]/50 rounded-xl border border-[var(--app-border)]/50 mb-4">
                        <div className="flex items-center gap-3">
                           <Grid size={20} className="text-[var(--app-text-muted)]" />
                           <div>
@@ -412,6 +455,23 @@ const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose, settings
                           />
                           <span className="text-xs text-[var(--app-text-muted)]">cards</span>
                        </div>
+                   </div>
+
+                    {/* Compact Mode Toggle */}
+                    <div className="flex items-center justify-between p-4 bg-[var(--app-bg)]/50 rounded-xl border border-[var(--app-border)]/50 mb-6">
+                       <div className="flex items-center gap-3">
+                          <Minus size={20} className="text-[var(--app-text-muted)]" />
+                          <div>
+                            <p className="font-medium text-[var(--app-text)]">Compact Mode</p>
+                            <p className="text-xs text-[var(--app-text-muted)]">Reduce spacing and padding for denser information.</p>
+                          </div>
+                       </div>
+                        <button 
+                          onClick={() => onUpdateSettings({ ...settings, compactMode: !settings.compactMode })}
+                          className={`w-12 h-6 rounded-full transition-colors relative ${settings.compactMode ? 'bg-[var(--app-primary)]' : 'bg-[var(--app-border)]'}`}
+                        >
+                          <div className={`absolute top-1 left-1 w-4 h-4 bg-white rounded-full transition-transform ${settings.compactMode ? 'translate-x-6' : 'translate-x-0'}`} />
+                        </button>
                    </div>
 
                    <h3 className="text-lg font-semibold mb-4">Dashboard Shortcuts</h3>
@@ -525,9 +585,26 @@ const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose, settings
             {activeTab === 'data' && (
               <div className="space-y-6">
                  <div>
-                   <h3 className="text-lg font-semibold mb-4">Data Management</h3>
-                   <p className="text-sm text-[var(--app-text-muted)] mb-6">Manage your local data. All data is stored locally in your browser.</p>
-                   
+                   <h3 className="text-lg font-semibold mb-4">Backup & Restore</h3>
+                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-8">
+                      <button 
+                        onClick={handleExportData}
+                        className="p-4 bg-[var(--app-bg)] hover:bg-[var(--app-surface)] border border-[var(--app-border)] rounded-xl flex flex-col items-center justify-center gap-2 text-[var(--app-text)] transition-colors hover:border-[var(--app-primary)]/50"
+                      >
+                         <ArrowUpCircle size={32} className="text-[var(--app-primary)]" />
+                         <span className="font-semibold text-sm">Export Data</span>
+                         <span className="text-[10px] text-[var(--app-text-muted)] text-center">Save settings, cart, and history to JSON</span>
+                      </button>
+
+                      <label className="p-4 bg-[var(--app-bg)] hover:bg-[var(--app-surface)] border border-[var(--app-border)] rounded-xl flex flex-col items-center justify-center gap-2 text-[var(--app-text)] transition-colors hover:border-[var(--app-primary)]/50 cursor-pointer">
+                         <ArrowDownCircle size={32} className="text-emerald-500" />
+                         <span className="font-semibold text-sm">Import Data</span>
+                         <span className="text-[10px] text-[var(--app-text-muted)] text-center">Restore from a JSON backup file</span>
+                         <input type="file" accept=".json" onChange={handleImportData} className="hidden" />
+                      </label>
+                   </div>
+
+                   <h3 className="text-lg font-semibold mb-4">Clear Data</h3>
                    <div className="space-y-3">
                       <div className="flex items-center justify-between p-4 bg-[var(--app-bg)]/50 rounded-xl border border-[var(--app-border)]/50">
                          <div>
@@ -573,6 +650,27 @@ const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose, settings
                    A modern, AI-powered interface for the Windows Package Manager. 
                    Generated scripts are processed locally or via Google Gemini API.
                  </div>
+                 
+                 <div className="w-full max-w-sm mt-6 p-4 bg-[var(--app-bg)]/50 rounded-xl border border-[var(--app-border)]/50 text-left space-y-2">
+                    <p className="text-xs font-semibold text-[var(--app-text-muted)] uppercase mb-2">System Debug Info</p>
+                    <div className="flex justify-between text-xs">
+                       <span className="text-[var(--app-text-muted)]">Platform</span>
+                       <span className="text-[var(--app-text)] font-mono">{navigator.platform}</span>
+                    </div>
+                     <div className="flex justify-between text-xs">
+                       <span className="text-[var(--app-text-muted)]">User Agent</span>
+                       <span className="text-[var(--app-text)] font-mono truncate max-w-[150px]" title={navigator.userAgent}>{navigator.userAgent}</span>
+                    </div>
+                     <div className="flex justify-between text-xs">
+                       <span className="text-[var(--app-text-muted)]">Memory</span>
+                       <span className="text-[var(--app-text)] font-mono">{(performance as any).memory ? Math.round((performance as any).memory.jsHeapSizeLimit / 1024 / 1024) + ' MB' : 'N/A'}</span>
+                    </div>
+                     <div className="flex justify-between text-xs">
+                       <span className="text-[var(--app-text-muted)]">Cores</span>
+                       <span className="text-[var(--app-text)] font-mono">{navigator.hardwareConcurrency || 'N/A'}</span>
+                    </div>
+                 </div>
+
                  <div className="flex gap-4 pt-4">
                     <a href="#" className="p-2 bg-[var(--app-bg)] rounded-full text-[var(--app-text-muted)] hover:text-[var(--app-text)] transition-colors">
                       <Github size={20} />
@@ -609,6 +707,7 @@ function App() {
             // Migrate old settings if needed
             if (!parsed.themes) parsed.themes = DEFAULT_THEMES;
             if (!parsed.activeThemeId) parsed.activeThemeId = 'default';
+            if (typeof parsed.compactMode === 'undefined') parsed.compactMode = false;
             return parsed; 
           } catch(e){} 
        }
@@ -616,6 +715,7 @@ function App() {
     return { 
       reducedMotion: false, 
       highContrast: false, 
+      compactMode: false,
       defaultModel: 'smart',
       activeThemeId: 'default',
       themes: DEFAULT_THEMES,
@@ -740,6 +840,7 @@ function App() {
       setSettings({ 
         reducedMotion: false, 
         highContrast: false, 
+        compactMode: false,
         defaultModel: 'smart',
         activeThemeId: 'default',
         themes: DEFAULT_THEMES,
@@ -1209,7 +1310,7 @@ function App() {
 
           {packages.length > 0 && (
             <>
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+              <div className={`grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 ${settings.compactMode ? 'gap-3' : 'gap-6'}`}>
                 {paginatedPackages.map((pkg) => (
                   <PackageCard
                     key={pkg.id}
@@ -1221,6 +1322,7 @@ function App() {
                     onFindAlternatives={handleFindAlternatives}
                     onAnalyze={handleAnalyze}
                     mode={mode}
+                    compactMode={settings.compactMode}
                   />
                 ))}
               </div>
@@ -1339,7 +1441,7 @@ function App() {
             </button>
           </div>
 
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+          <div className={`grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 ${settings.compactMode ? 'gap-3' : 'gap-6'}`}>
             {paginatedPackages.map((pkg) => (
               <PackageCard
                 key={pkg.id}
@@ -1351,6 +1453,7 @@ function App() {
                 onFindAlternatives={handleFindAlternatives}
                 onAnalyze={handleAnalyze}
                 mode={mode}
+                compactMode={settings.compactMode}
               />
             ))}
           </div>

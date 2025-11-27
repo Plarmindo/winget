@@ -4,6 +4,7 @@ import { ChatMessage, ChatModelType, WingetPackage } from '../types';
 import { chatWithAI, transcribeAudio, generateSpeech, enhancePrompt } from '../services/wingetService';
 
 const STORAGE_KEY = 'winget_chat_history';
+const MODEL_PREF_KEY = 'winget_chat_model_pref';
 
 const SUGGESTIONS = [
   "Find developer tools",
@@ -48,7 +49,17 @@ export const ChatInterface: React.FC<ChatInterfaceProps> = ({ onShowResults, pen
   const [isEnhancing, setIsEnhancing] = useState(false);
   const [enhancedProposal, setEnhancedProposal] = useState<string | null>(null);
   
-  const [modelType, setModelType] = useState<ChatModelType>(defaultModel);
+  // Initialize Model Type from Local Storage or Prop
+  const [modelType, setModelType] = useState<ChatModelType>(() => {
+    if (typeof window !== 'undefined') {
+      const saved = localStorage.getItem(MODEL_PREF_KEY);
+      if (saved && ['fast', 'smart', 'thinking'].includes(saved)) {
+        return saved as ChatModelType;
+      }
+    }
+    return defaultModel;
+  });
+  
   const [playingMessageId, setPlayingMessageId] = useState<string | null>(null);
   const [copiedId, setCopiedId] = useState<string | null>(null);
 
@@ -60,11 +71,7 @@ export const ChatInterface: React.FC<ChatInterfaceProps> = ({ onShowResults, pen
   const audioChunksRef = useRef<Blob[]>([]);
   const audioContextRef = useRef<AudioContext | null>(null);
   const recordingMimeTypeRef = useRef<string>('');
-
-  // Sync local model type when global settings change
-  useEffect(() => {
-    setModelType(defaultModel);
-  }, [defaultModel]);
+  const textareaRef = useRef<HTMLTextAreaElement>(null);
 
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
@@ -85,6 +92,11 @@ export const ChatInterface: React.FC<ChatInterfaceProps> = ({ onShowResults, pen
       }
     }
   }, [pendingMessage]);
+
+  const handleSetModel = (type: ChatModelType) => {
+    setModelType(type);
+    localStorage.setItem(MODEL_PREF_KEY, type);
+  };
 
   const clearHistory = () => {
     if (window.confirm("Are you sure you want to clear your chat history?")) {
@@ -192,33 +204,37 @@ export const ChatInterface: React.FC<ChatInterfaceProps> = ({ onShowResults, pen
   };
 
   // Keyboard Navigation for History
-  const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
+  const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
     if (e.key === 'Enter') {
-      handleSend();
-      return;
+      if (!e.shiftKey) {
+        e.preventDefault();
+        handleSend();
+        return;
+      }
+      // Allow Shift+Enter for new line
     }
 
-    // Get only user messages for history navigation
+    // Get only user messages for history navigation (only if input is empty or we are already navigating)
     const userMessages = messages.filter(m => m.role === 'user').map(m => m.text);
     if (userMessages.length === 0) return;
 
     if (e.key === 'ArrowUp') {
-      e.preventDefault();
-      const newIndex = historyIndex === -1 ? userMessages.length - 1 : Math.max(0, historyIndex - 1);
-      setHistoryIndex(newIndex);
-      setInput(userMessages[newIndex]);
+       if (historyIndex === -1 && input.length > 0) return; // Don't interrupt editing
+       e.preventDefault();
+       const newIndex = historyIndex === -1 ? userMessages.length - 1 : Math.max(0, historyIndex - 1);
+       setHistoryIndex(newIndex);
+       setInput(userMessages[newIndex]);
     } else if (e.key === 'ArrowDown') {
-      e.preventDefault();
-      if (historyIndex === -1) return; // Already at new input
-
-      if (historyIndex === userMessages.length - 1) {
-        setHistoryIndex(-1);
-        setInput('');
-      } else {
-        const newIndex = Math.min(userMessages.length - 1, historyIndex + 1);
-        setHistoryIndex(newIndex);
-        setInput(userMessages[newIndex]);
-      }
+       if (historyIndex === -1) return;
+       e.preventDefault();
+       if (historyIndex === userMessages.length - 1) {
+         setHistoryIndex(-1);
+         setInput('');
+       } else {
+         const newIndex = Math.min(userMessages.length - 1, historyIndex + 1);
+         setHistoryIndex(newIndex);
+         setInput(userMessages[newIndex]);
+       }
     }
   };
 
@@ -359,18 +375,37 @@ export const ChatInterface: React.FC<ChatInterfaceProps> = ({ onShowResults, pen
   };
 
   // Helper to extract JSON package lists from text
-  const extractPackagesFromJSON = (text: string): WingetPackage[] | null => {
-    const match = text.match(/```json\s*([\s\S]*?)\s*```/);
-    if (!match) return null;
-    
-    try {
-      const parsed = JSON.parse(match[1]);
-      if (Array.isArray(parsed) && parsed.length > 0 && parsed[0].id) {
-        return parsed as WingetPackage[];
-      }
-    } catch (e) {
-      return null;
+  const extractAllPackagesFromJSON = (text: string): WingetPackage[] | null => {
+    const matches = text.matchAll(/```json\s*([\s\S]*?)\s*```/g);
+    let allPackages: WingetPackage[] = [];
+    let found = false;
+
+    for (const match of matches) {
+        try {
+            const parsed = JSON.parse(match[1]);
+            if (Array.isArray(parsed)) {
+                allPackages = [...allPackages, ...parsed];
+                found = true;
+            } else if (typeof parsed === 'object' && parsed.id) {
+                 allPackages.push(parsed);
+                 found = true;
+            }
+        } catch(e) {
+            // Ignore parse errors for partial/malformed blocks
+        }
     }
+    
+    if (found && allPackages.length > 0) return allPackages;
+
+    // Fallback for single block without global regex
+    const singleMatch = text.match(/```json\s*([\s\S]*?)\s*```/);
+    if (singleMatch) {
+       try {
+           const parsed = JSON.parse(singleMatch[1]);
+           if (Array.isArray(parsed)) return parsed;
+       } catch (e) {}
+    }
+    
     return null;
   };
 
@@ -413,21 +448,21 @@ export const ChatInterface: React.FC<ChatInterfaceProps> = ({ onShowResults, pen
             {/* Model Selector */}
             <div className="flex bg-[var(--app-bg)] rounded-lg p-1 text-[10px] w-full">
               <button 
-                onClick={() => setModelType('fast')}
+                onClick={() => handleSetModel('fast')}
                 className={`flex-1 px-2 py-1.5 rounded flex items-center justify-center gap-1 transition-all ${modelType === 'fast' ? 'bg-amber-500/20 text-amber-400 font-medium shadow-sm' : 'text-[var(--app-text-muted)] hover:text-[var(--app-text)]'}`}
                 title="Fast Mode (Flash Lite)"
               >
                 <Zap size={10} /> Fast
               </button>
               <button 
-                onClick={() => setModelType('smart')}
+                onClick={() => handleSetModel('smart')}
                 className={`flex-1 px-2 py-1.5 rounded flex items-center justify-center gap-1 transition-all ${modelType === 'smart' ? 'bg-[var(--app-primary)]/20 text-[var(--app-primary)] font-medium shadow-sm' : 'text-[var(--app-text-muted)] hover:text-[var(--app-text)]'}`}
                 title="Smart Mode (Pro)"
               >
                 <Sparkles size={10} /> Smart
               </button>
               <button 
-                onClick={() => setModelType('thinking')}
+                onClick={() => handleSetModel('thinking')}
                 className={`flex-1 px-2 py-1.5 rounded flex items-center justify-center gap-1 transition-all ${modelType === 'thinking' ? 'bg-rose-500/20 text-rose-400 font-medium shadow-sm' : 'text-[var(--app-text-muted)] hover:text-[var(--app-text)]'}`}
                 title="Thinking Mode"
               >
@@ -440,7 +475,7 @@ export const ChatInterface: React.FC<ChatInterfaceProps> = ({ onShowResults, pen
           <div className="flex-1 overflow-y-auto p-4 space-y-4 bg-[var(--app-bg)]/50">
             {messages.map((msg) => {
               const packageIds = msg.role === 'model' ? extractPackageIds(msg.text) : [];
-              const jsonPackages = msg.role === 'model' ? extractPackagesFromJSON(msg.text) : null;
+              const jsonPackages = msg.role === 'model' ? extractAllPackagesFromJSON(msg.text) : null;
               
               return (
               <div 
@@ -466,7 +501,7 @@ export const ChatInterface: React.FC<ChatInterfaceProps> = ({ onShowResults, pen
                   )}
 
                   {/* Detected Package IDs */}
-                  {packageIds.length > 0 && !jsonPackages && (
+                  {packageIds.length > 0 && (!jsonPackages || jsonPackages.length === 0) && (
                     <div className="mt-3 bg-[var(--app-bg)]/50 rounded-lg p-2 border border-[var(--app-border)]/50">
                       <div className="text-[10px] text-[var(--app-text-muted)] uppercase font-bold mb-1 flex items-center gap-1">
                         <Box size={10} /> Related Packages
@@ -571,9 +606,22 @@ export const ChatInterface: React.FC<ChatInterfaceProps> = ({ onShowResults, pen
 
             {isLoading && !isRecording && (
               <div className="flex justify-start">
-                <div className="bg-[var(--app-surface)] rounded-2xl rounded-bl-none p-3 border border-[var(--app-border)] flex items-center space-x-2">
-                  <Loader2 size={16} className="animate-spin text-[var(--app-primary)]" />
-                  <span className="text-xs text-[var(--app-text-muted)]">Thinking...</span>
+                <div className={`rounded-2xl rounded-bl-none p-3 border flex items-center space-x-2 transition-all ${
+                   modelType === 'thinking' 
+                   ? 'bg-rose-900/10 border-rose-500/30 text-rose-400' 
+                   : 'bg-[var(--app-surface)] border-[var(--app-border)]'
+                }`}>
+                  {modelType === 'thinking' ? (
+                     <>
+                       <BrainCircuit size={16} className="animate-pulse" />
+                       <span className="text-xs font-medium animate-pulse">Deep Reasoning...</span>
+                     </>
+                  ) : (
+                     <>
+                       <Loader2 size={16} className="animate-spin text-[var(--app-primary)]" />
+                       <span className="text-xs text-[var(--app-text-muted)]">Thinking...</span>
+                     </>
+                  )}
                 </div>
               </div>
             )}
@@ -614,56 +662,63 @@ export const ChatInterface: React.FC<ChatInterfaceProps> = ({ onShowResults, pen
               </div>
             )}
 
-            <div className="relative flex items-center z-10">
-              <input
-                type="text"
-                value={input}
-                onChange={(e) => setInput(e.target.value)}
-                onKeyDown={handleKeyDown}
-                placeholder={isRecording ? "Listening..." : "Ask about packages..."}
-                disabled={isRecording || isLoading}
-                className={`w-full bg-[var(--app-bg)] border rounded-full py-2.5 pl-4 pr-32 text-sm text-[var(--app-text)] focus:outline-none focus:ring-2 transition-all ${
+            <div className="relative flex items-end z-10 gap-2">
+              <div className={`flex-1 relative bg-[var(--app-bg)] border ${
                   isRecording 
-                  ? 'border-red-500/50 ring-2 ring-red-500/20 placeholder-red-400 bg-red-950/10' 
-                  : 'border-[var(--app-border)] focus:ring-[var(--app-primary)]/50'
-                }`}
-              />
-              <div className="absolute right-1 flex items-center space-x-1">
-                {/* Enhance Prompt Button */}
-                <button
-                   onClick={handleEnhance}
-                   disabled={!input.trim() || isEnhancing || isLoading || isRecording || !!enhancedProposal}
-                   className={`p-1.5 rounded-full transition-all ${
-                     isEnhancing ? 'text-[var(--app-primary)] animate-spin' : 'text-[var(--app-text-muted)] hover:text-[var(--app-primary)] hover:bg-[var(--app-surface)]'
-                   }`}
-                   title="Enhance prompt with AI"
-                >
-                   <Sparkles size={16} />
-                </button>
+                  ? 'border-red-500/50 ring-2 ring-red-500/20 bg-red-950/10' 
+                  : 'border-[var(--app-border)] focus-within:ring-2 focus-within:ring-[var(--app-primary)]/50'
+                } rounded-xl transition-all`}>
+                  <textarea
+                    ref={textareaRef}
+                    value={input}
+                    onChange={(e) => setInput(e.target.value)}
+                    onKeyDown={handleKeyDown}
+                    placeholder={isRecording ? "Listening..." : "Ask about packages..."}
+                    disabled={isRecording || isLoading}
+                    rows={2}
+                    className="w-full bg-transparent px-3 py-2.5 text-sm text-[var(--app-text)] focus:outline-none resize-none font-medium placeholder-[var(--app-text-muted)] min-h-[44px]"
+                    style={{ maxHeight: '150px' }}
+                  />
+                  
+                  {/* Buttons inside text area container for compact look */}
+                  <div className="absolute right-2 bottom-2 flex items-center space-x-1">
+                      {/* Enhance Prompt Button */}
+                      <button
+                        onClick={handleEnhance}
+                        disabled={!input.trim() || isEnhancing || isLoading || isRecording || !!enhancedProposal}
+                        className={`p-1.5 rounded-full transition-all ${
+                          isEnhancing ? 'text-[var(--app-primary)] animate-spin' : 'text-[var(--app-text-muted)] hover:text-[var(--app-primary)] hover:bg-[var(--app-surface)]'
+                        }`}
+                        title="Enhance prompt with AI"
+                      >
+                        <Sparkles size={16} />
+                      </button>
 
-                <button
-                  onMouseDown={startRecording}
-                  onMouseUp={stopRecording}
-                  onMouseLeave={stopRecording}
-                  onTouchStart={startRecording}
-                  onTouchEnd={stopRecording}
-                  className={`p-1.5 rounded-full transition-all ${
-                    isRecording 
-                      ? 'bg-red-500 text-white animate-pulse scale-110 shadow-lg shadow-red-500/30' 
-                      : 'text-[var(--app-text-muted)] hover:text-[var(--app-text)] hover:bg-[var(--app-surface)]'
-                  }`}
-                  title="Hold to speak"
-                >
-                  {isRecording ? <StopCircle size={18} /> : <Mic size={18} />}
-                </button>
-                <button
-                  onClick={() => handleSend()}
-                  disabled={!input.trim() || isLoading || isRecording}
-                  className="p-1.5 bg-[var(--app-primary)] text-white rounded-full hover:opacity-90 disabled:opacity-50 disabled:cursor-not-allowed transition-all"
-                >
-                  {isLoading ? <Loader2 size={16} className="animate-spin" /> : <Send size={16} />}
-                </button>
+                      <button
+                        onMouseDown={startRecording}
+                        onMouseUp={stopRecording}
+                        onMouseLeave={stopRecording}
+                        onTouchStart={startRecording}
+                        onTouchEnd={stopRecording}
+                        className={`p-1.5 rounded-full transition-all ${
+                          isRecording 
+                            ? 'bg-red-500 text-white animate-pulse scale-110 shadow-lg shadow-red-500/30' 
+                            : 'text-[var(--app-text-muted)] hover:text-[var(--app-text)] hover:bg-[var(--app-surface)]'
+                        }`}
+                        title="Hold to speak"
+                      >
+                        {isRecording ? <StopCircle size={18} /> : <Mic size={18} />}
+                      </button>
+                  </div>
               </div>
+              
+              <button
+                onClick={() => handleSend()}
+                disabled={!input.trim() || isLoading || isRecording}
+                className="mb-1 p-2.5 bg-[var(--app-primary)] text-white rounded-full hover:opacity-90 disabled:opacity-50 disabled:cursor-not-allowed transition-all shadow-lg"
+              >
+                {isLoading ? <Loader2 size={20} className="animate-spin" /> : <Send size={20} />}
+              </button>
             </div>
              {isRecording && (
                 <div className="absolute -top-12 left-0 w-full flex justify-center pointer-events-none">
