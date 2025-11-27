@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
-import { Search, Package, Terminal, Loader2, Info as InfoIcon, Github, Menu, ShoppingBag, Download, RefreshCw, Trash2, ClipboardPaste, ArrowRight, ChevronLeft, ChevronRight, Command, Monitor, Zap, X, Grid, Shield, LayoutGrid, PlusCircle, Ban, XCircle, Settings, HardDrive, Database, Sparkles, BrainCircuit, Activity, Moon, Sun, MonitorSmartphone, Check, Palette, Plus, Minus, FileText, Edit2, Save, RotateCcw, Copy, Undo2, ArrowUpCircle, ArrowDownCircle, Cpu, Bug, Construction } from 'lucide-react';
+import { Search, Package, Terminal, Loader2, Info as InfoIcon, Github, Menu, ShoppingBag, Download, RefreshCw, Trash2, ClipboardPaste, ArrowRight, ChevronLeft, ChevronRight, Command, Monitor, Zap, X, Grid, Shield, LayoutGrid, PlusCircle, Ban, XCircle, Settings, HardDrive, Database, Sparkles, BrainCircuit, Activity, Moon, Sun, MonitorSmartphone, Check, Palette, Plus, Minus, FileText, Edit2, Save, RotateCcw, Copy, Undo2, ArrowUpCircle, ArrowDownCircle, Cpu, Bug, Construction, Scale } from 'lucide-react';
 import { WingetPackage, AppMode, AppSettings, ChatModelType, AppTheme } from './types';
 import { searchPackages, parseWingetOutput, generateAppDetailsPrompt, generateAlternativesPrompt, generateEvaluationPrompt } from './services/wingetService';
 import { PackageCard } from './components/PackageCard';
@@ -550,13 +550,38 @@ const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose, settings
               <div className="space-y-6">
                 <div>
                    <h3 className="text-lg font-semibold mb-4">Default Model</h3>
-                   <p className="text-sm text-[var(--app-text-muted)] mb-4">Choose the default AI model to use for chat and suggestions.</p>
+                   <p className="text-sm text-[var(--app-text-muted)] mb-4">Choose the default AI model to use for chat and suggestions. Consider the trade-offs between speed, intelligence, and cost.</p>
                    
                    <div className="grid grid-cols-1 gap-3">
                       {[
-                        { id: 'fast', label: 'Flash Lite', desc: 'Fastest responses, good for simple queries.', icon: <Zap size={16} /> },
-                        { id: 'smart', label: 'Pro (Smart)', desc: 'Balanced performance and reasoning.', icon: <Sparkles size={16} /> },
-                        { id: 'thinking', label: 'Thinking', desc: 'Deep reasoning for complex tasks. Slower.', icon: <BrainCircuit size={16} /> }
+                        { 
+                            id: 'fast', 
+                            label: 'Flash Lite (Fast)', 
+                            desc: 'Speed: High | Intel: Low | Cost: Low', 
+                            longDesc: 'Lightweight model. Lightning fast responses, perfect for simple queries and commands.',
+                            icon: <Zap size={16} /> 
+                        },
+                        { 
+                            id: 'balanced', 
+                            label: 'Flash 2.5 (Balanced)', 
+                            desc: 'Speed: Med | Intel: Med | Cost: Low', 
+                            longDesc: 'The reliable workhorse. Great balance of performance and reasoning for everyday tasks.',
+                            icon: <Activity size={16} /> 
+                        },
+                        { 
+                            id: 'smart', 
+                            label: 'Pro 3 (Smart)', 
+                            desc: 'Speed: Low | Intel: High | Cost: Med', 
+                            longDesc: 'Advanced reasoning. Best for complex evaluations, creative writing, and hard questions.',
+                            icon: <Sparkles size={16} /> 
+                        },
+                        { 
+                            id: 'thinking', 
+                            label: 'Pro 3 (Thinking)', 
+                            desc: 'Speed: Very Low | Intel: Very High | Cost: High', 
+                            longDesc: 'Deep problem solving mode. Uses extended compute to think through very difficult tasks.',
+                            icon: <BrainCircuit size={16} /> 
+                        }
                       ].map((model) => (
                         <button
                           key={model.id}
@@ -570,9 +595,15 @@ const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose, settings
                            <div className={`p-2 rounded-lg mt-0.5 ${settings.defaultModel === model.id ? 'bg-[var(--app-primary)] text-white' : 'bg-[var(--app-border)] text-[var(--app-text-muted)]'}`}>
                               {model.icon}
                            </div>
-                           <div>
-                             <p className={`font-semibold ${settings.defaultModel === model.id ? 'text-[var(--app-primary)]' : 'text-[var(--app-text)]'}`}>{model.label}</p>
-                             <p className="text-xs text-[var(--app-text-muted)] mt-1">{model.desc}</p>
+                           <div className="flex-1">
+                             <div className="flex items-center gap-2">
+                                <p className={`font-semibold ${settings.defaultModel === model.id ? 'text-[var(--app-primary)]' : 'text-[var(--app-text)]'}`}>{model.label}</p>
+                                <span className={`text-[10px] px-1.5 py-0.5 rounded border ${settings.defaultModel === model.id ? 'border-[var(--app-primary)]/30 text-[var(--app-primary)]' : 'border-[var(--app-border)] text-[var(--app-text-muted)]'}`}>
+                                    {model.id === 'thinking' ? 'Deep' : 'Standard'}
+                                </span>
+                             </div>
+                             <p className="text-xs font-mono text-[var(--app-text-muted)] mt-1 opacity-80">{model.desc}</p>
+                             <p className="text-xs text-[var(--app-text-muted)] mt-2 leading-relaxed">{model.longDesc}</p>
                            </div>
                            {settings.defaultModel === model.id && <Check size={18} className="text-[var(--app-primary)] ml-auto self-center" />}
                         </button>

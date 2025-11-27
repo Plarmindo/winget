@@ -35,6 +35,50 @@ export const generateEvaluationPrompt = (appName: string): string => {
   4. A final Verdict (Recommended/Not Recommended).`;
 };
 
+const isQuotaError = (error: any): boolean => {
+  const msg = error.message || JSON.stringify(error);
+  // specific grounding quota metric or general 429
+  return msg.includes('429') || 
+         msg.includes('RESOURCE_EXHAUSTED') || 
+         msg.includes('Quota exceeded') ||
+         msg.includes('search_grounding_request');
+};
+
+const processSearchResult = (text: string | undefined): WingetPackage[] => {
+  if (!text) return [];
+  
+  // Cleanup markdown if present
+  let jsonString = text;
+  const markdownMatch = text.match(/```json\s*([\s\S]*?)\s*```/);
+  if (markdownMatch) {
+    jsonString = markdownMatch[1];
+  } else {
+     const simpleMatch = text.match(/```\s*([\s\S]*?)\s*```/);
+     if (simpleMatch) jsonString = simpleMatch[1];
+  }
+
+  // Cleanup potential leading/trailing non-json text
+  const firstBracket = jsonString.indexOf('[');
+  const lastBracket = jsonString.lastIndexOf(']');
+  if (firstBracket !== -1 && lastBracket !== -1) {
+    jsonString = jsonString.substring(firstBracket, lastBracket + 1);
+  }
+
+  try {
+    const parsed = JSON.parse(jsonString);
+    if (!Array.isArray(parsed)) return [];
+    
+    return parsed.filter((pkg: any) => 
+      pkg && 
+      typeof pkg.id === 'string' && 
+      typeof pkg.name === 'string'
+    ) as WingetPackage[];
+  } catch (e) {
+    console.warn("Failed to parse JSON from search result", e);
+    return [];
+  }
+};
+
 export const searchPackages = async (query: string, excludeIds: string[] = [], signal?: AbortSignal): Promise<WingetPackage[]> => {
   // Check Cache first to reduce latency
   const cacheKey = `${query}-${excludeIds.sort().join(',')}`;
@@ -43,35 +87,34 @@ export const searchPackages = async (query: string, excludeIds: string[] = [], s
     return searchCache.get(cacheKey)!;
   }
 
-  try {
-    const model = "gemini-2.5-flash"; // Use Flash for speed
-    const isPopularRequest = query === "POPULAR_ESSENTIALS";
+  const model = "gemini-2.5-flash"; // Use Flash for speed
+  const isPopularRequest = query === "POPULAR_ESSENTIALS";
+  
+  let prompt = "";
+  const excludeStr = excludeIds.length > 0 ? `Do NOT include these Package IDs: ${excludeIds.join(', ')}.` : "";
+
+  if (isPopularRequest) {
+    prompt = `List 24 essential and popular Windows apps for developers and power users (e.g. VS Code, Terminal, Chrome, 7zip, Docker, Discord, Spotify, PowerToys). 
+    ${excludeStr} 
+    Return ONLY a JSON array of objects with keys: id, name, description, publisher, category, version.
+    Ensure the JSON is valid and strictly formatted.`;
+  } else {
+    // Enhanced prompt for typo resilience and fuzzy matching
+    prompt = `The user is searching for software using the term "${query}".
+    1. First, correct any potential typos in the search term.
+    2. Identify the specific software or type of software the user wants.
+    3. Use Google Search to verify the correct Winget Package IDs.
+    4. Return around 24 relevant packages.
+    ${excludeStr}
     
-    let prompt = "";
-    const excludeStr = excludeIds.length > 0 ? `Do NOT include these Package IDs: ${excludeIds.join(', ')}.` : "";
+    Return ONLY a raw JSON array of objects with keys: id, name, description, publisher, category, version.
+    Do not wrap in markdown code blocks if possible.`;
+  }
 
-    if (isPopularRequest) {
-      prompt = `List 24 essential and popular Windows apps for developers and power users (e.g. VS Code, Terminal, Chrome, 7zip, Docker, Discord, Spotify, PowerToys). 
-      ${excludeStr} 
-      Return ONLY a JSON array of objects with keys: id, name, description, publisher, category, version.
-      Ensure the JSON is valid and strictly formatted.`;
-    } else {
-      // Enhanced prompt for typo resilience and fuzzy matching
-      prompt = `The user is searching for software using the term "${query}".
-      1. First, correct any potential typos in the search term.
-      2. Identify the specific software or type of software the user wants.
-      3. Use Google Search to verify the correct Winget Package IDs.
-      4. Return around 24 relevant packages.
-      ${excludeStr}
-      
-      Return ONLY a raw JSON array of objects with keys: id, name, description, publisher, category, version.
-      Do not wrap in markdown code blocks if possible.`;
-    }
+  try {
+    if (signal?.aborted) throw new DOMException('Aborted', 'AbortError');
 
-    if (signal?.aborted) {
-      throw new DOMException('Aborted', 'AbortError');
-    }
-
+    // Attempt 1: With Grounding
     const response = await ai.models.generateContent({
       model,
       contents: prompt,
@@ -81,55 +124,41 @@ export const searchPackages = async (query: string, excludeIds: string[] = [], s
       },
     });
 
-    if (signal?.aborted) {
-      throw new DOMException('Aborted', 'AbortError');
-    }
-
-    const text = response.text;
-    if (!text) return [];
+    if (signal?.aborted) throw new DOMException('Aborted', 'AbortError');
     
-    // Cleanup markdown if present
-    let jsonString = text;
-    const markdownMatch = text.match(/```json\s*([\s\S]*?)\s*```/);
-    if (markdownMatch) {
-      jsonString = markdownMatch[1];
-    } else {
-       const simpleMatch = text.match(/```\s*([\s\S]*?)\s*```/);
-       if (simpleMatch) jsonString = simpleMatch[1];
-    }
+    const results = processSearchResult(response.text);
+    if (results.length > 0) searchCache.set(cacheKey, results);
+    return results;
 
-    // Cleanup potential leading/trailing non-json text
-    const firstBracket = jsonString.indexOf('[');
-    const lastBracket = jsonString.lastIndexOf(']');
-    if (firstBracket !== -1 && lastBracket !== -1) {
-      jsonString = jsonString.substring(firstBracket, lastBracket + 1);
-    }
-
-    try {
-      const parsed = JSON.parse(jsonString);
-      if (!Array.isArray(parsed)) return [];
-      
-      const results = parsed.filter((pkg: any) => 
-        pkg && 
-        typeof pkg.id === 'string' && 
-        typeof pkg.name === 'string'
-      ) as WingetPackage[];
-
-      // Cache the valid results
-      if (results.length > 0) {
-        searchCache.set(cacheKey, results);
-      }
-
-      return results;
-    } catch (e) {
-      console.warn("Failed to parse JSON from search result", e);
-      return [];
-    }
   } catch (error: any) {
-    if (error.name === 'AbortError' || error.message === 'Aborted') {
+    if (signal?.aborted || error.name === 'AbortError' || error.message === 'Aborted') {
       console.log('Search aborted');
       throw error;
     }
+
+    // Attempt 2: Fallback if Quota Exceeded (429)
+    if (isQuotaError(error)) {
+        console.warn("Grounding Quota Exceeded. Falling back to non-grounded search.");
+        try {
+            const responseFallback = await ai.models.generateContent({
+                model,
+                contents: prompt,
+                config: {
+                  systemInstruction: SYSTEM_INSTRUCTION + "\nNOTE: Search tools are disabled. Rely on your internal knowledge base for accurate Package IDs.",
+                  // tools: undefined (removed)
+                },
+            });
+            if (signal?.aborted) throw new DOMException('Aborted', 'AbortError');
+            
+            const results = processSearchResult(responseFallback.text);
+            if (results.length > 0) searchCache.set(cacheKey, results);
+            return results;
+        } catch (fallbackError) {
+             console.error("Fallback Search Error:", fallbackError);
+             return [];
+        }
+    }
+
     console.error("Gemini Search Error:", error);
     return [];
   }
@@ -265,37 +294,35 @@ export const chatWithAI = async (
   };
 
   if (modelType === 'fast') {
-    modelName = 'gemini-2.5-flash-lite';
+    modelName = 'gemini-2.5-flash-lite'; // Lite for speed
     config.tools = undefined; 
+  } else if (modelType === 'balanced') {
+    modelName = 'gemini-2.5-flash'; // Standard for balance
   } else if (modelType === 'smart') {
-    modelName = 'gemini-3-pro-preview';
+    modelName = 'gemini-3-pro-preview'; // Pro for smarts
   } else if (modelType === 'thinking') {
     modelName = 'gemini-3-pro-preview';
-    config.thinkingConfig = { thinkingBudget: 32768 };
+    config.thinkingConfig = { thinkingBudget: 32768 }; // Thinking for depth
   } else {
       modelName = 'gemini-2.5-flash'; 
   }
 
+  const runChat = async (currentConfig: any) => {
+      const chat = ai.chats.create({
+        model: modelName,
+        history: history,
+        config: currentConfig
+      });
+      return await chat.sendMessage({ message });
+  };
+
   try {
-    const chat = ai.chats.create({
-      model: modelName,
-      history: history,
-      config: config
-    });
-
-    if (signal?.aborted) {
-      throw new DOMException('Aborted', 'AbortError');
-    }
-
-    // Note: The new SDK uses sendMessage, which returns a promise.
-    // We can't strictly cancel the HTTP request easily if the SDK doesn't expose it,
-    // but we can check the signal right before returning to avoid UI updates.
-    // Ideally we pass signal to the underlying fetch if possible, but here we perform a logic check.
-    const result = await chat.sendMessage({ message });
+    if (signal?.aborted) throw new DOMException('Aborted', 'AbortError');
     
-    if (signal?.aborted) {
-      throw new DOMException('Aborted', 'AbortError');
-    }
+    // Attempt 1
+    const result = await runChat(config);
+    
+    if (signal?.aborted) throw new DOMException('Aborted', 'AbortError');
 
     const sources = result.candidates?.[0]?.groundingMetadata?.groundingChunks
       ?.map((chunk: any) => ({
@@ -308,10 +335,29 @@ export const chatWithAI = async (
       text: result.text,
       sources: sources
     };
-  } catch (error) {
+  } catch (error: any) {
     if (signal?.aborted || (error as any).name === 'AbortError') {
       throw new DOMException('Aborted', 'AbortError');
     }
+
+    // Attempt 2: Fallback for Quota
+    if (isQuotaError(error)) {
+        console.warn("Chat Grounding Quota Exceeded. Retrying without tools.");
+        try {
+            const fallbackConfig = { ...config, tools: undefined };
+            const resultFallback = await runChat(fallbackConfig);
+            if (signal?.aborted) throw new DOMException('Aborted', 'AbortError');
+            
+            return {
+                text: resultFallback.text + "\n\n*(Note: Search features unavailable due to quota limits)*",
+                sources: []
+            };
+        } catch(fallbackError) {
+             console.error("Fallback Chat Error:", fallbackError);
+             throw fallbackError;
+        }
+    }
+
     console.error("Chat error:", error);
     throw error;
   }

@@ -32,7 +32,7 @@ export interface ChatMessage {
   feedback?: 'up' | 'down';
 }
 
-export type ChatModelType = 'fast' | 'smart' | 'thinking';
+export type ChatModelType = 'fast' | 'balanced' | 'smart' | 'thinking';
 
 export type AppMode = 'install' | 'upgrade' | 'uninstall';
 
