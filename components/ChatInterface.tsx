@@ -1,5 +1,5 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { MessageSquare, Mic, Send, X, Bot, BrainCircuit, Zap, Volume2, Sparkles, Loader2, StopCircle, Trash2, Link as LinkIcon, Box, Copy, Check, ArrowRightCircle, Grid, ThumbsUp, ThumbsDown } from 'lucide-react';
+import { MessageSquare, Mic, Send, X, Bot, BrainCircuit, Zap, Volume2, Sparkles, Loader2, StopCircle, Trash2, Link as LinkIcon, Box, Copy, Check, ArrowRightCircle, Grid, ThumbsUp, ThumbsDown, Square } from 'lucide-react';
 import { ChatMessage, ChatModelType, WingetPackage } from '../types';
 import { chatWithAI, transcribeAudio, generateSpeech, enhancePrompt } from '../services/wingetService';
 
@@ -72,6 +72,7 @@ export const ChatInterface: React.FC<ChatInterfaceProps> = ({ onShowResults, pen
   const audioContextRef = useRef<AudioContext | null>(null);
   const recordingMimeTypeRef = useRef<string>('');
   const textareaRef = useRef<HTMLTextAreaElement>(null);
+  const abortControllerRef = useRef<AbortController | null>(null);
 
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
@@ -142,20 +143,32 @@ export const ChatInterface: React.FC<ChatInterfaceProps> = ({ onShowResults, pen
   const handleFeedback = (messageId: string, type: 'up' | 'down') => {
     setMessages(prev => prev.map(msg => {
       if (msg.id === messageId) {
-        // Toggle logic: if clicking same type, remove feedback. Else set new type.
         const newFeedback = msg.feedback === type ? undefined : type;
-        console.log(`User feedback for message ${messageId}: ${newFeedback}`);
         return { ...msg, feedback: newFeedback };
       }
       return msg;
     }));
   };
 
+  const handleStop = () => {
+    if (abortControllerRef.current) {
+      abortControllerRef.current.abort();
+      abortControllerRef.current = null;
+      setIsLoading(false);
+    }
+  };
+
   const handleSend = async (textInput?: string) => {
     const textToSend = textInput || input;
     if (!textToSend.trim() || isLoading) return;
 
-    // Clear any pending enhancements if user sends
+    // Abort previous request if any
+    if (abortControllerRef.current) {
+        abortControllerRef.current.abort();
+    }
+    const ac = new AbortController();
+    abortControllerRef.current = ac;
+
     setEnhancedProposal(null);
 
     const userMsg: ChatMessage = {
@@ -167,17 +180,16 @@ export const ChatInterface: React.FC<ChatInterfaceProps> = ({ onShowResults, pen
 
     setMessages(prev => [...prev, userMsg]);
     setInput('');
-    setHistoryIndex(-1); // Reset history index on send
+    setHistoryIndex(-1);
     setIsLoading(true);
 
     try {
-      // Convert history for API
       const history = messages.map(m => ({
         role: m.role,
         parts: [{ text: m.text }]
       }));
 
-      const response = await chatWithAI(userMsg.text, history, modelType);
+      const response = await chatWithAI(userMsg.text, history, modelType, ac.signal);
       
       const botMsg: ChatMessage = {
         id: (Date.now() + 1).toString(),
@@ -189,21 +201,32 @@ export const ChatInterface: React.FC<ChatInterfaceProps> = ({ onShowResults, pen
       };
 
       setMessages(prev => [...prev, botMsg]);
-    } catch (error) {
-      console.error(error);
-      const errorMsg: ChatMessage = {
-        id: (Date.now() + 1).toString(),
-        role: 'model',
-        text: "Sorry, something went wrong. Please try again.",
-        timestamp: Date.now()
-      };
-      setMessages(prev => [...prev, errorMsg]);
+    } catch (error: any) {
+      if (error.name === 'AbortError' || error.message === 'Aborted') {
+          const abortedMsg: ChatMessage = {
+            id: (Date.now() + 1).toString(),
+            role: 'model',
+            text: "*[Response stopped by user]*",
+            timestamp: Date.now(),
+            feedback: undefined
+          };
+          setMessages(prev => [...prev, abortedMsg]);
+      } else {
+        console.error(error);
+        const errorMsg: ChatMessage = {
+            id: (Date.now() + 1).toString(),
+            role: 'model',
+            text: "Sorry, something went wrong. Please try again.",
+            timestamp: Date.now()
+        };
+        setMessages(prev => [...prev, errorMsg]);
+      }
     } finally {
       setIsLoading(false);
+      abortControllerRef.current = null;
     }
   };
 
-  // Keyboard Navigation for History
   const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
     if (e.key === 'Enter') {
       if (!e.shiftKey) {
@@ -211,15 +234,13 @@ export const ChatInterface: React.FC<ChatInterfaceProps> = ({ onShowResults, pen
         handleSend();
         return;
       }
-      // Allow Shift+Enter for new line
     }
 
-    // Get only user messages for history navigation (only if input is empty or we are already navigating)
     const userMessages = messages.filter(m => m.role === 'user').map(m => m.text);
     if (userMessages.length === 0) return;
 
     if (e.key === 'ArrowUp') {
-       if (historyIndex === -1 && input.length > 0) return; // Don't interrupt editing
+       if (historyIndex === -1 && input.length > 0) return;
        e.preventDefault();
        const newIndex = historyIndex === -1 ? userMessages.length - 1 : Math.max(0, historyIndex - 1);
        setHistoryIndex(newIndex);
@@ -265,7 +286,6 @@ export const ChatInterface: React.FC<ChatInterfaceProps> = ({ onShowResults, pen
       };
 
       mediaRecorder.onstop = async () => {
-        // Stop all tracks
         stream.getTracks().forEach(track => track.stop());
 
         if (audioChunksRef.current.length === 0) return;
@@ -277,7 +297,7 @@ export const ChatInterface: React.FC<ChatInterfaceProps> = ({ onShowResults, pen
           const result = reader.result as string;
           if (result) {
             const base64Audio = result.split(',')[1];
-            setIsLoading(true); // Show loading state on Send button
+            setIsLoading(true);
             try {
                const text = await transcribeAudio(base64Audio, mimeType || 'audio/webm');
                if (text) {
@@ -316,7 +336,6 @@ export const ChatInterface: React.FC<ChatInterfaceProps> = ({ onShowResults, pen
       bytes[i] = binaryString.charCodeAt(i);
     }
     
-    // Gemini TTS uses 16-bit PCM, 24kHz, Mono, Little Endian
     const pcm16 = new Int16Array(bytes.buffer);
     const float32 = new Float32Array(pcm16.length);
     for (let i = 0; i < pcm16.length; i++) {
@@ -329,7 +348,7 @@ export const ChatInterface: React.FC<ChatInterfaceProps> = ({ onShowResults, pen
   };
 
   const playTTS = async (text: string, msgId: string) => {
-    if (playingMessageId) return; // Prevent multiple plays
+    if (playingMessageId) return;
     setPlayingMessageId(msgId);
     try {
       const base64Audio = await generateSpeech(text);
@@ -338,7 +357,6 @@ export const ChatInterface: React.FC<ChatInterfaceProps> = ({ onShowResults, pen
           audioContextRef.current = new (window.AudioContext || (window as any).webkitAudioContext)();
         }
         
-        // Decode raw PCM from API
         const audioBuffer = decodePCM(base64Audio, audioContextRef.current);
         
         const source = audioContextRef.current.createBufferSource();
@@ -355,26 +373,19 @@ export const ChatInterface: React.FC<ChatInterfaceProps> = ({ onShowResults, pen
     }
   };
 
-  // Helper to extract package IDs from text
   const extractPackageIds = (text: string): string[] => {
     const ids = new Set<string>();
-    
-    // Pattern 1: `Publisher.App` (inside backticks usually from AI)
     const backtickMatch = text.matchAll(/`([A-Z][a-zA-Z0-9]+\.[a-zA-Z0-9.]+)`/g);
     for (const match of backtickMatch) {
         if(match[1]) ids.add(match[1]);
     }
-
-    // Pattern 2: winget install/upgrade <ID>
     const commandMatch = text.matchAll(/winget\s+(?:install|upgrade|uninstall)\s+(?:--id\s+)?([A-Z][a-zA-Z0-9]+\.[a-zA-Z0-9.]+)/gi);
     for (const match of commandMatch) {
         if(match[1]) ids.add(match[1]);
     }
-
     return Array.from(ids);
   };
 
-  // Helper to extract JSON package lists from text
   const extractAllPackagesFromJSON = (text: string): WingetPackage[] | null => {
     const matches = text.matchAll(/```json\s*([\s\S]*?)\s*```/g);
     let allPackages: WingetPackage[] = [];
@@ -390,14 +401,11 @@ export const ChatInterface: React.FC<ChatInterfaceProps> = ({ onShowResults, pen
                  allPackages.push(parsed);
                  found = true;
             }
-        } catch(e) {
-            // Ignore parse errors for partial/malformed blocks
-        }
+        } catch(e) {}
     }
     
     if (found && allPackages.length > 0) return allPackages;
 
-    // Fallback for single block without global regex
     const singleMatch = text.match(/```json\s*([\s\S]*?)\s*```/);
     if (singleMatch) {
        try {
@@ -417,7 +425,6 @@ export const ChatInterface: React.FC<ChatInterfaceProps> = ({ onShowResults, pen
 
   return (
     <>
-      {/* Trigger Button */}
       <button
         onClick={() => setIsOpen(!isOpen)}
         className="fixed bottom-6 right-6 z-40 p-4 bg-[var(--app-primary)] hover:opacity-90 text-white rounded-full shadow-lg shadow-indigo-900/30 transition-all transform hover:scale-105 flex items-center justify-center"
@@ -425,27 +432,33 @@ export const ChatInterface: React.FC<ChatInterfaceProps> = ({ onShowResults, pen
         {isOpen ? <X size={24} /> : <MessageSquare size={24} />}
       </button>
 
-      {/* Chat Window */}
       {isOpen && (
         <div className="fixed bottom-24 right-6 w-96 max-w-[calc(100vw-3rem)] h-[600px] max-h-[calc(100vh-8rem)] bg-[var(--app-surface)] border border-[var(--app-border)] rounded-2xl shadow-2xl flex flex-col overflow-hidden z-40">
           
-          {/* Header */}
           <div className="p-4 border-b border-[var(--app-border)] bg-[var(--app-surface)] flex flex-col gap-3">
             <div className="flex justify-between items-center">
               <div className="flex items-center space-x-2">
                 <Bot size={20} className="text-[var(--app-primary)]" />
                 <span className="font-semibold text-[var(--app-text)]">Winget Assistant</span>
               </div>
-              <button 
-                onClick={clearHistory}
-                className="p-1.5 text-[var(--app-text-muted)] hover:text-red-400 hover:bg-[var(--app-bg)] rounded transition-colors"
-                title="Clear History"
-              >
-                <Trash2 size={16} />
-              </button>
+              <div className="flex items-center gap-1">
+                 <button 
+                  onClick={clearHistory}
+                  className="p-1.5 text-[var(--app-text-muted)] hover:text-red-400 hover:bg-[var(--app-bg)] rounded transition-colors flex items-center gap-1.5"
+                  title="Clear History"
+                >
+                  <Trash2 size={16} />
+                </button>
+                <button 
+                  onClick={() => setIsOpen(false)}
+                  className="p-1.5 text-[var(--app-text-muted)] hover:text-[var(--app-text)] hover:bg-[var(--app-bg)] rounded transition-colors"
+                  title="Close Chat"
+                >
+                  <X size={16} />
+                </button>
+              </div>
             </div>
             
-            {/* Model Selector */}
             <div className="flex bg-[var(--app-bg)] rounded-lg p-1 text-[10px] w-full">
               <button 
                 onClick={() => handleSetModel('fast')}
@@ -471,7 +484,6 @@ export const ChatInterface: React.FC<ChatInterfaceProps> = ({ onShowResults, pen
             </div>
           </div>
 
-          {/* Messages */}
           <div className="flex-1 overflow-y-auto p-4 space-y-4 bg-[var(--app-bg)]/50">
             {messages.map((msg) => {
               const packageIds = msg.role === 'model' ? extractPackageIds(msg.text) : [];
@@ -489,7 +501,6 @@ export const ChatInterface: React.FC<ChatInterfaceProps> = ({ onShowResults, pen
                 }`}>
                   <p className="whitespace-pre-wrap leading-relaxed">{msg.text}</p>
                   
-                  {/* JSON Packages Action */}
                   {jsonPackages && jsonPackages.length > 0 && onShowResults && (
                      <button
                         onClick={() => onShowResults(jsonPackages)}
@@ -500,7 +511,6 @@ export const ChatInterface: React.FC<ChatInterfaceProps> = ({ onShowResults, pen
                      </button>
                   )}
 
-                  {/* Detected Package IDs */}
                   {packageIds.length > 0 && (!jsonPackages || jsonPackages.length === 0) && (
                     <div className="mt-3 bg-[var(--app-bg)]/50 rounded-lg p-2 border border-[var(--app-border)]/50">
                       <div className="text-[10px] text-[var(--app-text-muted)] uppercase font-bold mb-1 flex items-center gap-1">
@@ -528,7 +538,6 @@ export const ChatInterface: React.FC<ChatInterfaceProps> = ({ onShowResults, pen
                     </div>
                   )}
 
-                  {/* Sources / Grounding */}
                   {msg.sources && msg.sources.length > 0 && (
                     <div className="mt-3 pt-2 border-t border-[var(--app-border)]/50">
                        <div className="text-[10px] text-[var(--app-text-muted)] uppercase font-bold mb-1 flex items-center gap-1">
@@ -556,7 +565,6 @@ export const ChatInterface: React.FC<ChatInterfaceProps> = ({ onShowResults, pen
                         {msg.isThinking && <span className="text-[10px] text-rose-400 flex items-center gap-1"><BrainCircuit size={10} /> Deep Thought</span>}
                         {!msg.isThinking && <span className="text-[10px] text-[var(--app-text-muted)]">AI Generated</span>}
                         
-                        {/* Feedback Buttons */}
                         <div className="flex items-center gap-1 ml-2 border-l border-[var(--app-border)]/50 pl-2">
                           <button 
                             onClick={() => handleFeedback(msg.id, 'up')}
@@ -589,7 +597,6 @@ export const ChatInterface: React.FC<ChatInterfaceProps> = ({ onShowResults, pen
               </div>
             )})}
             
-            {/* Suggestions for empty/new chat */}
             {messages.length === 1 && (
                <div className="flex flex-wrap gap-2 mt-4 px-2">
                  {SUGGESTIONS.map(s => (
@@ -622,16 +629,21 @@ export const ChatInterface: React.FC<ChatInterfaceProps> = ({ onShowResults, pen
                        <span className="text-xs text-[var(--app-text-muted)]">Thinking...</span>
                      </>
                   )}
+                  <button 
+                    onClick={handleStop}
+                    className="ml-2 p-1 rounded-full bg-red-500/20 text-red-500 hover:bg-red-500 hover:text-white transition-colors"
+                    title="Stop Generation"
+                  >
+                     <Square size={12} fill="currentColor" />
+                  </button>
                 </div>
               </div>
             )}
             <div ref={messagesEndRef} />
           </div>
 
-          {/* Input Area */}
           <div className="p-3 bg-[var(--app-surface)] border-t border-[var(--app-border)] relative">
             
-            {/* Enhancement Proposal Overlay */}
             {enhancedProposal && (
               <div className="absolute bottom-full left-0 w-full mb-0 p-3 bg-[var(--app-surface)]/95 backdrop-blur-sm border-t border-[var(--app-border)] shadow-xl animate-in slide-in-from-bottom-2 fade-in z-20">
                 <div className="flex justify-between items-start mb-1">
@@ -680,9 +692,7 @@ export const ChatInterface: React.FC<ChatInterfaceProps> = ({ onShowResults, pen
                     style={{ maxHeight: '150px' }}
                   />
                   
-                  {/* Buttons inside text area container for compact look */}
                   <div className="absolute right-2 bottom-2 flex items-center space-x-1">
-                      {/* Enhance Prompt Button */}
                       <button
                         onClick={handleEnhance}
                         disabled={!input.trim() || isEnhancing || isLoading || isRecording || !!enhancedProposal}

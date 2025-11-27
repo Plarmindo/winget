@@ -3,12 +3,19 @@ import { WingetPackage, ChatModelType } from "../types";
 
 const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
 
+// Simple in-memory cache for search results to improve latency (addressing critique)
+const searchCache = new Map<string, WingetPackage[]>();
+
 const SYSTEM_INSTRUCTION = `
 You are a backend for a Windows Package Manager (winget) web interface. 
 Your goal is to return valid, real, and popular Winget package data based on user queries.
 Always return a strictly valid JSON array.
-Do not invent packages. Use real Package IDs (e.g., 'Mozilla.Firefox', 'Microsoft.VSCode').
-Classify them into general categories like 'Development', 'Utilities', 'Browsers', 'Media', 'Gaming', 'System'.
+
+CRITICAL RULES:
+1. Do NOT invent Package IDs. If you are unsure, do not list it.
+2. Use REAL Package IDs (e.g., 'Mozilla.Firefox', 'Microsoft.VSCode', 'Valve.Steam').
+3. HALLUCINATIONS OF IDs ARE FORBIDDEN.
+4. Classify them into categories like 'Development', 'Utilities', 'Browsers', 'Media', 'Gaming', 'System'.
 `;
 
 export const generateAppDetailsPrompt = (appName: string, pkgId: string): string => {
@@ -29,8 +36,15 @@ export const generateEvaluationPrompt = (appName: string): string => {
 };
 
 export const searchPackages = async (query: string, excludeIds: string[] = [], signal?: AbortSignal): Promise<WingetPackage[]> => {
+  // Check Cache first to reduce latency
+  const cacheKey = `${query}-${excludeIds.sort().join(',')}`;
+  if (searchCache.has(cacheKey)) {
+    console.log("Serving from cache:", cacheKey);
+    return searchCache.get(cacheKey)!;
+  }
+
   try {
-    const model = "gemini-2.5-flash";
+    const model = "gemini-2.5-flash"; // Use Flash for speed
     const isPopularRequest = query === "POPULAR_ESSENTIALS";
     
     let prompt = "";
@@ -44,14 +58,14 @@ export const searchPackages = async (query: string, excludeIds: string[] = [], s
     } else {
       // Enhanced prompt for typo resilience and fuzzy matching
       prompt = `The user is searching for software using the term "${query}".
-      1. First, correct any potential typos in the search term (e.g., "vscdoe" -> "vscode", "notpad" -> "notepad").
+      1. First, correct any potential typos in the search term.
       2. Identify the specific software or type of software the user wants.
-      3. Use Google Search to verify the correct Winget Package IDs for this software.
-      4. Return around 24 relevant packages to allow for pagination.
+      3. Use Google Search to verify the correct Winget Package IDs.
+      4. Return around 24 relevant packages.
       ${excludeStr}
       
       Return ONLY a raw JSON array of objects with keys: id, name, description, publisher, category, version.
-      Do not wrap in markdown code blocks if possible, or use standard json blocks.`;
+      Do not wrap in markdown code blocks if possible.`;
     }
 
     if (signal?.aborted) {
@@ -74,7 +88,7 @@ export const searchPackages = async (query: string, excludeIds: string[] = [], s
     const text = response.text;
     if (!text) return [];
     
-    // Cleanup markdown if present (model might still wrap it despite instructions)
+    // Cleanup markdown if present
     let jsonString = text;
     const markdownMatch = text.match(/```json\s*([\s\S]*?)\s*```/);
     if (markdownMatch) {
@@ -84,7 +98,7 @@ export const searchPackages = async (query: string, excludeIds: string[] = [], s
        if (simpleMatch) jsonString = simpleMatch[1];
     }
 
-    // Attempt to clean cleanup potential leading/trailing non-json text
+    // Cleanup potential leading/trailing non-json text
     const firstBracket = jsonString.indexOf('[');
     const lastBracket = jsonString.lastIndexOf(']');
     if (firstBracket !== -1 && lastBracket !== -1) {
@@ -95,12 +109,18 @@ export const searchPackages = async (query: string, excludeIds: string[] = [], s
       const parsed = JSON.parse(jsonString);
       if (!Array.isArray(parsed)) return [];
       
-      // Validation to prevent crashes in UI
-      return parsed.filter((pkg: any) => 
+      const results = parsed.filter((pkg: any) => 
         pkg && 
         typeof pkg.id === 'string' && 
         typeof pkg.name === 'string'
       ) as WingetPackage[];
+
+      // Cache the valid results
+      if (results.length > 0) {
+        searchCache.set(cacheKey, results);
+      }
+
+      return results;
     } catch (e) {
       console.warn("Failed to parse JSON from search result", e);
       return [];
@@ -117,13 +137,11 @@ export const searchPackages = async (query: string, excludeIds: string[] = [], s
 
 /**
  * Parses the raw text output from 'winget list' or 'winget upgrade' into WingetPackage objects.
- * Handles standard table format.
  */
 export const parseWingetOutput = (output: string): WingetPackage[] => {
   const lines = output.split('\n');
   const packages: WingetPackage[] = [];
   
-  // Skip header lines (usually starts with Name or ----)
   let startIndex = 0;
   for (let i = 0; i < lines.length; i++) {
     if (lines[i].trim().startsWith('---')) {
@@ -132,18 +150,12 @@ export const parseWingetOutput = (output: string): WingetPackage[] => {
     }
   }
 
-  // Fallback if no separator found, try to guess based on content
   if (startIndex === 0 && lines.length > 2) startIndex = 2;
 
   for (let i = startIndex; i < lines.length; i++) {
     const line = lines[i].trim();
     if (!line) continue;
 
-    // Winget list columns are dynamic, but ID is usually the second column looking item
-    // Regex strategy: Name (greedy)   ID (no spaces)    Version (no spaces)   Available(opt)  Source(opt)
-    // This is approximate but works for the majority of standard outputs
-    
-    // Splitting by 2 or more spaces is a safer bet for table columns
     const columns = line.split(/\s{2,}/);
     
     if (columns.length >= 2) {
@@ -151,24 +163,17 @@ export const parseWingetOutput = (output: string): WingetPackage[] => {
       const id = columns[1];
       const version = columns[2] || 'Unknown';
       
-      // Check for 'Available' column (typically 4th column in 'winget upgrade' output)
-      // Standard 'winget list': Name, Id, Version, Source
-      // Standard 'winget upgrade': Name, Id, Version, Available, Source
-      
       let availableVersion = undefined;
       let category = 'Installed';
 
-      // Heuristic: If there is a 4th column and it looks like a version number (digits/dots), it's likely "Available"
       if (columns.length >= 4) {
          const col3 = columns[3].trim();
-         // If col3 is NOT a source (like 'winget' or 'msstore'), assume it's available version
          if (!['winget', 'msstore', 'xwinget'].includes(col3.toLowerCase()) && /^[0-9.]+/.test(col3)) {
             availableVersion = col3;
             category = 'Update Available';
          }
       }
 
-      // Basic validation to ensure it looks like a package
       if (id && id.length > 2 && !id.includes(' ')) {
         packages.push({
           id: id,
@@ -227,7 +232,6 @@ export const generateSpeech = async (text: string): Promise<string | null> => {
       }
     });
     
-    // Extract base64 audio (Raw PCM)
     const base64Audio = response.candidates?.[0]?.content?.parts?.[0]?.inlineData?.data;
     return base64Audio || null;
   } catch (error) {
@@ -242,37 +246,27 @@ Your goal is to assist users in finding, installing, upgrading, and removing sof
 
 **Response Guidelines:**
 1.  **Formatting:** Use standard Markdown. Use bold for package names and code blocks for commands.
-2.  **Commands:** When suggesting commands, use code blocks (e.g., \`winget install <id> -e\`). Always prefer the \`-e\` (exact) flag for safety.
+2.  **Commands:** When suggesting commands, use code blocks (e.g., \`winget install <id> -e\`). Always prefer the \`-e\` (exact) flag.
 3.  **Package Lists:** If the user asks to find, list, or recommends apps, YOU MUST include a structured JSON array at the end of your response in a separate \`\`\`json\`\`\` block.
     *   The JSON must be an array of objects with keys: \`id\`, \`name\`, \`description\`, \`publisher\` (optional), \`category\` (optional).
-    *   Example:
-        \`\`\`json
-        [
-          { "id": "Microsoft.VSCode", "name": "Visual Studio Code", "description": "Code editor", "category": "Development" }
-        ]
-        \`\`\`
 4.  **Tone:** Be technical but accessible. Concise and accurate.
-
-**Capabilities:**
-*   Analyze 'winget list' output to suggest upgrades.
-*   Explain complex winget arguments.
-*   Generate scripts.
 `;
 
 export const chatWithAI = async (
   message: string, 
   history: { role: string, parts: { text: string }[] }[],
-  modelType: ChatModelType
+  modelType: ChatModelType,
+  signal?: AbortSignal
 ) => {
   let modelName = 'gemini-2.5-flash';
   let config: any = {
     systemInstruction: CHAT_SYSTEM_INSTRUCTION,
-    tools: [{ googleSearch: {} }], // Enable grounding for chat as well
+    tools: [{ googleSearch: {} }],
   };
 
   if (modelType === 'fast') {
     modelName = 'gemini-2.5-flash-lite';
-    config.tools = undefined; // Lite might not support tools depending on exact version, but usually safer to disable if speed is key
+    config.tools = undefined; 
   } else if (modelType === 'smart') {
     modelName = 'gemini-3-pro-preview';
   } else if (modelType === 'thinking') {
@@ -289,9 +283,20 @@ export const chatWithAI = async (
       config: config
     });
 
+    if (signal?.aborted) {
+      throw new DOMException('Aborted', 'AbortError');
+    }
+
+    // Note: The new SDK uses sendMessage, which returns a promise.
+    // We can't strictly cancel the HTTP request easily if the SDK doesn't expose it,
+    // but we can check the signal right before returning to avoid UI updates.
+    // Ideally we pass signal to the underlying fetch if possible, but here we perform a logic check.
     const result = await chat.sendMessage({ message });
     
-    // Extract sources from grounding metadata
+    if (signal?.aborted) {
+      throw new DOMException('Aborted', 'AbortError');
+    }
+
     const sources = result.candidates?.[0]?.groundingMetadata?.groundingChunks
       ?.map((chunk: any) => ({
         uri: chunk.web?.uri,
@@ -304,6 +309,9 @@ export const chatWithAI = async (
       sources: sources
     };
   } catch (error) {
+    if (signal?.aborted || (error as any).name === 'AbortError') {
+      throw new DOMException('Aborted', 'AbortError');
+    }
     console.error("Chat error:", error);
     throw error;
   }
