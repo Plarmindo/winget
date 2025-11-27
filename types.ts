@@ -36,6 +36,17 @@ export type ChatModelType = 'fast' | 'balanced' | 'smart' | 'thinking';
 
 export type AppMode = 'install' | 'upgrade' | 'uninstall';
 
+export type PackageManagerType = 'winget' | 'chocolatey' | 'scoop' | 'brew' | 'apt';
+
+export type AiProviderType = 'gemini' | 'openai' | 'ollama' | 'lmstudio' | 'custom';
+
+export interface AiConfig {
+  provider: AiProviderType;
+  apiKey: string;
+  baseUrl: string;
+  modelId: string;
+}
+
 export interface AppTheme {
   id: string;
   name: string;
@@ -54,10 +65,12 @@ export interface AppTheme {
 export interface AppSettings {
   reducedMotion: boolean;
   highContrast: boolean;
-  compactMode: boolean; // New setting for denser layout
-  defaultModel: ChatModelType;
+  compactMode: boolean;
+  defaultModel: ChatModelType; // Legacy setting, kept for compatibility
   activeThemeId: string;
   themes: AppTheme[];
   customSubjects: string[];
   itemsPerPage: number;
+  activePackageManager: PackageManagerType;
+  aiConfig: AiConfig;
 }
