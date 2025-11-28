@@ -1,5 +1,7 @@
+
 import { GoogleGenAI, Modality } from "@google/genai";
-import { WingetPackage, ChatModelType, AppSettings, AiConfig, PackageManagerType } from "../types";
+import { WingetPackage, ChatModelType, AppSettings, AiConfig, PackageManagerType, AppMode } from "../types";
+import { isTauri, executeCliCommand, spawnTerminalCommand } from "./tauriBridge";
 
 // Helper to get package manager specific instructions
 const getManagerContext = (pm: PackageManagerType) => {
@@ -48,6 +50,14 @@ const getManagerContext = (pm: PackageManagerType) => {
 const cleanBaseUrl = (url: string) => {
   if (!url) return '';
   return url.replace(/\/+$/, '');
+};
+
+const detectTaskComplexity = (text: string): 'simple' | 'complex' => {
+  if (text.length > 400) return 'complex';
+  // Keywords implying analysis, comparison, or creativity
+  const complexPattern = /compare|difference|versus|vs\.|analyze|evaluate|pros and cons|verdict|script|generate|explain|why|how to/i;
+  if (complexPattern.test(text)) return 'complex';
+  return 'simple';
 };
 
 const callOpenAICompatible = async (config: AiConfig, messages: any[], systemInstruction?: string, signal?: AbortSignal) => {
@@ -105,8 +115,25 @@ const callGemini = async (settings: AppSettings, prompt: string | any, systemIns
 
   const ai = new GoogleGenAI({ apiKey });
   
-  // Map ChatModelType logic or use config model
+  // Logic to automatically select model based on complexity
   let modelName = settings.aiConfig.modelId || "gemini-2.5-flash";
+  
+  // Basic models that are candidates for auto-upgrade
+  const BASE_MODELS = ['gemini-2.5-flash', 'gemini-2.5-flash-lite', 'gemini-2.0-flash-exp'];
+  
+  // Analyze complexity from prompt (if string) or content parts
+  let promptText = "";
+  if (typeof prompt === 'string') promptText = prompt;
+  else if (Array.isArray(prompt)) promptText = prompt.map((p: any) => p.text || '').join(' ');
+  else if (prompt.parts) promptText = prompt.parts.map((p: any) => p.text || '').join(' ');
+
+  const complexity = detectTaskComplexity(promptText);
+
+  // Auto-upgrade logic: If task is complex and user is on a base model, switch to Pro
+  if (complexity === 'complex' && BASE_MODELS.some(m => modelName.includes(m))) {
+      console.log(`[Auto-Model] Task detected as COMPLEX. Upgrading ${modelName} to gemini-3-pro-preview`);
+      modelName = 'gemini-3-pro-preview';
+  }
   
   const performGenerate = async (currentTools?: any) => {
       const config: any = {
@@ -201,6 +228,136 @@ export const generateEvaluationPrompt = (appName: string): string => {
   return `Evaluate the software "${appName}" honestly. No sugar coating. Provide Pros, Cons, and a Verdict.`;
 };
 
+// New: Execute Real Command via Tauri
+export const executeRealCommand = async (
+  packageManager: PackageManagerType, 
+  mode: AppMode, 
+  packageIds: string[]
+) => {
+  if (!isTauri()) {
+    console.warn("Not running in Desktop mode. Command cannot be executed natively.");
+    return;
+  }
+
+  const args: string[] = [];
+  
+  if (mode === 'install') args.push('install');
+  else if (mode === 'upgrade') args.push('upgrade');
+  else if (mode === 'uninstall') args.push('uninstall');
+
+  // Add all IDs
+  args.push(...packageIds);
+
+  // Add common flags for interactivity or source
+  if (packageManager === 'winget') {
+    args.push('-e'); // exact
+    args.push('--source');
+    args.push('winget');
+  } else if (packageManager === 'chocolatey') {
+    args.push('-y');
+  }
+
+  try {
+    await spawnTerminalCommand(packageManager, args);
+  } catch (e) {
+    console.error("Failed to spawn terminal:", e);
+    alert("Failed to launch terminal command. See console.");
+  }
+};
+
+export const parseWingetOutput = (output: string): WingetPackage[] => {
+  const lines = output.split('\n');
+  const packages: WingetPackage[] = [];
+  
+  let startIndex = 0;
+  // Basic heuristic to find the start of the table
+  for (let i = 0; i < lines.length; i++) {
+    const line = lines[i].trim();
+    if (line.startsWith('---') || line.toLowerCase().includes('name') && line.toLowerCase().includes('id')) {
+      startIndex = i + 1;
+      if (line.startsWith('---')) break;
+    }
+  }
+
+  if (startIndex === 0 && lines.length > 2) startIndex = 2;
+
+  for (let i = startIndex; i < lines.length; i++) {
+    const line = lines[i].trim();
+    if (!line) continue;
+    if (line.startsWith('-')) continue; // Skip separator lines
+
+    // This regex is a rough approximation for standard CLI table output
+    // It splits by 2 or more spaces, which is common in cli tables
+    const columns = line.split(/\s{2,}/);
+    
+    if (columns.length >= 2) {
+      const name = columns[0];
+      const id = columns[1] || name; 
+      const version = columns[2] || 'Unknown';
+      
+      let availableVersion = undefined;
+      let category = 'Installed'; // Default categorization for list output
+
+      // Check if this is an upgrade list or just a search result
+      if (columns.length >= 4) {
+         const col3 = columns[3].trim();
+         // Heuristic: If col3 looks like a version, it might be the "Available" column
+         if (/^[0-9.]+/.test(col3)) {
+            availableVersion = col3;
+            category = 'Update Available';
+         }
+      }
+
+      if (name.length > 0) {
+        packages.push({
+          id: id,
+          name: name,
+          description: availableVersion 
+            ? `Update available: ${version} -> ${availableVersion}` 
+            : `Installed Version: ${version}`,
+          publisher: 'Detected',
+          category: category,
+          version: version,
+          availableVersion: availableVersion
+        });
+      }
+    }
+  }
+  return packages;
+};
+
+// New: Perform Search via Tauri (Real CLI)
+const searchPackagesViaTauri = async (
+  query: string, 
+  settings: AppSettings
+): Promise<WingetPackage[]> => {
+  const { activePackageManager } = settings;
+  const args = ['search', query];
+
+  try {
+    const output = await executeCliCommand(activePackageManager, args);
+    return parseWingetOutput(output);
+  } catch (e: any) {
+    console.error("Tauri Search Error:", e);
+    const errStr = e.message || e.toString();
+    
+    if (errStr.includes("Security Error") || errStr.includes("not in the allowlist")) {
+        throw new Error(`Security Error: '${activePackageManager}' is not a permitted package manager.`);
+    }
+    
+    if (errStr.includes("System Error") || errStr.includes("not recognized") || errStr.includes("No such file")) {
+        throw new Error(`CLI Not Found: Is '${activePackageManager}' installed and in your PATH?`);
+    }
+
+    if (errStr.includes("Exit Code")) {
+         // This is a command failure (e.g., search found nothing, or network error in CLI)
+         throw new Error(`CLI Execution Failed: ${errStr}`);
+    }
+
+    throw new Error(`CLI Error: ${errStr}`);
+  }
+};
+
 const processSearchResult = (text: string | undefined): WingetPackage[] => {
   if (!text) return [];
   
@@ -246,6 +403,18 @@ export const searchPackages = async (
   settings: AppSettings,
   signal?: AbortSignal
 ): Promise<WingetPackage[]> => {
+  
+  // 1. If running in Tauri, use real CLI
+  if (isTauri() && query !== "POPULAR_ESSENTIALS") {
+    // If it's a special prompt (alternatives), we might still want AI for logic,
+    // but typically a CLI search just searches text.
+    // For now, let's route basic searches to CLI.
+    if (!query.startsWith('alternatives to')) {
+       return await searchPackagesViaTauri(query, settings);
+    }
+  }
+
+  // 2. Fallback to AI (Web Mode OR Complex/Popular Query)
   const { activePackageManager } = settings;
   const managerInfo = getManagerContext(activePackageManager);
 
@@ -320,61 +489,6 @@ CRITICAL RULES:
     // Re-throw so UI can display it
     throw error;
   }
-};
-
-export const parseWingetOutput = (output: string): WingetPackage[] => {
-  const lines = output.split('\n');
-  const packages: WingetPackage[] = [];
-  
-  let startIndex = 0;
-  for (let i = 0; i < lines.length; i++) {
-    if (lines[i].trim().startsWith('---') || lines[i].toLowerCase().includes('name')) {
-      startIndex = i + 1;
-      if (lines[i].trim().startsWith('---')) break;
-    }
-  }
-
-  if (startIndex === 0 && lines.length > 2) startIndex = 2;
-
-  for (let i = startIndex; i < lines.length; i++) {
-    const line = lines[i].trim();
-    if (!line) continue;
-
-    const columns = line.split(/\s{2,}/);
-    
-    if (columns.length >= 2) {
-      const name = columns[0];
-      const id = columns[1] || name; // Fallback
-      const version = columns[2] || 'Unknown';
-      
-      let availableVersion = undefined;
-      let category = 'Installed';
-
-      if (columns.length >= 4) {
-         const col3 = columns[3].trim();
-         // Simple check to see if col3 looks like a version number
-         if (/^[0-9.]+/.test(col3)) {
-            availableVersion = col3;
-            category = 'Update Available';
-         }
-      }
-
-      if (name.length > 0) {
-        packages.push({
-          id: id,
-          name: name,
-          description: availableVersion 
-            ? `Update available: ${version} -> ${availableVersion}` 
-            : `Installed Version: ${version}`,
-          publisher: 'Detected',
-          category: category,
-          version: version,
-          availableVersion: availableVersion
-        });
-      }
-    }
-  }
-  return packages;
 };
 
 export const transcribeAudio = async (audioBase64: string, mimeType: string = "audio/wav"): Promise<string> => {
@@ -454,11 +568,19 @@ Your goal is to assist users in finding, installing, upgrading, and removing sof
       // If user selected specific modes in the legacy UI but didn't override model ID manually in settings:
       if (!aiConfig.modelId) {
           if (modelType === 'fast') modelName = 'gemini-2.5-flash-lite';
+          else if (modelType === 'balanced') modelName = 'gemini-2.5-flash';
           else if (modelType === 'smart') modelName = 'gemini-3-pro-preview';
           else if (modelType === 'thinking') {
              modelName = 'gemini-3-pro-preview';
              thinkingConfig = { thinkingBudget: 32768 };
           }
+      }
+
+      // Manual complexity check for Chat
+      const complexity = detectTaskComplexity(message);
+      if (complexity === 'complex' && modelType !== 'thinking' && ['gemini-2.5-flash', 'gemini-2.5-flash-lite'].includes(modelName)) {
+           console.log("Auto-upgrading Chat model to Pro for complex task");
+           modelName = 'gemini-3-pro-preview';
       }
 
       const createChatAndSend = async (useSearch: boolean) => {

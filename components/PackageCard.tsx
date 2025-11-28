@@ -104,10 +104,17 @@ export const PackageCard: React.FC<PackageCardProps> = ({ pkg, isInCart, onToggl
   const paddingClass = compactMode ? 'p-3' : 'p-5';
 
   return (
-    <div className={`group relative bg-[var(--app-surface)] hover:bg-[var(--app-surface)] border border-[var(--app-border)] ${config.borderClass} rounded-xl ${paddingClass} transition-all duration-300 transform hover:scale-[1.02] hover:shadow-2xl flex flex-col h-full shadow-lg`}>
+    <div className={`group relative bg-[var(--app-surface)] hover:bg-[var(--app-surface)] border border-[var(--app-border)] ${config.borderClass} rounded-xl ${paddingClass} transition-all duration-300 transform hover:scale-[1.02] hover:shadow-2xl flex flex-col h-full shadow-lg overflow-hidden`}>
       
+      {/* Quick Context Hint on Hover */}
+      <div className="absolute top-0 right-0 p-2 z-20 opacity-0 group-hover:opacity-100 transition-opacity duration-300 pointer-events-none">
+         <div className="bg-[var(--app-surface)]/90 backdrop-blur border border-[var(--app-border)] shadow-lg rounded px-2 py-1 text-[10px] text-[var(--app-text)] font-mono whitespace-nowrap">
+            {pkg.id} • {pkg.category || 'App'}
+         </div>
+      </div>
+
       {/* Status Badges */}
-      <div className={`absolute ${compactMode ? 'top-2 right-2' : 'top-3 right-3'} flex gap-2`}>
+      <div className={`absolute ${compactMode ? 'top-2 right-2' : 'top-3 right-3'} flex gap-2 transition-opacity duration-200 group-hover:opacity-0`}>
         {isUpdateAvailable && (
           <span className="px-2 py-0.5 rounded text-[10px] font-bold uppercase tracking-wide bg-emerald-500/20 text-emerald-400 border border-emerald-500/30">
             {compactMode ? 'Upd' : 'Update Available'}
@@ -248,7 +255,7 @@ export const PackageCard: React.FC<PackageCardProps> = ({ pkg, isInCart, onToggl
              title="Find Alternatives"
            >
              <GitFork size={14} className="mb-0.5" />
-             Alternatives
+             Alts
            </button>
 
            {/* Evaluate */}

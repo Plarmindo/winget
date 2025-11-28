@@ -1,5 +1,6 @@
+
 import React, { useState, useRef, useEffect } from 'react';
-import { MessageSquare, Mic, Send, X, Bot, BrainCircuit, Zap, Volume2, Sparkles, Loader2, StopCircle, Trash2, Link as LinkIcon, Box, Copy, Check, Grid, ThumbsUp, ThumbsDown, Square } from 'lucide-react';
+import { MessageSquare, Mic, Send, X, Bot, BrainCircuit, Zap, Volume2, Sparkles, Loader2, StopCircle, Trash2, Link as LinkIcon, Box, Copy, Check, Grid, ThumbsUp, ThumbsDown, Square, ChevronUp, Scale } from 'lucide-react';
 import { ChatMessage, ChatModelType, WingetPackage, AppSettings } from '../types';
 import { chatWithAI, transcribeAudio, generateSpeech, enhancePrompt } from '../services/wingetService';
 
@@ -11,6 +12,17 @@ const SUGGESTIONS = [
   "How to upgrade apps",
   "Top 10 gaming apps",
   "Install VS Code"
+];
+
+const CHAT_AUTOCOMPLETE = [
+  "How do I install ",
+  "What is the package ID for ",
+  "Show me alternatives to ",
+  "Explain how to upgrade ",
+  "Create a script for ",
+  "Is there a package for ",
+  "Compare VS Code and ",
+  "Why should I use "
 ];
 
 interface ChatInterfaceProps {
@@ -54,7 +66,7 @@ export const ChatInterface: React.FC<ChatInterfaceProps> = ({ onShowResults, pen
   const [modelType, setModelType] = useState<ChatModelType>(() => {
     if (typeof window !== 'undefined') {
       const saved = localStorage.getItem(MODEL_PREF_KEY);
-      if (saved && ['fast', 'smart', 'thinking'].includes(saved)) {
+      if (saved && ['fast', 'balanced', 'smart', 'thinking'].includes(saved)) {
         return saved as ChatModelType;
       }
     }
@@ -66,6 +78,7 @@ export const ChatInterface: React.FC<ChatInterfaceProps> = ({ onShowResults, pen
 
   // History Navigation State
   const [historyIndex, setHistoryIndex] = useState(-1);
+  const [showSuggestions, setShowSuggestions] = useState(false);
 
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
@@ -171,6 +184,7 @@ export const ChatInterface: React.FC<ChatInterfaceProps> = ({ onShowResults, pen
     abortControllerRef.current = ac;
 
     setEnhancedProposal(null);
+    setShowSuggestions(false);
 
     const userMsg: ChatMessage = {
       id: Date.now().toString(),
@@ -238,14 +252,13 @@ export const ChatInterface: React.FC<ChatInterfaceProps> = ({ onShowResults, pen
     }
 
     const userMessages = messages.filter(m => m.role === 'user').map(m => m.text);
-    if (userMessages.length === 0) return;
-
+    // Suggestion navigation logic or history logic
     if (e.key === 'ArrowUp') {
        if (historyIndex === -1 && input.length > 0) return;
        e.preventDefault();
        const newIndex = historyIndex === -1 ? userMessages.length - 1 : Math.max(0, historyIndex - 1);
        setHistoryIndex(newIndex);
-       setInput(userMessages[newIndex]);
+       setInput(userMessages[newIndex] || "");
     } else if (e.key === 'ArrowDown') {
        if (historyIndex === -1) return;
        e.preventDefault();
@@ -255,10 +268,14 @@ export const ChatInterface: React.FC<ChatInterfaceProps> = ({ onShowResults, pen
        } else {
          const newIndex = Math.min(userMessages.length - 1, historyIndex + 1);
          setHistoryIndex(newIndex);
-         setInput(userMessages[newIndex]);
+         setInput(userMessages[newIndex] || "");
        }
     }
   };
+
+  const filteredChatSuggestions = CHAT_AUTOCOMPLETE.filter(s => 
+     s.toLowerCase().includes(input.toLowerCase()) && input.length < s.length && input.length > 0
+  );
 
   const getSupportedMimeType = () => {
     const types = [
@@ -472,6 +489,13 @@ export const ChatInterface: React.FC<ChatInterfaceProps> = ({ onShowResults, pen
                 <Zap size={10} /> Fast
               </button>
               <button 
+                onClick={() => handleSetModel('balanced')}
+                className={`flex-1 px-2 py-1.5 rounded flex items-center justify-center gap-1 transition-all ${modelType === 'balanced' ? 'bg-blue-500/20 text-blue-400 font-medium shadow-sm' : 'text-[var(--app-text-muted)] hover:text-[var(--app-text)]'}`}
+                title="Balanced Mode (Flash)"
+              >
+                <Scale size={10} /> Bal
+              </button>
+              <button 
                 onClick={() => handleSetModel('smart')}
                 className={`flex-1 px-2 py-1.5 rounded flex items-center justify-center gap-1 transition-all ${modelType === 'smart' ? 'bg-[var(--app-primary)]/20 text-[var(--app-primary)] font-medium shadow-sm' : 'text-[var(--app-text-muted)] hover:text-[var(--app-text)]'}`}
                 title="Smart Mode (Pro)"
@@ -651,6 +675,21 @@ export const ChatInterface: React.FC<ChatInterfaceProps> = ({ onShowResults, pen
 
           <div className="p-3 bg-[var(--app-surface)] border-t border-[var(--app-border)] relative">
             
+            {/* Auto-Complete Suggestions */}
+            {filteredChatSuggestions.length > 0 && !isLoading && !isRecording && (
+              <div className="absolute bottom-full left-0 w-full mb-0 bg-[var(--app-surface)]/95 backdrop-blur-sm border-t border-[var(--app-border)] shadow-xl z-20 animate-in slide-in-from-bottom-2 fade-in">
+                 {filteredChatSuggestions.map((s, i) => (
+                    <button 
+                      key={i}
+                      onClick={() => { setInput(s); setShowSuggestions(false); textareaRef.current?.focus(); }}
+                      className="w-full text-left px-4 py-2 text-xs text-[var(--app-text-muted)] hover:text-[var(--app-text)] hover:bg-[var(--app-bg)] border-b border-[var(--app-border)]/50 last:border-0"
+                    >
+                      {s}
+                    </button>
+                 ))}
+              </div>
+            )}
+
             {enhancedProposal && (
               <div className="absolute bottom-full left-0 w-full mb-0 p-3 bg-[var(--app-surface)]/95 backdrop-blur-sm border-t border-[var(--app-border)] shadow-xl animate-in slide-in-from-bottom-2 fade-in z-20">
                 <div className="flex justify-between items-start mb-1">
@@ -690,7 +729,12 @@ export const ChatInterface: React.FC<ChatInterfaceProps> = ({ onShowResults, pen
                   <textarea
                     ref={textareaRef}
                     value={input}
-                    onChange={(e) => setInput(e.target.value)}
+                    onChange={(e) => {
+                       setInput(e.target.value);
+                       setShowSuggestions(true);
+                    }}
+                    onFocus={() => setShowSuggestions(true)}
+                    onBlur={() => setTimeout(() => setShowSuggestions(false), 200)}
                     onKeyDown={handleKeyDown}
                     placeholder={isRecording ? "Listening..." : "Ask about packages..."}
                     disabled={isRecording || isLoading}
