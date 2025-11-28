@@ -248,7 +248,7 @@ export const PackageCard: React.FC<PackageCardProps> = ({ pkg, isInCart, onToggl
              title="Find Alternatives"
            >
              <GitFork size={14} className="mb-0.5" />
-             Similars
+             Alternatives
            </button>
 
            {/* Evaluate */}

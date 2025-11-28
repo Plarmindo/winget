@@ -256,6 +256,7 @@ export const searchPackages = async (
   }
 
   const isPopularRequest = query === "POPULAR_ESSENTIALS";
+  const isAlternativesRequest = query.toLowerCase().startsWith('alternatives to');
   
   const SYSTEM_INSTRUCTION = `
 You are a backend for a ${managerInfo.name} web interface. 
@@ -278,6 +279,17 @@ CRITICAL RULES:
     ${excludeStr} 
     Return ONLY a JSON array of objects with keys: id, name, description, publisher, category, version.
     Ensure the JSON is valid and strictly formatted.`;
+  } else if (isAlternativesRequest) {
+    const targetApp = query.replace(/^alternatives to\s+/i, '').trim();
+    prompt = `The user wants to find software alternatives to "${targetApp}" on ${managerInfo.name}.
+    1. Identify what "${targetApp}" is (e.g. text editor, browser, media player).
+    2. List the best ALTERNATIVE packages available for this category.
+    3. Do NOT simply list "${targetApp}" itself as the main result, focus on competitors/alternatives.
+    4. Return up to 18 relevant packages.
+    ${excludeStr}
+    
+    Return ONLY a raw JSON array of objects with keys: id, name, description, publisher, category, version.
+    Example ID format: ${managerInfo.idExample}`;
   } else {
     prompt = `The user is searching for software using the term "${query}" on ${managerInfo.name}.
     1. Identify the specific software being requested. Prioritize exact matches for "${query}".
