@@ -1,5 +1,6 @@
+
 import React, { useState, useEffect, useRef } from 'react';
-import { Settings, Box, ShoppingBag, Search, Download, RefreshCw, Trash2, Package, XCircle } from 'lucide-react';
+import { Settings, Box, ShoppingBag, Search, Download, RefreshCw, Trash2, Package, XCircle, HelpCircle } from 'lucide-react';
 import AppLogo from './AppLogo';
 import { Tooltip } from './Tooltip';
 import { AppSettings, AppMode, PackageManagerType } from '../types';
@@ -19,13 +20,14 @@ interface NavbarProps {
   cartCount: number;
   openDrawer: () => void;
   openSettings: () => void;
+  openHelp: () => void;
   onClearCart: () => void;
   resetState: () => void;
 }
 
 export const Navbar: React.FC<NavbarProps> = ({ 
   settings, setSettings, mode, setMode, query, setQuery, handleSearch, loading, stopSearch, 
-  cartCount, openDrawer, openSettings, onClearCart, resetState 
+  cartCount, openDrawer, openSettings, openHelp, onClearCart, resetState 
 }) => {
   const [isPaletteOpen, setIsPaletteOpen] = useState(false);
   const [paletteSearch, setPaletteSearch] = useState('');
@@ -40,11 +42,15 @@ export const Navbar: React.FC<NavbarProps> = ({
       if (e.key === 'Escape') {
         setIsPaletteOpen(false);
       }
+      if (e.key === 'F1') {
+        e.preventDefault();
+        openHelp();
+      }
     };
 
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, []);
+  }, [openHelp]);
 
   useEffect(() => {
     if (isPaletteOpen) {
@@ -66,6 +72,7 @@ export const Navbar: React.FC<NavbarProps> = ({
     { id: 'mode-uninstall', label: 'Uninstall Mode', icon: <Trash2 size={16} />, action: () => setMode('uninstall') },
     { id: 'open-drawer', label: 'Open Script Drawer', icon: <Package size={16} />, action: openDrawer },
     { id: 'settings', label: 'Open Settings', icon: <Settings size={16} />, action: openSettings },
+    { id: 'help', label: 'Help & Walkthrough', icon: <HelpCircle size={16} />, action: openHelp },
     { id: 'clear-cart', label: 'Clear Cart', icon: <XCircle size={16} />, action: onClearCart }
   ];
 
@@ -95,7 +102,7 @@ export const Navbar: React.FC<NavbarProps> = ({
               <div className="hidden md:block flex-1 max-w-lg mx-8 relative">
                 <SearchInput 
                   value={query}
-                  onChange={setQuery}
+                  onChange={(val) => setQuery(val)}
                   onSearch={handleSearch}
                   onStop={stopSearch}
                   loading={loading}
@@ -120,6 +127,15 @@ export const Navbar: React.FC<NavbarProps> = ({
                 </select>
                 <div className="absolute right-2 top-2 pointer-events-none text-[var(--app-text-muted)]"><Box size={12} /></div>
               </div>
+
+              <Tooltip content="Help & Walkthrough (F1)">
+                 <button 
+                  onClick={openHelp} 
+                  className="hidden md:flex items-center justify-center p-2 text-[var(--app-text-muted)] hover:text-[var(--app-text)] hover:bg-[var(--app-surface)] rounded-full transition-colors" 
+                >
+                  <HelpCircle size={20} />
+                </button>
+              </Tooltip>
 
               <button 
                 onClick={openSettings} 

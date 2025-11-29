@@ -178,7 +178,7 @@ const callGemini = async (settings: AppSettings, prompt: string | any, systemIns
 };
 
 // Unified AI Caller
-const generateAIResponse = async (
+export const generateAIResponse = async (
   settings: AppSettings, 
   content: string | { role: string, content: string }[], 
   systemInstruction: string,
@@ -226,6 +226,14 @@ export const generateAlternativesPrompt = (appName: string): string => {
 
 export const generateEvaluationPrompt = (appName: string): string => {
   return `Evaluate the software "${appName}" honestly. No sugar coating. Provide Pros, Cons, and a Verdict.`;
+};
+
+export const generateComparisonPrompt = (packages: WingetPackage[]): string => {
+  const list = packages.map(p => `${p.name} (ID: ${p.id})`).join(', ');
+  return `Compare the following software packages detailedly: ${list}. 
+  Create a comparison table of key features, performance, and pricing (if applicable).
+  Then provide a section for "Pros & Cons" for each.
+  Finally, give a "Verdict" recommendation on which one to choose for different use cases.`;
 };
 
 // New: Execute Real Command via Tauri

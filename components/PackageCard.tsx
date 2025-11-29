@@ -1,6 +1,7 @@
+
 import React, { useState } from 'react';
 import { WingetPackage, AppMode } from '../types';
-import { Plus, Check, Copy, RefreshCw, Trash2, ChevronDown, ChevronUp, Globe, Tag, Info, Layers, Sparkles, Terminal, GitFork, Microscope, Star, ShieldCheck, ThumbsUp, ThumbsDown, Heart } from 'lucide-react';
+import { Plus, Check, Copy, RefreshCw, Trash2, ChevronDown, ChevronUp, Globe, Tag, Info, Layers, Sparkles, Terminal, GitFork, Microscope, Star, ShieldCheck, ThumbsUp, ThumbsDown, Heart, Scale } from 'lucide-react';
 
 interface PackageCardProps {
   pkg: WingetPackage;
@@ -10,11 +11,13 @@ interface PackageCardProps {
   onAskAI: (pkg: WingetPackage) => void;
   onFindAlternatives?: (pkg: WingetPackage) => void;
   onAnalyze?: (pkg: WingetPackage) => void;
+  onToggleCompare?: (pkg: WingetPackage) => void;
+  isInCompare?: boolean;
   mode: AppMode;
   compactMode?: boolean;
 }
 
-export const PackageCard: React.FC<PackageCardProps> = ({ pkg, isInCart, onToggleCart, onCopyCommand, onAskAI, onFindAlternatives, onAnalyze, mode, compactMode }) => {
+export const PackageCard: React.FC<PackageCardProps> = ({ pkg, isInCart, onToggleCart, onCopyCommand, onAskAI, onFindAlternatives, onAnalyze, onToggleCompare, isInCompare, mode, compactMode }) => {
   const [isExpanded, setIsExpanded] = useState(false);
   const [isAnimating, setIsAnimating] = useState(false);
   const [showCopied, setShowCopied] = useState(false);
@@ -54,6 +57,11 @@ export const PackageCard: React.FC<PackageCardProps> = ({ pkg, isInCart, onToggl
   const handleSave = (e: React.MouseEvent) => {
      e.stopPropagation();
      setIsSaved(!isSaved);
+  };
+
+  const handleCompare = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    if (onToggleCompare) onToggleCompare(pkg);
   };
 
   // Determine Status Labels
@@ -104,7 +112,7 @@ export const PackageCard: React.FC<PackageCardProps> = ({ pkg, isInCart, onToggl
   const paddingClass = compactMode ? 'p-3' : 'p-5';
 
   return (
-    <div className={`group relative bg-[var(--app-surface)] hover:bg-[var(--app-surface)] border border-[var(--app-border)] ${config.borderClass} rounded-xl ${paddingClass} transition-all duration-300 transform hover:scale-[1.02] hover:shadow-2xl flex flex-col h-full shadow-lg overflow-hidden`}>
+    <div className={`group relative bg-[var(--app-surface)] hover:bg-[var(--app-surface)] border ${isInCompare ? 'border-[var(--app-primary)] ring-2 ring-[var(--app-primary)]/30' : `border-[var(--app-border)] ${config.borderClass}`} rounded-xl ${paddingClass} transition-all duration-300 transform hover:scale-[1.02] hover:shadow-2xl flex flex-col h-full shadow-lg overflow-hidden`}>
       
       {/* Quick Context Hint on Hover */}
       <div className="absolute top-0 right-0 p-2 z-20 opacity-0 group-hover:opacity-100 transition-opacity duration-300 pointer-events-none">
@@ -172,7 +180,7 @@ export const PackageCard: React.FC<PackageCardProps> = ({ pkg, isInCart, onToggl
             {pkg.description || 'No description available.'}
           </p>
           
-          {/* Visible Feedback Toolbar (New) */}
+          {/* Visible Feedback Toolbar */}
           <div className="flex items-center gap-2 mt-3 mb-2">
              <div className="flex bg-[var(--app-bg)] rounded-lg p-0.5 border border-[var(--app-border)]">
                <button onClick={(e) => handleLike(e, true)} className={`p-1.5 rounded hover:bg-[var(--app-surface)] transition-colors ${isLiked === true ? 'text-green-400' : 'text-[var(--app-text-muted)]'}`} title="Thumbs Up">
@@ -237,7 +245,7 @@ export const PackageCard: React.FC<PackageCardProps> = ({ pkg, isInCart, onToggl
 
       {/* Footer Actions */}
       <div className="mt-auto space-y-3">
-        <div className="grid grid-cols-5 gap-1.5">
+        <div className="grid grid-cols-6 gap-1.5">
           {/* Ask AI Button */}
           <button 
              onClick={() => onAskAI(pkg)}
@@ -265,10 +273,24 @@ export const PackageCard: React.FC<PackageCardProps> = ({ pkg, isInCart, onToggl
              title="Evaluate (Pros/Cons)"
            >
              <Star size={14} className="mb-0.5" />
-             Review
+             Rev
            </button>
            
-           {/* Verify ID Button (New) */}
+           {/* Compare Button (New) */}
+           <button 
+             onClick={handleCompare}
+             className={`col-span-1 flex flex-col items-center justify-center py-1.5 rounded-lg text-[10px] font-medium transition-colors border ${
+               isInCompare
+                ? 'bg-[var(--app-primary)]/20 text-[var(--app-primary)] border-[var(--app-primary)]/30' 
+                : 'bg-[var(--app-bg)] hover:bg-[var(--app-primary)]/20 text-[var(--app-text-muted)] hover:text-[var(--app-primary)] border-transparent hover:border-[var(--app-primary)]/30'
+             }`}
+             title="Compare with other apps"
+           >
+             <Scale size={14} className="mb-0.5" />
+             Comp
+           </button>
+
+           {/* Verify ID Button */}
            <button 
              onClick={handleVerify}
              className="col-span-1 flex flex-col items-center justify-center py-1.5 bg-[var(--app-bg)] hover:bg-[var(--app-surface)] text-[var(--app-text-muted)] hover:text-[var(--app-text)] rounded-lg text-[10px] font-medium transition-colors border border-transparent hover:border-[var(--app-primary)]/30"
@@ -289,7 +311,7 @@ export const PackageCard: React.FC<PackageCardProps> = ({ pkg, isInCart, onToggl
              title={`Copy Command`}
            >
              {showCopied ? <Check size={14} className="mb-0.5" /> : <Terminal size={14} className="mb-0.5" />}
-             {showCopied ? 'Copied' : 'Cmd'}
+             {showCopied ? 'OK' : 'Cmd'}
            </button>
         </div>
 
