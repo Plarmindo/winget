@@ -17,11 +17,19 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose, s
   const [activeTab, setActiveTab] = useState<'general' | 'ai' | 'data' | 'about'>('general');
   const [editingThemeId, setEditingThemeId] = useState<string | null>(null);
   const [editedTheme, setEditedTheme] = useState<AppTheme | null>(null);
-  const [localAiConfig, setLocalAiConfig] = useState<AiConfig>(settings.aiConfig);
+  // Safe default for aiConfig in case parent passes incomplete settings
+  const [localAiConfig, setLocalAiConfig] = useState<AiConfig>(settings.aiConfig || { 
+      provider: 'gemini', 
+      apiKey: '', 
+      baseUrl: '', 
+      modelId: 'gemini-2.5-flash' 
+  });
   const [validationErrors, setValidationErrors] = useState<{ baseUrl?: string; modelId?: string }>({});
 
   useEffect(() => {
-    setLocalAiConfig(settings.aiConfig);
+    if (settings.aiConfig) {
+        setLocalAiConfig(settings.aiConfig);
+    }
     setValidationErrors({});
   }, [settings.aiConfig]);
 
@@ -105,8 +113,9 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose, s
 
   const handleSaveTheme = () => {
     if (!editedTheme) return;
-    const existingIndex = settings.themes.findIndex(t => t.id === editedTheme.id);
-    let newThemes = [...settings.themes];
+    const currentThemes = settings.themes || DEFAULT_THEMES;
+    const existingIndex = currentThemes.findIndex(t => t.id === editedTheme.id);
+    let newThemes = [...currentThemes];
     if (existingIndex >= 0) {
       newThemes[existingIndex] = editedTheme;
     } else {
@@ -134,7 +143,8 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose, s
 
   const deleteTheme = (id: string) => {
     if (window.confirm("Delete this theme?")) {
-      const newThemes = settings.themes.filter(t => t.id !== id);
+      const currentThemes = settings.themes || DEFAULT_THEMES;
+      const newThemes = currentThemes.filter(t => t.id !== id);
       const newActiveId = settings.activeThemeId === id ? DEFAULT_THEMES[0].id : settings.activeThemeId;
       onUpdateSettings({ ...settings, themes: newThemes, activeThemeId: newActiveId });
     }
@@ -272,7 +282,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose, s
                       </div>
                    ) : (
                       <div className="grid grid-cols-2 gap-3 mb-6">
-                          {settings.themes.map(t => (
+                          {(settings.themes || DEFAULT_THEMES).map(t => (
                             <div key={t.id} className={`group relative p-3 rounded-xl border text-sm font-medium flex items-center justify-between cursor-pointer transition-all ${settings.activeThemeId === t.id ? 'bg-[var(--app-primary)]/10 border-[var(--app-primary)] text-[var(--app-primary)] ring-1 ring-[var(--app-primary)]/20' : 'bg-[var(--app-bg)] border-[var(--app-border)] text-[var(--app-text-muted)] hover:text-[var(--app-text)] hover:border-[var(--app-text-muted)]/50'}`} onClick={() => onUpdateSettings({ ...settings, activeThemeId: t.id })}>
                               <div className="flex items-center gap-2"><div className="w-4 h-4 rounded-full border border-white/10 shadow-sm" style={{ backgroundColor: t.colors.primary }}></div><span>{t.name}</span></div>
                               <div className="flex items-center gap-2">{settings.activeThemeId === t.id && <Check size={16} className="text-[var(--app-primary)]" />}<div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity" onClick={(e) => e.stopPropagation()}><button onClick={() => startEditingTheme(t)} className="p-1 hover:bg-[var(--app-surface)] rounded text-[var(--app-text-muted)] hover:text-[var(--app-primary)]">{t.isCustom ? <Edit2 size={12} /> : <Copy size={12} />}</button>{t.isCustom && <button onClick={() => deleteTheme(t.id)} className="p-1 hover:bg-[var(--app-surface)] rounded text-[var(--app-text-muted)] hover:text-red-500"><Trash2 size={12} /></button>}</div></div>

@@ -30,23 +30,38 @@ function App() {
   const [isHelpOpen, setIsHelpOpen] = useState(false);
 
   const [settings, setSettings] = useState<AppSettings>(() => {
+    const defaultSettings: AppSettings = { 
+      reducedMotion: false, 
+      highContrast: false, 
+      compactMode: false, 
+      defaultModel: 'smart',
+      activeThemeId: 'default', 
+      themes: DEFAULT_THEMES, 
+      customSubjects: ['Browsers', 'Communication', 'Dev Tools'], 
+      itemsPerPage: 9,
+      activePackageManager: 'winget', 
+      aiConfig: { provider: 'gemini', apiKey: '', baseUrl: '', modelId: 'gemini-2.5-flash' }
+    };
+
     if (typeof window !== 'undefined') {
        const saved = localStorage.getItem(STORAGE_KEYS.SETTINGS);
        if (saved) { 
           try { 
             const parsed = JSON.parse(saved);
-            if (!parsed.themes) parsed.themes = DEFAULT_THEMES;
-            if (!parsed.activeThemeId) parsed.activeThemeId = 'default';
-            if (!parsed.activePackageManager) parsed.activePackageManager = 'winget';
-            return parsed; 
-          } catch(e){} 
+            // Deep merge logic to ensure new fields (like aiConfig) exist even if localStorage has old data
+            return {
+              ...defaultSettings,
+              ...parsed,
+              themes: parsed.themes || defaultSettings.themes,
+              // Ensure aiConfig exists
+              aiConfig: { ...defaultSettings.aiConfig, ...(parsed.aiConfig || {}) }
+            };
+          } catch(e) {
+            console.error("Failed to load settings", e);
+          } 
        }
     }
-    return { 
-      reducedMotion: false, highContrast: false, compactMode: false, defaultModel: 'smart',
-      activeThemeId: 'default', themes: DEFAULT_THEMES, customSubjects: ['Browsers', 'Communication', 'Dev Tools'], itemsPerPage: 9,
-      activePackageManager: 'winget', aiConfig: { provider: 'gemini', apiKey: '', baseUrl: '', modelId: 'gemini-2.5-flash' }
-    };
+    return defaultSettings;
   });
 
   // Comparison State
@@ -177,7 +192,7 @@ function App() {
     }
 
     if (mode === 'install') {
-      if (!searched && packages.length === 0) return <WelcomeScreen settings={settings} setMode={setMode} handleSearch={handleSearch} openSettings={() => setIsSettingsOpen(true)} />;
+      if (!searched && packages.length === 0) return <WelcomeScreen settings={settings} setMode={(m) => setMode(m)} handleSearch={handleSearch} openSettings={() => setIsSettingsOpen(true)} />;
       
       return (
         <>
@@ -191,17 +206,17 @@ function App() {
           </div>
           {filteredPackages.length === 0 && <div className="text-center py-12 text-[var(--app-text-muted)]">No packages found.</div>}
           
-          <PackageGrid packages={filteredPackages} cart={cart} onToggleCart={toggleCart} onCopyCommand={copySingleCommand} setPendingChatQuery={setPendingChatQuery} handleSearch={handleSearch} setMode={setMode} mode={mode} settings={settings} currentPage={currentPage} setCurrentPage={setCurrentPage} compareList={compareList} onToggleCompare={toggleCompare} />
+          <PackageGrid packages={filteredPackages} cart={cart} onToggleCart={toggleCart} onCopyCommand={copySingleCommand} setPendingChatQuery={(q) => setPendingChatQuery(q)} handleSearch={handleSearch} setMode={(m) => setMode(m)} mode={mode} settings={settings} currentPage={currentPage} setCurrentPage={(p) => setCurrentPage(p)} compareList={compareList} onToggleCompare={toggleCompare} />
         </>
       );
     }
 
-    if (packages.length === 0) return <MaintenanceImport mode={mode} settings={settings} importText={importText} setImportText={setImportText} importError={importError} handleImport={handleImport} />;
+    if (packages.length === 0) return <MaintenanceImport mode={mode} settings={settings} importText={importText} setImportText={(t) => setImportText(t)} importError={importError} handleImport={handleImport} />;
 
     return (
        <>
           <div className="flex justify-between mb-6"><h2 className="text-2xl font-bold">Detected Software ({packages.length})</h2><button onClick={() => { setPackages([]); setImportText(''); }} className="text-sm underline">Parse New List</button></div>
-          <PackageGrid packages={filteredPackages} cart={cart} onToggleCart={toggleCart} onCopyCommand={copySingleCommand} setPendingChatQuery={setPendingChatQuery} handleSearch={handleSearch} setMode={setMode} mode={mode} settings={settings} currentPage={currentPage} setCurrentPage={setCurrentPage} compareList={compareList} onToggleCompare={toggleCompare} />
+          <PackageGrid packages={filteredPackages} cart={cart} onToggleCart={toggleCart} onCopyCommand={copySingleCommand} setPendingChatQuery={(q) => setPendingChatQuery(q)} handleSearch={handleSearch} setMode={(m) => setMode(m)} mode={mode} settings={settings} currentPage={currentPage} setCurrentPage={(p) => setCurrentPage(p)} compareList={compareList} onToggleCompare={toggleCompare} />
        </>
     );
   };
