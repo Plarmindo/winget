@@ -1,7 +1,8 @@
+
 import React, { useState, useEffect, useRef } from 'react';
-import { Loader2, RefreshCw, Trash2, RotateCcw, Settings, Filter, Download, Search as SearchIcon } from 'lucide-react';
+import { Loader2, RefreshCw, Trash2, RotateCcw, Settings, Filter, Download, Search as SearchIcon, Scale, X, Sparkles } from 'lucide-react';
 import { WingetPackage, AppMode, AppSettings, PackageManagerType } from './types';
-import { searchPackages, parseWingetOutput, generateAppDetailsPrompt, generateAlternativesPrompt, generateEvaluationPrompt } from './services/wingetService';
+import { searchPackages, parseWingetOutput, generateAppDetailsPrompt, generateAlternativesPrompt, generateEvaluationPrompt, generateComparisonPrompt, generateAIResponse } from './services/wingetService';
 import { PRESET_CATEGORIES, DEFAULT_THEMES, STORAGE_KEYS } from './constants';
 import { getErrorDetails } from './utils/errorUtils';
 
@@ -14,6 +15,8 @@ import { Navbar } from './components/Navbar';
 import { WelcomeScreen } from './components/WelcomeScreen';
 import { MaintenanceImport } from './components/MaintenanceImport';
 import { SearchInput } from './components/SearchInput';
+import { CompareModal } from './components/CompareModal';
+import { HelpModal } from './components/HelpModal';
 
 function App() {
   const [query, setQuery] = useState('');
@@ -24,6 +27,8 @@ function App() {
   
   // Settings State
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
+  const [isHelpOpen, setIsHelpOpen] = useState(false);
+
   const [settings, setSettings] = useState<AppSettings>(() => {
     if (typeof window !== 'undefined') {
        const saved = localStorage.getItem(STORAGE_KEYS.SETTINGS);
@@ -43,6 +48,12 @@ function App() {
       activePackageManager: 'winget', aiConfig: { provider: 'gemini', apiKey: '', baseUrl: '', modelId: 'gemini-2.5-flash' }
     };
   });
+
+  // Comparison State
+  const [compareList, setCompareList] = useState<WingetPackage[]>([]);
+  const [isCompareModalOpen, setIsCompareModalOpen] = useState(false);
+  const [compareResult, setCompareResult] = useState<string | null>(null);
+  const [isComparing, setIsComparing] = useState(false);
 
   // Apply Theme
   useEffect(() => {
@@ -84,6 +95,7 @@ function App() {
     setPackages([]); setSearched(false); setCurrentPage(1); setQuery(''); setImportText(''); 
     setImportError(null); setError(null); setHasMore(true); setCategoryFilter('All');
     setLoading(false); abortControllerRef.current?.abort();
+    setCompareList([]); // Clear comparison on mode change
   }, [mode]);
 
   const handleStopSearch = () => { abortControllerRef.current?.abort(); setLoading(false); };
@@ -125,6 +137,28 @@ function App() {
   const toggleCart = (pkg: WingetPackage) => {
     setCart(prev => prev.find(i => i.id === pkg.id) ? prev.filter(i => i.id !== pkg.id) : [...prev, pkg]);
   };
+
+  const toggleCompare = (pkg: WingetPackage) => {
+     setCompareList(prev => prev.find(i => i.id === pkg.id) ? prev.filter(i => i.id !== pkg.id) : [...prev, pkg]);
+  };
+
+  const runComparison = async () => {
+     if (compareList.length < 2) return;
+     setIsCompareModalOpen(true);
+     setIsComparing(true);
+     setCompareResult(null);
+
+     try {
+       const prompt = generateComparisonPrompt(compareList);
+       // Pass a custom system instruction just for this one-off request
+       const result = await generateAIResponse(settings, prompt, "You are a software comparison expert. Provide detailed, unbiased comparisons in markdown format.");
+       setCompareResult(result);
+     } catch (e) {
+       setCompareResult("Failed to generate comparison. Please check AI settings.");
+     } finally {
+       setIsComparing(false);
+     }
+  };
   
   const copySingleCommand = (id: string, currentMode: AppMode) => {
     const pm = settings.activePackageManager;
@@ -157,7 +191,7 @@ function App() {
           </div>
           {filteredPackages.length === 0 && <div className="text-center py-12 text-[var(--app-text-muted)]">No packages found.</div>}
           
-          <PackageGrid packages={filteredPackages} cart={cart} onToggleCart={toggleCart} onCopyCommand={copySingleCommand} setPendingChatQuery={setPendingChatQuery} handleSearch={handleSearch} setMode={setMode} mode={mode} settings={settings} currentPage={currentPage} setCurrentPage={setCurrentPage} />
+          <PackageGrid packages={filteredPackages} cart={cart} onToggleCart={toggleCart} onCopyCommand={copySingleCommand} setPendingChatQuery={setPendingChatQuery} handleSearch={handleSearch} setMode={setMode} mode={mode} settings={settings} currentPage={currentPage} setCurrentPage={setCurrentPage} compareList={compareList} onToggleCompare={toggleCompare} />
         </>
       );
     }
@@ -167,27 +201,44 @@ function App() {
     return (
        <>
           <div className="flex justify-between mb-6"><h2 className="text-2xl font-bold">Detected Software ({packages.length})</h2><button onClick={() => { setPackages([]); setImportText(''); }} className="text-sm underline">Parse New List</button></div>
-          <PackageGrid packages={filteredPackages} cart={cart} onToggleCart={toggleCart} onCopyCommand={copySingleCommand} setPendingChatQuery={setPendingChatQuery} handleSearch={handleSearch} setMode={setMode} mode={mode} settings={settings} currentPage={currentPage} setCurrentPage={setCurrentPage} />
+          <PackageGrid packages={filteredPackages} cart={cart} onToggleCart={toggleCart} onCopyCommand={copySingleCommand} setPendingChatQuery={setPendingChatQuery} handleSearch={handleSearch} setMode={setMode} mode={mode} settings={settings} currentPage={currentPage} setCurrentPage={setCurrentPage} compareList={compareList} onToggleCompare={toggleCompare} />
        </>
     );
   };
 
   return (
     <div className="min-h-screen bg-[var(--app-bg)] text-[var(--app-text)] flex flex-col font-sans relative transition-colors duration-300">
-      <SettingsModal isOpen={isSettingsOpen} onClose={() => setIsSettingsOpen(false)} settings={settings} onUpdateSettings={setSettings} onClearData={handleClearData} />
+      <SettingsModal 
+        isOpen={isSettingsOpen} 
+        onClose={() => setIsSettingsOpen(false)} 
+        settings={settings} 
+        onUpdateSettings={(s) => setSettings(s)} 
+        onClearData={handleClearData} 
+      />
+      <HelpModal 
+        isOpen={isHelpOpen}
+        onClose={() => setIsHelpOpen(false)}
+      />
+      <CompareModal 
+         isOpen={isCompareModalOpen}
+         onClose={() => setIsCompareModalOpen(false)}
+         result={compareResult}
+         isLoading={isComparing}
+      />
       <Navbar 
         settings={settings} 
-        setSettings={setSettings} 
+        setSettings={(s) => setSettings(s)} 
         mode={mode} 
-        setMode={setMode} 
+        setMode={(m) => setMode(m)} 
         query={query} 
-        setQuery={setQuery} 
+        setQuery={(q) => setQuery(q)} 
         handleSearch={handleSearch} 
         loading={loading} 
         stopSearch={handleStopSearch} 
         cartCount={cart.length} 
         openDrawer={() => setIsDrawerOpen(true)} 
         openSettings={() => setIsSettingsOpen(true)} 
+        openHelp={() => setIsHelpOpen(true)}
         onClearCart={() => { if(window.confirm('Are you sure you want to clear your cart?')) setCart([]); }}
         resetState={() => { setMode('install'); setSearched(false); setPackages([]); setQuery(''); setError(null); }} 
       />
@@ -198,7 +249,7 @@ function App() {
         <div className="md:hidden p-4 border-b border-[var(--app-border)] bg-[var(--app-surface)]/50">
           <SearchInput 
              value={query} 
-             onChange={setQuery} 
+             onChange={(val) => setQuery(val)}
              onSearch={handleSearch} 
              onStop={handleStopSearch} 
              loading={loading}
@@ -206,7 +257,31 @@ function App() {
           />
         </div>
       )}
-      <main className="flex-1 max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8 py-8">{renderContent()}</main>
+      <main className="flex-1 max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8 py-8 mb-20">{renderContent()}</main>
+
+      {/* Comparison Floating Bar */}
+      {compareList.length > 0 && (
+         <div className="fixed bottom-6 left-1/2 transform -translate-x-1/2 z-40 animate-in slide-in-from-bottom-6 fade-in duration-300">
+            <div className="bg-[var(--app-surface)] border border-[var(--app-border)] shadow-2xl rounded-full px-6 py-3 flex items-center gap-4">
+               <div className="flex items-center gap-2 text-sm font-semibold">
+                  <Scale size={18} className="text-[var(--app-primary)]" />
+                  <span>{compareList.length} Selected</span>
+               </div>
+               <div className="h-6 w-[1px] bg-[var(--app-border)]"></div>
+               <button 
+                 onClick={runComparison}
+                 disabled={compareList.length < 2}
+                 className={`flex items-center gap-2 px-4 py-1.5 rounded-full text-xs font-bold transition-all ${compareList.length >= 2 ? 'bg-[var(--app-primary)] text-white hover:opacity-90' : 'bg-[var(--app-bg)] text-[var(--app-text-muted)] cursor-not-allowed'}`}
+               >
+                 <Sparkles size={14} /> Compare with AI
+               </button>
+               <button onClick={() => setCompareList([])} className="p-1 hover:bg-[var(--app-bg)] rounded-full text-[var(--app-text-muted)] hover:text-[var(--app-text)] transition-colors">
+                  <X size={16} />
+               </button>
+            </div>
+         </div>
+      )}
+
       <ScriptDrawer isOpen={isDrawerOpen} onClose={() => setIsDrawerOpen(false)} cart={cart} onRemove={(id) => setCart(p => p.filter(x => x.id !== id))} onClear={() => setCart([])} mode={mode} packageManager={settings.activePackageManager} onSwitchToUpgrade={() => setMode('upgrade')} onDeepScan={() => { setMode('upgrade'); setPackages([]); }} />
       <ChatInterface key={chatResetKey} onShowResults={(res) => { setMode('install'); setPackages(res); setSearched(true); setCurrentPage(1); window.scrollTo({ top: 0, behavior: 'smooth' }); }} pendingMessage={pendingChatQuery} onClearPendingMessage={() => setPendingChatQuery('')} defaultModel={settings.defaultModel} settings={settings} />
     </div>

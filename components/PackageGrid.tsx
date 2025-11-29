@@ -1,3 +1,4 @@
+
 import React from 'react';
 import { WingetPackage, AppMode, AppSettings } from '../types';
 import { PackageCard } from './PackageCard';
@@ -15,10 +16,13 @@ interface PackageGridProps {
   settings: AppSettings;
   currentPage: number;
   setCurrentPage: React.Dispatch<React.SetStateAction<number>>;
+  // New props for comparison
+  compareList?: WingetPackage[];
+  onToggleCompare?: (pkg: WingetPackage) => void;
 }
 
 export const PackageGrid: React.FC<PackageGridProps> = ({ 
-  packages, cart, onToggleCart, onCopyCommand, setPendingChatQuery, handleSearch, setMode, mode, settings, currentPage, setCurrentPage 
+  packages, cart, onToggleCart, onCopyCommand, setPendingChatQuery, handleSearch, setMode, mode, settings, currentPage, setCurrentPage, compareList, onToggleCompare 
 }) => {
   const itemsPerPage = settings.itemsPerPage || 9;
   const paginatedPackages = packages.slice((currentPage - 1) * itemsPerPage, currentPage * itemsPerPage);
@@ -37,7 +41,9 @@ export const PackageGrid: React.FC<PackageGridProps> = ({
             onCopyCommand={onCopyCommand} 
             onAskAI={() => setPendingChatQuery(generateAppDetailsPrompt(pkg.name, pkg.id))} 
             onFindAlternatives={() => { setMode('install'); handleSearch(generateAlternativesPrompt(pkg.name)); }} 
-            onAnalyze={() => setPendingChatQuery(generateEvaluationPrompt(pkg.name))} 
+            onAnalyze={() => setPendingChatQuery(generateEvaluationPrompt(pkg.name))}
+            onToggleCompare={onToggleCompare}
+            isInCompare={compareList ? !!compareList.find(c => c.id === pkg.id) : false}
             mode={mode} 
             compactMode={settings.compactMode} 
           />
