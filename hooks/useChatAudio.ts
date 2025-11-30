@@ -1,5 +1,5 @@
 
-import { useState, useRef, useCallback } from 'react';
+import React, { useState, useRef, useCallback } from 'react';
 import { transcribeAudio, generateSpeech } from '../services/wingetService';
 import { AppSettings } from '../types';
 
@@ -44,7 +44,7 @@ export const useChatAudio = (settings: AppSettings, setInput: React.Dispatch<Rea
             const base64Audio = result.split(',')[1];
             setIsProcessingAudio(true);
             try {
-               const text = await transcribeAudio(base64Audio, mimeType || 'audio/webm');
+               const text = await transcribeAudio(base64Audio, mimeType || 'audio/webm', settings);
                if (text) {
                  const cleanText = text.trim();
                  setInput(prev => prev ? `${prev} ${cleanText}` : cleanText);
@@ -94,7 +94,7 @@ export const useChatAudio = (settings: AppSettings, setInput: React.Dispatch<Rea
     if (playingMessageId) return;
     setPlayingMessageId(msgId);
     try {
-      const base64Audio = await generateSpeech(text);
+      const base64Audio = await generateSpeech(text, settings);
       if (base64Audio) {
         if (!audioContextRef.current) {
           audioContextRef.current = new (window.AudioContext || (window as any).webkitAudioContext)();
