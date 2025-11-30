@@ -9,7 +9,15 @@ interface AppearanceTabProps {
   onUpdateSettings: (s: AppSettings) => void;
 }
 
-const ThemePreview = ({ theme, isActive, onClick, onEdit, onDelete }: { theme: AppTheme, isActive: boolean, onClick: () => void, onEdit: (e: any) => void, onDelete?: (e: any) => void }) => {
+interface ThemePreviewProps {
+  theme: AppTheme;
+  isActive: boolean;
+  onClick: () => void;
+  onEdit: (e: any) => void;
+  onDelete?: (e: any) => void;
+}
+
+const ThemePreview: React.FC<ThemePreviewProps> = ({ theme, isActive, onClick, onEdit, onDelete }) => {
   if (!theme || !theme.colors) return null;
   return (
     <div 
