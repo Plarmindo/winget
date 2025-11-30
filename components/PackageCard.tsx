@@ -1,13 +1,14 @@
 
 import React, { useState } from 'react';
 import { WingetPackage, AppMode } from '../types';
-import { Plus, Check, Copy, RefreshCw, Trash2, ChevronDown, ChevronUp, Globe, Tag, Info, Layers, Sparkles, Terminal, GitFork, Microscope, Star, ShieldCheck, ThumbsUp, ThumbsDown, Heart, Scale } from 'lucide-react';
+import { Plus, Check, Copy, RefreshCw, Trash2, ChevronDown, ChevronUp, Globe, Tag, Info, Layers, Sparkles, Terminal, GitFork, Microscope, Star, ShieldCheck, ThumbsUp, ThumbsDown, Heart, Scale, Play } from 'lucide-react';
 
 interface PackageCardProps {
   pkg: WingetPackage;
   isInCart: boolean;
   onToggleCart: (pkg: WingetPackage) => void;
   onCopyCommand: (id: string, mode: AppMode) => void;
+  onExecute?: (id: string, mode: AppMode) => void;
   onAskAI: (pkg: WingetPackage) => void;
   onFindAlternatives?: (pkg: WingetPackage) => void;
   onAnalyze?: (pkg: WingetPackage) => void;
@@ -15,9 +16,10 @@ interface PackageCardProps {
   isInCompare?: boolean;
   mode: AppMode;
   compactMode?: boolean;
+  isDesktop?: boolean;
 }
 
-export const PackageCard: React.FC<PackageCardProps> = ({ pkg, isInCart, onToggleCart, onCopyCommand, onAskAI, onFindAlternatives, onAnalyze, onToggleCompare, isInCompare, mode, compactMode }) => {
+export const PackageCard: React.FC<PackageCardProps> = ({ pkg, isInCart, onToggleCart, onCopyCommand, onExecute, onAskAI, onFindAlternatives, onAnalyze, onToggleCompare, isInCompare, mode, compactMode, isDesktop }) => {
   const [isExpanded, setIsExpanded] = useState(false);
   const [isAnimating, setIsAnimating] = useState(false);
   const [showCopied, setShowCopied] = useState(false);
@@ -41,6 +43,13 @@ export const PackageCard: React.FC<PackageCardProps> = ({ pkg, isInCart, onToggl
     onCopyCommand(pkg.id, mode);
     setShowCopied(true);
     setTimeout(() => setShowCopied(false), 2000);
+  };
+  
+  const handleExecute = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    if (onExecute && confirm(`Are you sure you want to ${mode} ${pkg.name} immediately?`)) {
+       onExecute(pkg.id, mode);
+    }
   };
   
   const handleVerify = (e: React.MouseEvent) => {
@@ -276,7 +285,7 @@ export const PackageCard: React.FC<PackageCardProps> = ({ pkg, isInCart, onToggl
              Rev
            </button>
            
-           {/* Compare Button (New) */}
+           {/* Compare Button */}
            <button 
              onClick={handleCompare}
              className={`col-span-1 flex flex-col items-center justify-center py-1.5 rounded-lg text-[10px] font-medium transition-colors border ${
@@ -315,15 +324,27 @@ export const PackageCard: React.FC<PackageCardProps> = ({ pkg, isInCart, onToggl
            </button>
         </div>
 
-        <button
-          onClick={handleToggleCart}
-          className={`w-full flex items-center justify-center space-x-2 py-2.5 rounded-lg text-sm font-medium transition-all duration-200 text-white shadow-lg ${config.btnClass} ${
-            isAnimating ? 'scale-95 ring-2 ring-white/20' : 'scale-100'
-          }`}
-        >
-          {isInCart ? <Check size={16} className={isAnimating ? 'animate-bounce' : ''} /> : config.icon}
-          <span>{config.text}</span>
-        </button>
+        <div className="flex gap-2">
+            <button
+            onClick={handleToggleCart}
+            className={`flex-1 flex items-center justify-center space-x-2 py-2.5 rounded-lg text-sm font-medium transition-all duration-200 text-white shadow-lg ${config.btnClass} ${
+                isAnimating ? 'scale-95 ring-2 ring-white/20' : 'scale-100'
+            }`}
+            >
+            {isInCart ? <Check size={16} className={isAnimating ? 'animate-bounce' : ''} /> : config.icon}
+            <span>{config.text}</span>
+            </button>
+
+            {isDesktop && (
+                <button
+                    onClick={handleExecute}
+                    className="w-12 flex items-center justify-center rounded-lg bg-[var(--app-surface)] text-[var(--app-primary)] hover:bg-[var(--app-primary)] hover:text-white border border-[var(--app-primary)]/50 transition-colors"
+                    title={`Run ${mode} immediately on local system`}
+                >
+                    <Play size={16} fill="currentColor" />
+                </button>
+            )}
+        </div>
       </div>
     </div>
   );

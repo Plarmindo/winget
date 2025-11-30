@@ -9,6 +9,7 @@ interface PackageGridProps {
   cart: WingetPackage[];
   onToggleCart: (pkg: WingetPackage) => void;
   onCopyCommand: (id: string, mode: AppMode) => void;
+  onExecute?: (id: string, mode: AppMode) => void;
   setPendingChatQuery: (query: string) => void;
   handleSearch: (query: string) => void;
   setMode: (mode: AppMode) => void;
@@ -16,13 +17,13 @@ interface PackageGridProps {
   settings: AppSettings;
   currentPage: number;
   setCurrentPage: React.Dispatch<React.SetStateAction<number>>;
-  // New props for comparison
   compareList?: WingetPackage[];
   onToggleCompare?: (pkg: WingetPackage) => void;
+  isDesktop?: boolean;
 }
 
 export const PackageGrid: React.FC<PackageGridProps> = ({ 
-  packages, cart, onToggleCart, onCopyCommand, setPendingChatQuery, handleSearch, setMode, mode, settings, currentPage, setCurrentPage, compareList, onToggleCompare 
+  packages, cart, onToggleCart, onCopyCommand, onExecute, setPendingChatQuery, handleSearch, setMode, mode, settings, currentPage, setCurrentPage, compareList, onToggleCompare, isDesktop 
 }) => {
   const itemsPerPage = settings.itemsPerPage || 9;
   const paginatedPackages = packages.slice((currentPage - 1) * itemsPerPage, currentPage * itemsPerPage);
@@ -39,6 +40,7 @@ export const PackageGrid: React.FC<PackageGridProps> = ({
             isInCart={!!cart.find(c => c.id === pkg.id)} 
             onToggleCart={onToggleCart} 
             onCopyCommand={onCopyCommand} 
+            onExecute={onExecute}
             onAskAI={() => setPendingChatQuery(generateAppDetailsPrompt(pkg.name, pkg.id))} 
             onFindAlternatives={() => { setMode('install'); handleSearch(generateAlternativesPrompt(pkg.name)); }} 
             onAnalyze={() => setPendingChatQuery(generateEvaluationPrompt(pkg.name))}
@@ -46,6 +48,7 @@ export const PackageGrid: React.FC<PackageGridProps> = ({
             isInCompare={compareList ? !!compareList.find(c => c.id === pkg.id) : false}
             mode={mode} 
             compactMode={settings.compactMode} 
+            isDesktop={isDesktop}
           />
         ))}
       </div>

@@ -1,6 +1,6 @@
 
 import React, { useState, useEffect, useRef } from 'react';
-import { Settings, Box, ShoppingBag, Search, Download, RefreshCw, Trash2, Package, XCircle, HelpCircle } from 'lucide-react';
+import { Settings, Box, ShoppingBag, Search, Download, RefreshCw, Trash2, Package, XCircle, HelpCircle, Monitor, Globe } from 'lucide-react';
 import AppLogo from './AppLogo';
 import { Tooltip } from './Tooltip';
 import { AppSettings, AppMode, PackageManagerType } from '../types';
@@ -23,11 +23,12 @@ interface NavbarProps {
   openHelp: () => void;
   onClearCart: () => void;
   resetState: () => void;
+  isDesktop?: boolean;
 }
 
 export const Navbar: React.FC<NavbarProps> = ({ 
   settings, setSettings, mode, setMode, query, setQuery, handleSearch, loading, stopSearch, 
-  cartCount, openDrawer, openSettings, openHelp, onClearCart, resetState 
+  cartCount, openDrawer, openSettings, openHelp, onClearCart, resetState, isDesktop
 }) => {
   const [isPaletteOpen, setIsPaletteOpen] = useState(false);
   const [paletteSearch, setPaletteSearch] = useState('');
@@ -93,9 +94,15 @@ export const Navbar: React.FC<NavbarProps> = ({
               <div className={`bg-gradient-to-r ${getThemeColor()} p-2 rounded-lg transition-all duration-500`}>
                 <AppLogo size={24} className="text-white" />
               </div>
-              <span className="text-xl font-bold bg-clip-text text-transparent bg-gradient-to-r from-[var(--app-text)] to-[var(--app-text-muted)]">
-                {settings.activePackageManager.charAt(0).toUpperCase() + settings.activePackageManager.slice(1)} Web
-              </span>
+              <div className="flex flex-col">
+                <span className="text-xl font-bold bg-clip-text text-transparent bg-gradient-to-r from-[var(--app-text)] to-[var(--app-text-muted)] leading-tight">
+                  {settings.activePackageManager.charAt(0).toUpperCase() + settings.activePackageManager.slice(1)} Web
+                </span>
+                <span className={`text-[10px] font-medium flex items-center gap-1 ${isDesktop ? 'text-green-500' : 'text-amber-500'}`}>
+                  {isDesktop ? <Monitor size={10} /> : <Globe size={10} />}
+                  {isDesktop ? 'Local System: Connected' : 'Web Mode: Read Only'}
+                </span>
+              </div>
             </div>
 
             {mode === 'install' && (

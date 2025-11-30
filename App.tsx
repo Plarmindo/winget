@@ -1,8 +1,9 @@
 
 import React, { useState, useEffect, useRef } from 'react';
-import { Loader2, RefreshCw, Trash2, RotateCcw, Settings, Filter, Download, Search as SearchIcon, Scale, X, Sparkles } from 'lucide-react';
+import { Loader2, RefreshCw, Trash2, RotateCcw, Settings, Filter, Download, Search as SearchIcon, Scale, X, Sparkles, Terminal } from 'lucide-react';
 import { WingetPackage, AppMode, AppSettings, PackageManagerType } from './types';
-import { searchPackages, parseWingetOutput, generateAppDetailsPrompt, generateAlternativesPrompt, generateEvaluationPrompt, generateComparisonPrompt, generateAIResponse } from './services/wingetService';
+import { searchPackages, parseWingetOutput, generateAppDetailsPrompt, generateAlternativesPrompt, generateEvaluationPrompt, generateComparisonPrompt, generateAIResponse, executeRealCommand } from './services/wingetService';
+import { isTauri } from './services/tauriBridge';
 import { PRESET_CATEGORIES, DEFAULT_THEMES, STORAGE_KEYS } from './constants';
 import { getErrorDetails } from './utils/errorUtils';
 
@@ -28,6 +29,13 @@ function App() {
   // Settings State
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
   const [isHelpOpen, setIsHelpOpen] = useState(false);
+
+  // Desktop State
+  const [isDesktop, setIsDesktop] = useState(false);
+
+  useEffect(() => {
+    setIsDesktop(isTauri());
+  }, []);
 
   const [settings, setSettings] = useState<AppSettings>(() => {
     const defaultSettings: AppSettings = { 
@@ -165,7 +173,6 @@ function App() {
 
      try {
        const prompt = generateComparisonPrompt(compareList);
-       // Pass a custom system instruction just for this one-off request
        const result = await generateAIResponse(settings, prompt, "You are a software comparison expert. Provide detailed, unbiased comparisons in markdown format.");
        setCompareResult(result);
      } catch (e) {
@@ -181,6 +188,10 @@ function App() {
     navigator.clipboard.writeText(cmd);
   };
 
+  const handleDirectExecution = (id: string, currentMode: AppMode) => {
+      executeRealCommand(settings.activePackageManager, currentMode, [id]);
+  };
+
   const filteredPackages = categoryFilter === 'All' ? packages : packages.filter(p => (p.category || 'Other') === categoryFilter);
 
   const renderContent = () => {
@@ -192,7 +203,23 @@ function App() {
     }
 
     if (mode === 'install') {
-      if (!searched && packages.length === 0) return <WelcomeScreen settings={settings} setMode={(m) => setMode(m)} handleSearch={handleSearch} openSettings={() => setIsSettingsOpen(true)} />;
+      if (!searched && packages.length === 0) return (
+        <WelcomeScreen 
+          settings={settings} 
+          setMode={(m) => setMode(m)} 
+          handleSearch={handleSearch} 
+          openSettings={() => setIsSettingsOpen(true)} 
+          onAddCustomSubject={(subj) => {
+             const clean = subj.trim();
+             if (clean && !settings.customSubjects.includes(clean)) {
+                setSettings({ ...settings, customSubjects: [...settings.customSubjects, clean] });
+             }
+          }}
+          onRemoveCustomSubject={(subj) => {
+             setSettings({ ...settings, customSubjects: settings.customSubjects.filter(s => s !== subj) });
+          }}
+        />
+      );
       
       return (
         <>
@@ -206,7 +233,23 @@ function App() {
           </div>
           {filteredPackages.length === 0 && <div className="text-center py-12 text-[var(--app-text-muted)]">No packages found.</div>}
           
-          <PackageGrid packages={filteredPackages} cart={cart} onToggleCart={toggleCart} onCopyCommand={copySingleCommand} setPendingChatQuery={(q) => setPendingChatQuery(q)} handleSearch={handleSearch} setMode={(m) => setMode(m)} mode={mode} settings={settings} currentPage={currentPage} setCurrentPage={(p) => setCurrentPage(p)} compareList={compareList} onToggleCompare={toggleCompare} />
+          <PackageGrid 
+             packages={filteredPackages} 
+             cart={cart} 
+             onToggleCart={toggleCart} 
+             onCopyCommand={copySingleCommand}
+             onExecute={handleDirectExecution}
+             setPendingChatQuery={(q) => setPendingChatQuery(q)} 
+             handleSearch={handleSearch} 
+             setMode={(m) => setMode(m)} 
+             mode={mode} 
+             settings={settings} 
+             currentPage={currentPage} 
+             setCurrentPage={(val) => setCurrentPage(val)} 
+             compareList={compareList} 
+             onToggleCompare={toggleCompare}
+             isDesktop={isDesktop}
+          />
         </>
       );
     }
@@ -216,7 +259,7 @@ function App() {
     return (
        <>
           <div className="flex justify-between mb-6"><h2 className="text-2xl font-bold">Detected Software ({packages.length})</h2><button onClick={() => { setPackages([]); setImportText(''); }} className="text-sm underline">Parse New List</button></div>
-          <PackageGrid packages={filteredPackages} cart={cart} onToggleCart={toggleCart} onCopyCommand={copySingleCommand} setPendingChatQuery={(q) => setPendingChatQuery(q)} handleSearch={handleSearch} setMode={(m) => setMode(m)} mode={mode} settings={settings} currentPage={currentPage} setCurrentPage={(p) => setCurrentPage(p)} compareList={compareList} onToggleCompare={toggleCompare} />
+          <PackageGrid packages={filteredPackages} cart={cart} onToggleCart={toggleCart} onCopyCommand={copySingleCommand} onExecute={handleDirectExecution} setPendingChatQuery={(q) => setPendingChatQuery(q)} handleSearch={handleSearch} setMode={(m) => setMode(m)} mode={mode} settings={settings} currentPage={currentPage} setCurrentPage={(val) => setCurrentPage(val)} compareList={compareList} onToggleCompare={toggleCompare} isDesktop={isDesktop} />
        </>
     );
   };
@@ -256,6 +299,7 @@ function App() {
         openHelp={() => setIsHelpOpen(true)}
         onClearCart={() => { if(window.confirm('Are you sure you want to clear your cart?')) setCart([]); }}
         resetState={() => { setMode('install'); setSearched(false); setPackages([]); setQuery(''); setError(null); }} 
+        isDesktop={isDesktop}
       />
       <div className="bg-[var(--app-surface)] border-b border-[var(--app-border)] py-2"><div className="max-w-7xl mx-auto px-4 flex gap-1 justify-center sm:justify-start">
         {['install', 'upgrade', 'uninstall'].map(m => <button key={m} onClick={() => setMode(m as AppMode)} className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-all ${mode === m ? (m === 'upgrade' ? 'bg-emerald-600 text-white' : m === 'uninstall' ? 'bg-red-600 text-white' : 'bg-[var(--app-primary)] text-white') : 'text-[var(--app-text-muted)] hover:bg-[var(--app-bg)]'}`}>{m === 'install' ? <Download size={16}/> : m === 'upgrade' ? <RefreshCw size={16}/> : <Trash2 size={16}/>} <span className="capitalize">{m}</span></button>)}
