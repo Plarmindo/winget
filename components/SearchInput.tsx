@@ -1,5 +1,6 @@
+
 import React, { useState, useEffect, useRef } from 'react';
-import { Search, X, Clock, TrendingUp, XCircle } from 'lucide-react';
+import { Search, X, Clock, TrendingUp, XCircle, ArrowRight } from 'lucide-react';
 import { POPULAR_SUGGESTIONS, STORAGE_KEYS } from '../constants';
 
 interface SearchInputProps {
@@ -12,6 +13,28 @@ interface SearchInputProps {
   autoFocus?: boolean;
   className?: string;
 }
+
+// Helper component for highlighting text
+const HighlightedText = ({ text, highlight }: { text: string, highlight: string }) => {
+  const safeHighlight = highlight.trim();
+  if (!safeHighlight) return <span>{text}</span>;
+  
+  // Escape regex characters to prevent crashes
+  const escapedHighlight = safeHighlight.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  const parts = text.split(new RegExp(`(${escapedHighlight})`, 'gi'));
+  
+  return (
+    <span>
+      {parts.map((part, i) => 
+        part.toLowerCase() === safeHighlight.toLowerCase() ? (
+          <span key={i} className="text-[var(--app-primary)] font-bold">{part}</span>
+        ) : (
+          <span key={i}>{part}</span>
+        )
+      )}
+    </span>
+  );
+};
 
 export const SearchInput: React.FC<SearchInputProps> = ({
   value,
@@ -66,6 +89,12 @@ export const SearchInput: React.FC<SearchInputProps> = ({
     inputRef.current?.blur();
   };
 
+  const handleBlur = (e: React.FocusEvent) => {
+    // Delay closing to allow click events on suggestions to fire
+    if (containerRef.current && containerRef.current.contains(e.relatedTarget as Node)) return;
+    setTimeout(() => setIsOpen(false), 200);
+  };
+
   const handleKeyDown = (e: React.KeyboardEvent) => {
     if (e.key === 'ArrowDown') {
       e.preventDefault();
@@ -74,8 +103,8 @@ export const SearchInput: React.FC<SearchInputProps> = ({
       e.preventDefault();
       setActiveIndex(prev => (prev > -1 ? prev - 1 : prev));
     } else if (e.key === 'Enter') {
+      e.preventDefault();
       if (activeIndex >= 0 && suggestions[activeIndex]) {
-        e.preventDefault();
         onChange(suggestions[activeIndex].text);
         handleSubmit(suggestions[activeIndex].text);
       } else {
@@ -111,27 +140,9 @@ export const SearchInput: React.FC<SearchInputProps> = ({
   const suggestions = getSuggestions();
   const showDropdown = isOpen && (suggestions.length > 0 || (value === '' && history.length > 0));
 
-  // Helper to highlight matching text
-  const HighlightedText = ({ text, highlight }: { text: string, highlight: string }) => {
-    if (!highlight.trim()) return <span>{text}</span>;
-    
-    const parts = text.split(new RegExp(`(${highlight})`, 'gi'));
-    return (
-      <span>
-        {parts.map((part, i) => 
-          part.toLowerCase() === highlight.toLowerCase() ? (
-            <span key={i} className="text-[var(--app-primary)] font-bold">{part}</span>
-          ) : (
-            <span key={i}>{part}</span>
-          )
-        )}
-      </span>
-    );
-  };
-
   return (
     <div ref={containerRef} className={`relative ${className}`}>
-      <div className="relative">
+      <div className="relative group">
         <input
           ref={inputRef}
           type="text"
@@ -142,21 +153,28 @@ export const SearchInput: React.FC<SearchInputProps> = ({
             setActiveIndex(-1);
           }}
           onFocus={() => setIsOpen(true)}
+          onBlur={handleBlur}
           onKeyDown={handleKeyDown}
           placeholder={placeholder}
           autoFocus={autoFocus}
-          className="w-full bg-[var(--app-bg)] border border-[var(--app-border)] rounded-full py-2 pl-12 pr-10 text-sm focus:outline-none focus:ring-2 focus:ring-[var(--app-primary)] focus:border-transparent placeholder-[var(--app-text-muted)] text-[var(--app-text)] transition-all shadow-sm"
+          autoCorrect="off"
+          spellCheck={false}
+          role="combobox"
+          aria-autocomplete="list"
+          aria-expanded={showDropdown}
+          aria-controls="search-suggestions"
+          className="w-full bg-[var(--app-bg)] border border-[var(--app-border)] rounded-full py-2.5 pl-12 pr-10 text-sm focus:outline-none focus:ring-2 focus:ring-[var(--app-primary)] focus:border-transparent placeholder-[var(--app-text-muted)] text-[var(--app-text)] transition-all shadow-sm group-hover:shadow-md group-hover:border-[var(--app-primary)]/50"
           autoComplete="off"
         />
-        <Search className="absolute left-4 top-2.5 text-[var(--app-text-muted)]" size={18} />
+        <Search className="absolute left-4 top-2.5 text-[var(--app-text-muted)] group-focus-within:text-[var(--app-primary)] transition-colors pointer-events-none" size={18} />
         
         {loading ? (
           <button 
             onClick={onStop} 
-            className="absolute right-3 top-2 text-[var(--app-text-muted)] hover:text-[var(--app-text)] transition-colors" 
+            className="absolute right-3 top-2.5 text-[var(--app-text-muted)] hover:text-red-500 transition-colors animate-pulse" 
             title="Stop Search"
           >
-            <XCircle size={16} />
+            <XCircle size={18} />
           </button>
         ) : (
           value && value !== "POPULAR_ESSENTIALS" && (
@@ -166,38 +184,44 @@ export const SearchInput: React.FC<SearchInputProps> = ({
                 setIsOpen(true);
                 inputRef.current?.focus();
               }} 
-              className="absolute right-3 top-2 text-[var(--app-text-muted)] hover:text-[var(--app-text)] transition-colors" 
+              className="absolute right-3 top-2.5 text-[var(--app-text-muted)] hover:text-[var(--app-text)] transition-colors" 
               title="Clear Search"
             >
-              <X size={16} />
+              <X size={18} />
             </button>
           )
         )}
       </div>
 
       {showDropdown && (
-        <div className="absolute top-full left-0 right-0 mt-2 bg-[var(--app-surface)] border border-[var(--app-border)] rounded-xl shadow-xl overflow-hidden z-50 animate-in fade-in zoom-in-95 duration-100 max-h-[400px] overflow-y-auto">
+        <div id="search-suggestions" role="listbox" className="absolute top-full left-0 right-0 mt-2 bg-[var(--app-surface)] border border-[var(--app-border)] rounded-xl shadow-2xl overflow-hidden z-50 animate-in fade-in zoom-in-95 duration-100 max-h-[400px] overflow-y-auto">
           {suggestions.map((suggestion, idx) => (
             <button
               key={`${suggestion.type}-${suggestion.text}`}
+              role="option"
+              aria-selected={idx === activeIndex}
               onClick={() => {
                 onChange(suggestion.text);
                 handleSubmit(suggestion.text);
               }}
-              className={`w-full text-left px-4 py-3 text-sm flex items-center gap-3 transition-colors ${
+              onMouseEnter={() => setActiveIndex(idx)}
+              className={`w-full text-left px-4 py-3 text-sm flex items-center justify-between gap-3 transition-colors ${
                 idx === activeIndex 
                   ? 'bg-[var(--app-primary)]/10 text-[var(--app-text)]' 
                   : 'text-[var(--app-text-muted)] hover:bg-[var(--app-bg)] hover:text-[var(--app-text)]'
               }`}
             >
-              {suggestion.type === 'history' ? (
-                <Clock size={14} className="text-[var(--app-text-muted)] shrink-0" />
-              ) : (
-                <TrendingUp size={14} className="text-[var(--app-primary)] shrink-0" />
-              )}
-              <span className="truncate">
-                <HighlightedText text={suggestion.text} highlight={value} />
-              </span>
+              <div className="flex items-center gap-3 overflow-hidden">
+                  {suggestion.type === 'history' ? (
+                    <Clock size={14} className="text-[var(--app-text-muted)] shrink-0" />
+                  ) : (
+                    <TrendingUp size={14} className="text-[var(--app-primary)] shrink-0" />
+                  )}
+                  <span className="truncate">
+                    <HighlightedText text={suggestion.text} highlight={value} />
+                  </span>
+              </div>
+              {idx === activeIndex && <ArrowRight size={14} className="text-[var(--app-text-muted)] opacity-50" />}
             </button>
           ))}
           {history.length > 0 && (
@@ -207,7 +231,7 @@ export const SearchInput: React.FC<SearchInputProps> = ({
                      setHistory([]);
                      localStorage.removeItem(STORAGE_KEYS.SEARCH_HISTORY);
                   }}
-                  className="w-full text-xs text-center text-[var(--app-text-muted)] hover:text-red-400 transition-colors"
+                  className="w-full py-1.5 text-xs text-center text-[var(--app-text-muted)] hover:text-red-400 hover:bg-red-500/10 rounded transition-colors"
                >
                   Clear History
                </button>

@@ -1,76 +1,85 @@
 
-import React from 'react';
-import { WingetPackage, AppMode, AppSettings } from '../types';
+import React, { useState, useEffect } from 'react';
+import { WingetPackage, AppMode } from '../types';
 import { PackageCard } from './PackageCard';
-import { generateAppDetailsPrompt, generateAlternativesPrompt, generateEvaluationPrompt } from '../services/wingetService';
+import { useAppStore } from '../stores/store';
+import { ChevronLeft, ChevronRight } from 'lucide-react';
 
 interface PackageGridProps {
   packages: WingetPackage[];
-  cart: WingetPackage[];
-  onToggleCart: (pkg: WingetPackage) => void;
-  onCopyCommand: (id: string, mode: AppMode) => void;
   onExecute?: (id: string, mode: AppMode) => void;
-  setPendingChatQuery: (query: string) => void;
   handleSearch: (query: string) => void;
-  setMode: (mode: AppMode) => void;
-  mode: AppMode;
-  settings: AppSettings;
-  currentPage: number;
-  setCurrentPage: React.Dispatch<React.SetStateAction<number>>;
-  compareList?: WingetPackage[];
-  onToggleCompare?: (pkg: WingetPackage) => void;
+  onFetchDetails?: (pkg: WingetPackage) => Promise<string>;
   isDesktop?: boolean;
 }
 
 export const PackageGrid: React.FC<PackageGridProps> = ({ 
-  packages, cart, onToggleCart, onCopyCommand, onExecute, setPendingChatQuery, handleSearch, setMode, mode, settings, currentPage, setCurrentPage, compareList, onToggleCompare, isDesktop 
+  packages, onExecute, handleSearch, onFetchDetails, isDesktop 
 }) => {
-  const itemsPerPage = settings.itemsPerPage || 9;
-  const paginatedPackages = packages.slice((currentPage - 1) * itemsPerPage, currentPage * itemsPerPage);
+  const { settings } = useAppStore();
+  const [currentPage, setCurrentPage] = useState(1);
+  
+  // Reset to page 1 when packages list changes (new search)
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [packages]);
 
   if (packages.length === 0) return null;
+  
+  const itemsPerPage = settings.itemsPerPage || 6;
+  const totalPages = Math.ceil(packages.length / itemsPerPage);
+  
+  // Ensure current page is valid
+  const safePage = Math.min(Math.max(1, currentPage), Math.max(1, totalPages));
+  
+  const startIndex = (safePage - 1) * itemsPerPage;
+  const currentPackages = packages.slice(startIndex, startIndex + itemsPerPage);
+
+  const handlePrev = () => setCurrentPage(p => Math.max(1, p - 1));
+  const handleNext = () => setCurrentPage(p => Math.min(totalPages, p + 1));
 
   return (
-    <>
-      <div className={`grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 ${settings.compactMode ? 'gap-3' : 'gap-6'}`}>
-        {paginatedPackages.map(pkg => (
-          <PackageCard 
-            key={pkg.id} 
-            pkg={pkg} 
-            isInCart={!!cart.find(c => c.id === pkg.id)} 
-            onToggleCart={onToggleCart} 
-            onCopyCommand={onCopyCommand} 
-            onExecute={onExecute}
-            onAskAI={() => setPendingChatQuery(generateAppDetailsPrompt(pkg.name, pkg.id))} 
-            onFindAlternatives={() => { setMode('install'); handleSearch(generateAlternativesPrompt(pkg.name)); }} 
-            onAnalyze={() => setPendingChatQuery(generateEvaluationPrompt(pkg.name))}
-            onToggleCompare={onToggleCompare}
-            isInCompare={compareList ? !!compareList.find(c => c.id === pkg.id) : false}
-            mode={mode} 
-            compactMode={settings.compactMode} 
-            isDesktop={isDesktop}
-          />
+    <div className="w-full flex flex-col space-y-6">
+      {/* Grid Layout */}
+      <div className={`grid grid-cols-1 ${settings.compactMode ? 'md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4' : 'md:grid-cols-2 lg:grid-cols-3'} gap-4`}>
+        {currentPackages.map((pkg) => (
+          <div key={pkg.id} className="h-full">
+            <PackageCard 
+              pkg={pkg} 
+              onExecute={onExecute}
+              handleSearch={handleSearch}
+              onFetchDetails={onFetchDetails}
+              isDesktop={isDesktop}
+              style={{ height: '100%' }}
+            />
+          </div>
         ))}
       </div>
-      {Math.ceil(packages.length / itemsPerPage) > 1 && (
-        <div className="flex justify-center mt-8 gap-4">
+
+      {/* Pagination Controls */}
+      {totalPages > 1 && (
+        <div className="flex justify-center items-center gap-4 pt-4 pb-8">
           <button 
-            onClick={() => setCurrentPage(p => Math.max(1, p - 1))} 
-            disabled={currentPage === 1} 
-            className="px-4 py-2 border rounded-lg disabled:opacity-50"
+            onClick={handlePrev} 
+            disabled={safePage === 1}
+            className={`p-2 rounded-full border border-[var(--app-border)] transition-colors ${safePage === 1 ? 'text-[var(--app-text-muted)] opacity-50 cursor-not-allowed' : 'hover:bg-[var(--app-surface)] text-[var(--app-text)]'}`}
           >
-            Prev
+            <ChevronLeft size={20} />
           </button>
-          <span className="self-center">Page {currentPage}</span>
+          
+          <span className="text-sm font-medium text-[var(--app-text-muted)]">
+            Page <span className="text-[var(--app-text)] font-bold">{safePage}</span> of {totalPages}
+          </span>
+          
           <button 
-            onClick={() => setCurrentPage(p => Math.min(Math.ceil(packages.length / itemsPerPage), p + 1))} 
-            disabled={currentPage === Math.ceil(packages.length / itemsPerPage)} 
-            className="px-4 py-2 border rounded-lg disabled:opacity-50"
+            onClick={handleNext} 
+            disabled={safePage === totalPages}
+            className={`p-2 rounded-full border border-[var(--app-border)] transition-colors ${safePage === totalPages ? 'text-[var(--app-text-muted)] opacity-50 cursor-not-allowed' : 'hover:bg-[var(--app-surface)] text-[var(--app-text)]'}`}
           >
-            Next
+            <ChevronRight size={20} />
           </button>
         </div>
       )}
-    </>
+    </div>
   );
 };

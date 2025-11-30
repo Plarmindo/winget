@@ -1,4 +1,3 @@
-
 // This file abstracts the Tauri API
 // It safely handles cases where the app is running in a standard web browser (non-Tauri)
 
@@ -25,10 +24,15 @@ export const invokeTauri = async <T>(command: string, args?: InvokeArgs): Promis
   }
 };
 
-export const executeCliCommand = async (manager: string, args: string[]): Promise<string> => {
-  return await invokeTauri<string>('execute_cli_command', { manager, args });
+export const executeCliSearch = async (manager: string, query: string): Promise<string> => {
+  return await invokeTauri<string>('search_packages_command', { request: { manager, query } });
 };
 
-export const spawnTerminalCommand = async (manager: string, args: string[]): Promise<void> => {
-  return await invokeTauri<void>('spawn_terminal_command', { manager, args });
+export const executeCliOperation = async (manager: string, mode: string, packages: string[]): Promise<void> => {
+  return await invokeTauri<void>('run_winget_operation', { request: { manager, mode, packages } });
+};
+
+export const checkIsAdmin = async (): Promise<boolean> => {
+  if (!isTauri()) return false;
+  return await invokeTauri<boolean>('check_is_admin');
 };

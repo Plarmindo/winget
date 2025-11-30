@@ -1,17 +1,17 @@
 import React from 'react';
 import { RefreshCw, Trash2, FileWarning, ClipboardPaste, ArrowRight } from 'lucide-react';
-import { AppMode, AppSettings } from '../types';
+import { useAppStore } from '../stores/store';
 
 interface MaintenanceImportProps {
-  mode: AppMode;
-  settings: AppSettings;
   importText: string;
   setImportText: (text: string) => void;
   importError: string | null;
   handleImport: () => void;
 }
 
-export const MaintenanceImport: React.FC<MaintenanceImportProps> = ({ mode, settings, importText, setImportText, importError, handleImport }) => {
+export const MaintenanceImport: React.FC<MaintenanceImportProps> = ({ importText, setImportText, importError, handleImport }) => {
+  const { mode, settings } = useAppStore();
+
   return (
     <div className="max-w-3xl mx-auto mt-8">
       <div className={`rounded-2xl border p-8 bg-[var(--app-surface)]/50 ${mode === 'upgrade' ? 'border-emerald-900/50' : 'border-red-900/50'}`}>

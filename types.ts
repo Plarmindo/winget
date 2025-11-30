@@ -1,3 +1,4 @@
+
 export interface WingetPackage {
   id: string;
   name: string;
@@ -6,6 +7,9 @@ export interface WingetPackage {
   category: string;
   version?: string;
   availableVersion?: string;
+  isFree?: boolean; // True = Free/Open Source, False = Paid/Freemium/Trial
+  stars?: number;
+  forks?: number;
 }
 
 export interface SearchState {
@@ -36,7 +40,7 @@ export type ChatModelType = 'fast' | 'balanced' | 'smart' | 'thinking';
 
 export type AppMode = 'install' | 'upgrade' | 'uninstall';
 
-export type PackageManagerType = 'winget' | 'chocolatey' | 'scoop' | 'brew' | 'apt';
+export type PackageManagerType = 'winget' | 'chocolatey' | 'scoop' | 'brew' | 'apt' | 'github';
 
 export type AiProviderType = 'gemini' | 'openai' | 'ollama' | 'lmstudio' | 'custom';
 
@@ -73,4 +77,5 @@ export interface AppSettings {
   itemsPerPage: number;
   activePackageManager: PackageManagerType;
   aiConfig: AiConfig;
+  githubToken: string;
 }
