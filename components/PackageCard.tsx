@@ -1,350 +1,177 @@
 
 import React, { useState } from 'react';
 import { WingetPackage, AppMode } from '../types';
-import { Plus, Check, Copy, RefreshCw, Trash2, ChevronDown, ChevronUp, Globe, Tag, Info, Layers, Sparkles, Terminal, GitFork, Microscope, Star, ShieldCheck, ThumbsUp, ThumbsDown, Heart, Scale, Play } from 'lucide-react';
+import { useAppStore } from '../stores/store';
+import { generateAppDetailsPrompt, generateAlternativesPrompt, generateEvaluationPrompt } from '../services/wingetService';
+import { Plus, Check, Copy, RefreshCw, Trash2, ChevronDown, ChevronUp, Globe, Tag, Sparkles, Terminal, GitFork, Star, ShieldCheck, ThumbsUp, ThumbsDown, Heart, Scale, Play, Loader2, Gift, CircleDollarSign } from 'lucide-react';
 
 interface PackageCardProps {
   pkg: WingetPackage;
-  isInCart: boolean;
-  onToggleCart: (pkg: WingetPackage) => void;
-  onCopyCommand: (id: string, mode: AppMode) => void;
   onExecute?: (id: string, mode: AppMode) => void;
-  onAskAI: (pkg: WingetPackage) => void;
-  onFindAlternatives?: (pkg: WingetPackage) => void;
-  onAnalyze?: (pkg: WingetPackage) => void;
-  onToggleCompare?: (pkg: WingetPackage) => void;
-  isInCompare?: boolean;
-  mode: AppMode;
-  compactMode?: boolean;
+  handleSearch: (q: string) => void;
+  onFetchDetails?: (pkg: WingetPackage) => Promise<string>;
   isDesktop?: boolean;
+  style?: React.CSSProperties;
 }
 
-export const PackageCard: React.FC<PackageCardProps> = ({ pkg, isInCart, onToggleCart, onCopyCommand, onExecute, onAskAI, onFindAlternatives, onAnalyze, onToggleCompare, isInCompare, mode, compactMode, isDesktop }) => {
+export const PackageCard: React.FC<PackageCardProps> = ({ pkg, onExecute, handleSearch, onFetchDetails, isDesktop, style }) => {
+  const { cart, addToCart, removeFromCart, mode, settings, compareList, toggleCompare, setPendingChatQuery, setMode } = useAppStore();
+  
+  const isInCart = !!cart.find(c => c.id === pkg.id);
+  const isInCompare = !!compareList.find(c => c.id === pkg.id);
+  
   const [isExpanded, setIsExpanded] = useState(false);
   const [isAnimating, setIsAnimating] = useState(false);
   const [showCopied, setShowCopied] = useState(false);
-  
-  // Feedback States (Local only for demo)
-  const [isLiked, setIsLiked] = useState<boolean | null>(null);
-  const [isSaved, setIsSaved] = useState(false);
+  const [aiSummary, setAiSummary] = useState<string | null>(null);
+  const [loadingSummary, setLoadingSummary] = useState(false);
 
-  // Defensive programming for optional/missing fields
   const displayName = pkg.name || 'Unknown Package';
   const displayChar = displayName.charAt(0) ? displayName.charAt(0).toUpperCase() : '?';
 
   const handleToggleCart = () => {
     setIsAnimating(true);
-    onToggleCart(pkg);
+    if (isInCart) removeFromCart(pkg.id);
+    else addToCart(pkg);
     setTimeout(() => setIsAnimating(false), 300);
   };
 
   const handleCopy = (e: React.MouseEvent) => {
     e.stopPropagation();
-    onCopyCommand(pkg.id, mode);
+    const pm = settings.activePackageManager;
+    const cmd = pm === 'winget' ? `winget ${mode === 'uninstall' ? 'uninstall' : mode} ${pkg.id} -e` : (pm === 'github' ? `git clone https://github.com/${pkg.id}.git` : `${pm} ${mode} ${pkg.id}`);
+    navigator.clipboard.writeText(cmd);
     setShowCopied(true);
     setTimeout(() => setShowCopied(false), 2000);
   };
   
   const handleExecute = (e: React.MouseEvent) => {
     e.stopPropagation();
-    if (onExecute && confirm(`Are you sure you want to ${mode} ${pkg.name} immediately?`)) {
+    if (onExecute && confirm(`Are you sure you want to ${settings.activePackageManager === 'github' ? 'clone' : mode} ${pkg.name} immediately?`)) {
        onExecute(pkg.id, mode);
     }
   };
-  
-  const handleVerify = (e: React.MouseEvent) => {
-    e.stopPropagation();
-    // Open Google Search to verify the package ID
-    window.open(`https://www.google.com/search?q=winget+package+"${pkg.id}"`, '_blank');
+
+  const toggleExpand = async () => {
+      const willExpand = !isExpanded;
+      setIsExpanded(willExpand);
+      if (willExpand && !aiSummary && onFetchDetails) {
+          setLoadingSummary(true);
+          try {
+              const text = await onFetchDetails(pkg);
+              setAiSummary(text);
+          } catch (e) {
+              setAiSummary("Unable to load AI insights.");
+          } finally {
+              setLoadingSummary(false);
+          }
+      }
   };
 
-  const handleLike = (e: React.MouseEvent, val: boolean) => {
-     e.stopPropagation();
-     setIsLiked(prev => prev === val ? null : val);
-  };
-
-  const handleSave = (e: React.MouseEvent) => {
-     e.stopPropagation();
-     setIsSaved(!isSaved);
-  };
-
-  const handleCompare = (e: React.MouseEvent) => {
-    e.stopPropagation();
-    if (onToggleCompare) onToggleCompare(pkg);
-  };
-
-  // Determine Status Labels
-  const isUpdateAvailable = !!pkg.availableVersion;
-  const isInstalled = !!pkg.version;
-
-  // Mode-specific styling and icons
   const getModeConfig = () => {
     switch (mode) {
       case 'upgrade':
         return {
-          icon: <RefreshCw size={compactMode ? 14 : 16} />,
-          text: isInCart ? 'Added' : 'Add Upgrade',
-          btnClass: isInCart 
-            ? 'bg-emerald-600 hover:bg-emerald-700 shadow-emerald-900/20' 
-            : 'bg-emerald-600/80 hover:bg-emerald-500 shadow-emerald-900/20',
-          borderClass: 'hover:border-emerald-500/50',
-          gradientClass: 'from-emerald-500 to-teal-600',
-          cmdColor: 'text-emerald-300'
+          icon: <RefreshCw size={settings.compactMode ? 14 : 16} />,
+          text: isInCart ? 'Added' : 'Upgrade',
+          btnClass: isInCart ? 'bg-emerald-600' : 'bg-emerald-600/80 hover:bg-emerald-500',
+          gradientClass: 'from-emerald-500 to-teal-600'
         };
       case 'uninstall':
         return {
-          icon: <Trash2 size={compactMode ? 14 : 16} />,
+          icon: <Trash2 size={settings.compactMode ? 14 : 16} />,
           text: isInCart ? 'Added' : 'Uninstall',
-          btnClass: isInCart 
-            ? 'bg-red-600 hover:bg-red-700 shadow-red-900/20' 
-            : 'bg-red-600/80 hover:bg-red-500 shadow-red-900/20',
-          borderClass: 'hover:border-red-500/50',
-          gradientClass: 'from-red-500 to-rose-600',
-          cmdColor: 'text-red-300'
+          btnClass: isInCart ? 'bg-red-600' : 'bg-red-600/80 hover:bg-red-500',
+          gradientClass: 'from-red-500 to-rose-600'
         };
       case 'install':
       default:
         return {
-          icon: <Plus size={compactMode ? 14 : 16} />,
+          icon: <Plus size={settings.compactMode ? 14 : 16} />,
           text: isInCart ? 'Added' : 'Install',
-          btnClass: isInCart 
-            ? 'bg-[var(--app-primary)] hover:opacity-90 shadow-blue-900/20' 
-            : 'bg-[var(--app-primary)] hover:opacity-90 shadow-blue-900/20',
-          borderClass: 'hover:border-[var(--app-primary)]/50',
-          gradientClass: 'from-[var(--app-primary)] to-indigo-600',
-          cmdColor: 'text-blue-300'
+          btnClass: isInCart ? 'bg-[var(--app-primary)]' : 'bg-[var(--app-primary)] hover:opacity-90',
+          gradientClass: 'from-[var(--app-primary)] to-indigo-600'
         };
     }
   };
 
   const config = getModeConfig();
-  const paddingClass = compactMode ? 'p-3' : 'p-5';
 
   return (
-    <div className={`group relative bg-[var(--app-surface)] hover:bg-[var(--app-surface)] border ${isInCompare ? 'border-[var(--app-primary)] ring-2 ring-[var(--app-primary)]/30' : `border-[var(--app-border)] ${config.borderClass}`} rounded-xl ${paddingClass} transition-all duration-300 transform hover:scale-[1.02] hover:shadow-2xl flex flex-col h-full shadow-lg overflow-hidden`}>
-      
-      {/* Quick Context Hint on Hover */}
-      <div className="absolute top-0 right-0 p-2 z-20 opacity-0 group-hover:opacity-100 transition-opacity duration-300 pointer-events-none">
-         <div className="bg-[var(--app-surface)]/90 backdrop-blur border border-[var(--app-border)] shadow-lg rounded px-2 py-1 text-[10px] text-[var(--app-text)] font-mono whitespace-nowrap">
-            {pkg.id} • {pkg.category || 'App'}
-         </div>
-      </div>
+    <div style={style} className={`group relative bg-[var(--app-surface)] border ${isInCompare ? 'border-[var(--app-primary)] ring-2 ring-[var(--app-primary)]/30' : 'border-[var(--app-border)] hover:border-[var(--app-primary)]/50'} rounded-xl p-4 transition-all duration-300 flex flex-col shadow-lg overflow-hidden h-full`}>
+      {/* License Status Badge */}
+      {pkg.isFree !== undefined && (
+        <div className={`absolute top-3 right-3 p-1.5 rounded-full z-10 ${pkg.isFree ? 'bg-emerald-500/10 text-emerald-500 border border-emerald-500/20' : 'bg-amber-500/10 text-amber-500 border border-amber-500/20'}`} title={pkg.isFree ? "Free / Open Source" : "Paid / Freemium / Trial"}>
+           {pkg.isFree ? <Gift size={12} /> : <CircleDollarSign size={12} />}
+        </div>
+      )}
 
-      {/* Status Badges */}
-      <div className={`absolute ${compactMode ? 'top-2 right-2' : 'top-3 right-3'} flex gap-2 transition-opacity duration-200 group-hover:opacity-0`}>
-        {isUpdateAvailable && (
-          <span className="px-2 py-0.5 rounded text-[10px] font-bold uppercase tracking-wide bg-emerald-500/20 text-emerald-400 border border-emerald-500/30">
-            {compactMode ? 'Upd' : 'Update Available'}
-          </span>
-        )}
-        {!isUpdateAvailable && isInstalled && (
-           <span className="px-2 py-0.5 rounded text-[10px] font-bold uppercase tracking-wide bg-[var(--app-bg)] text-[var(--app-text-muted)] border border-[var(--app-border)]">
-             Installed
-           </span>
-        )}
-      </div>
-
-      {/* Header */}
-      <div className={`flex justify-between items-start ${compactMode ? 'mb-2 pt-2' : 'mb-3 pt-4'}`}>
-        <div className="flex items-center space-x-3 w-full">
-          <div className={`${compactMode ? 'w-10 h-10 text-lg' : 'w-12 h-12 text-xl'} rounded-lg bg-gradient-to-br ${config.gradientClass} flex items-center justify-center text-white font-bold shadow-inner shrink-0`}>
+      {/* Badges and Header */}
+      <div className="flex justify-between items-start mb-3">
+        <div className="flex items-center space-x-3 w-full pr-6">
+          <div className={`w-10 h-10 rounded-lg bg-gradient-to-br ${config.gradientClass} flex items-center justify-center text-white font-bold shadow-inner shrink-0`}>
             {displayChar}
           </div>
           <div className="min-w-0 flex-1">
-            <h3 className={`font-semibold text-[var(--app-text)] leading-tight truncate pr-16`} title={displayName}>{displayName}</h3>
-            <p className="text-xs text-[var(--app-text-muted)] mt-0.5 truncate flex items-center gap-1">
-              <Globe size={10} />
-              {pkg.publisher || 'Unknown Publisher'}
+            <h3 className="font-semibold text-[var(--app-text)] leading-tight truncate" title={displayName}>{displayName}</h3>
+            <p className="text-xs text-[var(--app-text-muted)] truncate flex items-center gap-1">
+              <Globe size={10} /> {pkg.publisher || 'Unknown'}
             </p>
           </div>
         </div>
       </div>
-
-      {/* Version Info Row */}
-      <div className={`grid grid-cols-2 gap-2 text-xs ${compactMode ? 'mb-2' : 'mb-3'} bg-[var(--app-bg)]/50 p-2 rounded-lg border border-[var(--app-border)]`}>
-        <div className="flex flex-col border-r border-[var(--app-border)] pr-2">
-           <span className="text-[var(--app-text-muted)] text-[9px] uppercase font-bold tracking-wider mb-0.5">Installed</span>
-           {pkg.version ? (
-             <span className="text-[var(--app-text)] font-mono truncate" title={pkg.version}>{pkg.version}</span>
-           ) : (
-             <span className="text-[var(--app-text-muted)] italic">None</span>
-           )}
-        </div>
-        <div className="flex flex-col pl-2">
-           <span className={`${isUpdateAvailable ? 'text-emerald-500' : 'text-[var(--app-text-muted)]'} text-[9px] uppercase font-bold tracking-wider mb-0.5`}>
-             {isUpdateAvailable ? 'Available' : 'Latest'}
-           </span>
-           {pkg.availableVersion ? (
-             <span className="text-emerald-400 font-mono font-bold truncate" title={pkg.availableVersion}>{pkg.availableVersion}</span>
-           ) : (
-             <span className="text-[var(--app-text-muted)] italic">-</span>
-           )}
-        </div>
+      
+      {/* Version and Category Grid (Or Stars/Forks for GitHub) */}
+      <div className="grid grid-cols-2 gap-2 text-xs mb-3 bg-[var(--app-bg)]/50 p-2 rounded-lg border border-[var(--app-border)] shrink-0">
+          {pkg.stars !== undefined ? (
+             <>
+               <div className="truncate flex items-center gap-1"><Star size={10} className="text-amber-400"/> <span className="font-mono text-[var(--app-text)]">{pkg.stars}</span></div>
+               <div className="truncate flex items-center gap-1 justify-end"><GitFork size={10} className="text-[var(--app-text-muted)]"/> <span className="font-mono text-[var(--app-text)]">{pkg.forks}</span></div>
+             </>
+          ) : (
+             <>
+                <div className="truncate"><span className="text-[var(--app-text-muted)] opacity-70">ID:</span> <span className="font-mono text-[var(--app-text)]">{pkg.id}</span></div>
+                <div className="truncate text-right"><span className="text-[var(--app-text-muted)] opacity-70">Ver:</span> <span className="font-mono text-[var(--app-text)]">{pkg.availableVersion || pkg.version || '?'}</span></div>
+             </>
+          )}
       </div>
 
-      {/* Description */}
-      {!compactMode && (
-        <div className="flex-grow mb-4">
-          <p className={`text-sm text-[var(--app-text-muted)] leading-relaxed ${isExpanded ? '' : 'line-clamp-2'}`}>
-            {pkg.description || 'No description available.'}
-          </p>
-          
-          {/* Visible Feedback Toolbar */}
-          <div className="flex items-center gap-2 mt-3 mb-2">
-             <div className="flex bg-[var(--app-bg)] rounded-lg p-0.5 border border-[var(--app-border)]">
-               <button onClick={(e) => handleLike(e, true)} className={`p-1.5 rounded hover:bg-[var(--app-surface)] transition-colors ${isLiked === true ? 'text-green-400' : 'text-[var(--app-text-muted)]'}`} title="Thumbs Up">
-                  <ThumbsUp size={14} />
-               </button>
-               <div className="w-[1px] bg-[var(--app-border)] my-1"></div>
-               <button onClick={(e) => handleLike(e, false)} className={`p-1.5 rounded hover:bg-[var(--app-surface)] transition-colors ${isLiked === false ? 'text-red-400' : 'text-[var(--app-text-muted)]'}`} title="Thumbs Down">
-                  <ThumbsDown size={14} />
-               </button>
+      {!settings.compactMode && (
+         <div className="flex-grow mb-2 flex flex-col min-h-0">
+             <div className={`flex-1 pr-1 ${isExpanded ? 'max-h-40 overflow-y-auto' : 'overflow-hidden'}`}>
+                <p className={`text-xs text-[var(--app-text-muted)] leading-relaxed ${isExpanded ? '' : 'line-clamp-2'}`}>{pkg.description}</p>
+                {isExpanded && (
+                    <div className="mt-3 bg-[var(--app-primary)]/5 p-2 rounded border border-[var(--app-primary)]/20 animate-in fade-in slide-in-from-top-1">
+                        {loadingSummary ? (
+                            <div className="flex items-center gap-2 text-xs text-[var(--app-text-muted)]">
+                                <Loader2 size={12} className="animate-spin"/> Analyzing...
+                            </div>
+                        ) : (
+                            <p className="text-xs italic text-[var(--app-text)] whitespace-pre-wrap">{aiSummary}</p>
+                        )}
+                    </div>
+                )}
              </div>
-             <button onClick={handleSave} className={`flex items-center gap-1.5 text-xs px-2 py-1.5 rounded-lg border transition-all ${isSaved ? 'text-rose-400 border-rose-500/30 bg-rose-500/10' : 'text-[var(--app-text-muted)] border-[var(--app-border)] bg-[var(--app-bg)] hover:text-[var(--app-text)] hover:border-[var(--app-text-muted)]'}`}>
-                <Heart size={14} fill={isSaved ? "currentColor" : "none"} />
-                {isSaved ? "Saved" : "Save"}
-             </button>
-          </div>
-          
-          <div className={`grid transition-[grid-template-rows] duration-300 ease-in-out ${isExpanded ? 'grid-rows-[1fr]' : 'grid-rows-[0fr]'}`}>
-            <div className="overflow-hidden">
-              <div className="pt-3 border-t border-[var(--app-border)] grid grid-cols-1 gap-3 text-xs bg-black/20 p-2 rounded mt-2">
-                  <div className="grid grid-cols-3 gap-2">
-                    <div>
-                      <span className="block text-[var(--app-text-muted)] text-[10px] uppercase mb-1 font-bold">Category</span>
-                      <span className="text-[var(--app-text)] flex items-center gap-1 bg-[var(--app-bg)] px-1.5 py-0.5 rounded w-fit">
-                          <Tag size={10} /> {pkg.category || 'App'}
-                      </span>
-                    </div>
-                    <div className="col-span-2">
-                      <span className="block text-[var(--app-text-muted)] text-[10px] uppercase mb-1 font-bold">Package ID</span>
-                      <span className="text-[var(--app-text)] font-mono truncate block bg-[var(--app-bg)] px-1.5 py-0.5 rounded select-all" title={pkg.id}>
-                          {pkg.id}
-                      </span>
-                    </div>
-                  </div>
-                  {pkg.publisher && (
-                    <div>
-                      <span className="block text-[var(--app-text-muted)] text-[10px] uppercase mb-1 font-bold">Publisher</span>
-                      <span className="text-[var(--app-text)]">{pkg.publisher}</span>
-                    </div>
-                  )}
-              </div>
-            </div>
-          </div>
-
-          <button 
-            onClick={() => setIsExpanded(!isExpanded)}
-            className="text-xs text-[var(--app-primary)] hover:text-[var(--app-primary-hover)] mt-2 flex items-center gap-1 font-medium transition-colors focus:outline-none w-full justify-center py-1 hover:bg-[var(--app-bg)] rounded"
-          >
-            {isExpanded ? (
-              <>Less Info <ChevronUp size={12} /></>
-            ) : (
-              <>More Info <ChevronDown size={12} /></>
-            )}
-          </button>
-        </div>
-      )}
-
-      {compactMode && (
-         <div className="mb-3 text-xs bg-[var(--app-bg)] px-2 py-1 rounded font-mono text-[var(--app-text-muted)] truncate" title={pkg.id}>
-            {pkg.id}
+             <button onClick={toggleExpand} className="shrink-0 text-[10px] text-[var(--app-primary)] mt-1 flex items-center gap-1 w-full justify-center hover:bg-[var(--app-bg)] rounded py-0.5">{isExpanded ? <ChevronUp size={10} /> : <ChevronDown size={10} />}</button>
          </div>
       )}
 
-      {/* Footer Actions */}
-      <div className="mt-auto space-y-3">
-        <div className="grid grid-cols-6 gap-1.5">
-          {/* Ask AI Button */}
-          <button 
-             onClick={() => onAskAI(pkg)}
-             className="col-span-1 flex flex-col items-center justify-center py-1.5 bg-[var(--app-bg)] hover:bg-[var(--app-primary)]/20 text-[var(--app-text-muted)] hover:text-[var(--app-primary)] rounded-lg text-[10px] font-medium transition-colors border border-transparent hover:border-[var(--app-primary)]/30"
-             title="Ask AI"
-           >
-             <Sparkles size={14} className="mb-0.5" />
-             Ask
-           </button>
-           
-           {/* Find Alternatives */}
-           <button 
-             onClick={() => onFindAlternatives && onFindAlternatives(pkg)}
-             className="col-span-1 flex flex-col items-center justify-center py-1.5 bg-[var(--app-bg)] hover:bg-[var(--app-primary)]/20 text-[var(--app-text-muted)] hover:text-[var(--app-primary)] rounded-lg text-[10px] font-medium transition-colors border border-transparent hover:border-[var(--app-primary)]/30"
-             title="Find Alternatives"
-           >
-             <GitFork size={14} className="mb-0.5" />
-             Alts
-           </button>
-
-           {/* Evaluate */}
-           <button 
-             onClick={() => onAnalyze && onAnalyze(pkg)}
-             className="col-span-1 flex flex-col items-center justify-center py-1.5 bg-[var(--app-bg)] hover:bg-[var(--app-primary)]/20 text-[var(--app-text-muted)] hover:text-[var(--app-primary)] rounded-lg text-[10px] font-medium transition-colors border border-transparent hover:border-[var(--app-primary)]/30"
-             title="Evaluate (Pros/Cons)"
-           >
-             <Star size={14} className="mb-0.5" />
-             Rev
-           </button>
-           
-           {/* Compare Button */}
-           <button 
-             onClick={handleCompare}
-             className={`col-span-1 flex flex-col items-center justify-center py-1.5 rounded-lg text-[10px] font-medium transition-colors border ${
-               isInCompare
-                ? 'bg-[var(--app-primary)]/20 text-[var(--app-primary)] border-[var(--app-primary)]/30' 
-                : 'bg-[var(--app-bg)] hover:bg-[var(--app-primary)]/20 text-[var(--app-text-muted)] hover:text-[var(--app-primary)] border-transparent hover:border-[var(--app-primary)]/30'
-             }`}
-             title="Compare with other apps"
-           >
-             <Scale size={14} className="mb-0.5" />
-             Comp
-           </button>
-
-           {/* Verify ID Button */}
-           <button 
-             onClick={handleVerify}
-             className="col-span-1 flex flex-col items-center justify-center py-1.5 bg-[var(--app-bg)] hover:bg-[var(--app-surface)] text-[var(--app-text-muted)] hover:text-[var(--app-text)] rounded-lg text-[10px] font-medium transition-colors border border-transparent hover:border-[var(--app-primary)]/30"
-             title="Verify ID on Google"
-           >
-             <ShieldCheck size={14} className="mb-0.5 text-amber-500" />
-             Verify
-           </button>
-
-           {/* Copy Command Button */}
-           <button 
-             onClick={handleCopy}
-             className={`col-span-1 flex flex-col items-center justify-center py-1.5 rounded-lg text-[10px] font-medium transition-colors border ${
-               showCopied 
-                ? 'bg-green-500/20 text-green-400 border-green-500/30' 
-                : 'bg-[var(--app-bg)] hover:bg-[var(--app-surface)] text-[var(--app-text-muted)] hover:text-[var(--app-text)] border-transparent'
-             }`}
-             title={`Copy Command`}
-           >
-             {showCopied ? <Check size={14} className="mb-0.5" /> : <Terminal size={14} className="mb-0.5" />}
-             {showCopied ? 'OK' : 'Cmd'}
-           </button>
-        </div>
-
-        <div className="flex gap-2">
-            <button
-            onClick={handleToggleCart}
-            className={`flex-1 flex items-center justify-center space-x-2 py-2.5 rounded-lg text-sm font-medium transition-all duration-200 text-white shadow-lg ${config.btnClass} ${
-                isAnimating ? 'scale-95 ring-2 ring-white/20' : 'scale-100'
-            }`}
-            >
-            {isInCart ? <Check size={16} className={isAnimating ? 'animate-bounce' : ''} /> : config.icon}
-            <span>{config.text}</span>
+      <div className="mt-auto space-y-2 shrink-0">
+         {/* Action Toolbar */}
+         <div className="grid grid-cols-5 gap-1">
+             <button onClick={() => setPendingChatQuery(generateAppDetailsPrompt(pkg.name, pkg.id))} className="flex items-center justify-center py-1 bg-[var(--app-bg)] rounded text-[var(--app-text-muted)] hover:text-[var(--app-primary)] text-[10px]" title="Ask AI"><Sparkles size={14} /></button>
+             <button onClick={() => { setMode('install'); handleSearch(generateAlternativesPrompt(pkg.name)); }} className="flex items-center justify-center py-1 bg-[var(--app-bg)] rounded text-[var(--app-text-muted)] hover:text-[var(--app-primary)] text-[10px]" title="Alternatives"><GitFork size={14} /></button>
+             <button onClick={() => setPendingChatQuery(generateEvaluationPrompt(pkg.name))} className="flex items-center justify-center py-1 bg-[var(--app-bg)] rounded text-[var(--app-text-muted)] hover:text-[var(--app-primary)] text-[10px]" title="Review"><Star size={14} /></button>
+             <button onClick={() => toggleCompare(pkg)} className={`flex items-center justify-center py-1 rounded text-[10px] transition-colors ${isInCompare ? 'bg-[var(--app-primary)] text-white' : 'bg-[var(--app-bg)] text-[var(--app-text-muted)] hover:text-[var(--app-text)]'}`} title="Compare"><Scale size={14} /></button>
+             <button onClick={handleCopy} className={`flex items-center justify-center py-1 rounded text-[10px] transition-colors ${showCopied ? 'bg-green-500/20 text-green-500' : 'bg-[var(--app-bg)] text-[var(--app-text-muted)] hover:text-[var(--app-text)]'}`}><Terminal size={14} /></button>
+         </div>
+         
+         <div className="flex gap-2">
+            <button onClick={handleToggleCart} className={`flex-1 flex items-center justify-center gap-2 py-2 rounded-lg text-sm font-medium text-white transition-all shadow-md ${config.btnClass}`}>
+                {isInCart ? <Check size={16} /> : config.icon} <span>{config.text}</span>
             </button>
-
-            {isDesktop && (
-                <button
-                    onClick={handleExecute}
-                    className="w-12 flex items-center justify-center rounded-lg bg-[var(--app-surface)] text-[var(--app-primary)] hover:bg-[var(--app-primary)] hover:text-white border border-[var(--app-primary)]/50 transition-colors"
-                    title={`Run ${mode} immediately on local system`}
-                >
-                    <Play size={16} fill="currentColor" />
-                </button>
-            )}
-        </div>
+            {isDesktop && <button onClick={handleExecute} className="w-10 flex items-center justify-center rounded-lg border border-[var(--app-primary)] text-[var(--app-primary)] hover:bg-[var(--app-primary)] hover:text-white transition-colors" title={settings.activePackageManager === 'github' ? 'Clone Repository' : 'Run Now'}><Play size={16}/></button>}
+         </div>
       </div>
     </div>
   );

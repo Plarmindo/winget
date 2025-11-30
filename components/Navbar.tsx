@@ -1,35 +1,27 @@
 
 import React, { useState, useEffect, useRef } from 'react';
-import { Settings, Box, ShoppingBag, Search, Download, RefreshCw, Trash2, Package, XCircle, HelpCircle, Monitor, Globe } from 'lucide-react';
+import { Settings, Box, ShoppingBag, Search, Download, RefreshCw, Trash2, Package, HelpCircle, Monitor, Globe } from 'lucide-react';
 import AppLogo from './AppLogo';
 import { Tooltip } from './Tooltip';
-import { AppSettings, AppMode, PackageManagerType } from '../types';
+import { useAppStore } from '../stores/store';
 import { SearchInput } from './SearchInput';
 import { CommandPalette } from './CommandPalette';
+import { PackageManagerType } from '../types';
 
 interface NavbarProps {
-  settings: AppSettings;
-  setSettings: (s: AppSettings) => void;
-  mode: AppMode;
-  setMode: (m: AppMode) => void;
-  query: string;
-  setQuery: (q: string) => void;
   handleSearch: (q: string) => void;
-  loading: boolean;
   stopSearch: () => void;
-  cartCount: number;
   openDrawer: () => void;
   openSettings: () => void;
   openHelp: () => void;
-  onClearCart: () => void;
   resetState: () => void;
   isDesktop?: boolean;
 }
 
 export const Navbar: React.FC<NavbarProps> = ({ 
-  settings, setSettings, mode, setMode, query, setQuery, handleSearch, loading, stopSearch, 
-  cartCount, openDrawer, openSettings, openHelp, onClearCart, resetState, isDesktop
+  handleSearch, stopSearch, openDrawer, openSettings, openHelp, resetState, isDesktop
 }) => {
+  const { settings, updateSettings, mode, setMode, query, setQuery, loading, cart, clearCart } = useAppStore();
   const [isPaletteOpen, setIsPaletteOpen] = useState(false);
   const [paletteSearch, setPaletteSearch] = useState('');
   const paletteInputRef = useRef<HTMLInputElement>(null);
@@ -74,7 +66,7 @@ export const Navbar: React.FC<NavbarProps> = ({
     { id: 'open-drawer', label: 'Open Script Drawer', icon: <Package size={16} />, action: openDrawer },
     { id: 'settings', label: 'Open Settings', icon: <Settings size={16} />, action: openSettings },
     { id: 'help', label: 'Help & Walkthrough', icon: <HelpCircle size={16} />, action: openHelp },
-    { id: 'clear-cart', label: 'Clear Cart', icon: <XCircle size={16} />, action: onClearCart }
+    { id: 'clear-cart', label: 'Clear Cart', icon: <Trash2 size={16} />, action: () => { if(window.confirm("Clear cart?")) clearCart(); } }
   ];
 
   const getThemeColor = () => {
@@ -109,7 +101,7 @@ export const Navbar: React.FC<NavbarProps> = ({
               <div className="hidden md:block flex-1 max-w-lg mx-8 relative">
                 <SearchInput 
                   value={query}
-                  onChange={(val) => setQuery(val)}
+                  onChange={setQuery}
                   onSearch={handleSearch}
                   onStop={stopSearch}
                   loading={loading}
@@ -123,7 +115,7 @@ export const Navbar: React.FC<NavbarProps> = ({
               <div className="hidden md:block relative">
                 <select 
                   value={settings.activePackageManager} 
-                  onChange={(e) => setSettings({ ...settings, activePackageManager: e.target.value as PackageManagerType })} 
+                  onChange={(e) => updateSettings({ activePackageManager: e.target.value as PackageManagerType })} 
                   className="bg-[var(--app-bg)] border border-[var(--app-border)] text-[var(--app-text)] text-xs font-medium px-3 py-1.5 rounded-lg focus:outline-none cursor-pointer hover:border-[var(--app-primary)]/50 appearance-none pr-8"
                 >
                   <option value="winget">Winget (Win)</option>
@@ -131,6 +123,7 @@ export const Navbar: React.FC<NavbarProps> = ({
                   <option value="scoop">Scoop (Win)</option>
                   <option value="brew">Homebrew (Mac/Lin)</option>
                   <option value="apt">APT (Linux)</option>
+                  <option value="github">GitHub (Any)</option>
                 </select>
                 <div className="absolute right-2 top-2 pointer-events-none text-[var(--app-text-muted)]"><Box size={12} /></div>
               </div>
@@ -160,15 +153,15 @@ export const Navbar: React.FC<NavbarProps> = ({
                 <span>CTRL</span><span>K</span>
               </button>
               
-              <Tooltip content={`View Cart (${cartCount} items)`}>
+              <Tooltip content={`View Cart (${cart.length} items)`}>
                 <button 
                   onClick={openDrawer} 
                   className="relative p-2 text-[var(--app-text-muted)] hover:text-[var(--app-text)] transition-colors hover:bg-[var(--app-surface)] rounded-full"
                 >
                   <ShoppingBag size={24} />
-                  {cartCount > 0 && (
+                  {cart.length > 0 && (
                     <span className={`absolute top-0 right-0 h-5 w-5 text-white text-[10px] font-bold flex items-center justify-center rounded-full border-2 border-[var(--app-bg)] ${mode === 'upgrade' ? 'bg-emerald-600' : mode === 'uninstall' ? 'bg-red-600' : 'bg-[var(--app-primary)]'}`}>
-                      {cartCount}
+                      {cart.length}
                     </span>
                   )}
                 </button>

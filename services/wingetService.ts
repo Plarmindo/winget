@@ -1,7 +1,9 @@
 
+
 import { GoogleGenAI, Modality } from "@google/genai";
 import { WingetPackage, ChatModelType, AppSettings, AiConfig, PackageManagerType, AppMode } from "../types";
-import { isTauri, executeCliCommand, spawnTerminalCommand } from "./tauriBridge";
+import { isTauri, executeCliSearch, executeCliOperation } from "./tauriBridge";
+import { searchGitHubRepos } from "./githubService";
 
 // Helper to get package manager specific instructions
 const getManagerContext = (pm: PackageManagerType) => {
@@ -33,6 +35,13 @@ const getManagerContext = (pm: PackageManagerType) => {
         cmd: 'sudo apt install',
         idExample: 'git, chromium-browser, code',
         validation: 'Use valid Debian/Ubuntu package names.'
+      };
+    case 'github':
+      return {
+        name: 'GitHub',
+        cmd: 'git clone',
+        idExample: 'facebook/react, microsoft/vscode',
+        validation: 'Use valid owner/repo format.'
       };
     case 'winget':
     default:
@@ -231,9 +240,28 @@ export const generateEvaluationPrompt = (appName: string): string => {
 export const generateComparisonPrompt = (packages: WingetPackage[]): string => {
   const list = packages.map(p => `${p.name} (ID: ${p.id})`).join(', ');
   return `Compare the following software packages detailedly: ${list}. 
-  Create a comparison table of key features, performance, and pricing (if applicable).
-  Then provide a section for "Pros & Cons" for each.
-  Finally, give a "Verdict" recommendation on which one to choose for different use cases.`;
+  
+  OUTPUT FORMAT:
+  You must return a strictly valid JSON object. Do not include markdown code blocks (like \`\`\`json). Just the raw JSON object.
+  
+  Structure:
+  {
+    "apps": ["App Name 1", "App Name 2"],
+    "features": [
+       { "name": "License", "values": ["Open Source", "Proprietary"] },
+       { "name": "OS Support", "values": ["Win/Mac/Lin", "Windows Only"] },
+       ... (add 4-6 key features)
+    ],
+    "pros": [
+      { "app": "App Name 1", "items": ["Fast", "Free"] },
+      { "app": "App Name 2", "items": ["Feature Rich", "Cloud Sync"] }
+    ],
+    "cons": [
+       { "app": "App Name 1", "items": ["Old UI"] },
+       { "app": "App Name 2", "items": ["Expensive"] }
+    ],
+    "verdict": "A short summary paragraph of which one to pick when."
+  }`;
 };
 
 // New: Execute Real Command via Tauri
@@ -246,27 +274,14 @@ export const executeRealCommand = async (
     console.warn("Not running in Desktop mode. Command cannot be executed natively.");
     return;
   }
-
-  const args: string[] = [];
   
-  if (mode === 'install') args.push('install');
-  else if (mode === 'upgrade') args.push('upgrade');
-  else if (mode === 'uninstall') args.push('uninstall');
-
-  // Add all IDs
-  args.push(...packageIds);
-
-  // Add common flags for interactivity or source
-  if (packageManager === 'winget') {
-    args.push('-e'); // exact
-    args.push('--source');
-    args.push('winget');
-  } else if (packageManager === 'chocolatey') {
-    args.push('-y');
+  if (packageManager === 'github' && mode !== 'install') {
+      alert("GitHub mode only supports 'clone' (install). Upgrade/Uninstall requires manual file operations.");
+      return;
   }
 
   try {
-    await spawnTerminalCommand(packageManager, args);
+    await executeCliOperation(packageManager, mode, packageIds);
   } catch (e) {
     console.error("Failed to spawn terminal:", e);
     alert("Failed to launch terminal command. See console.");
@@ -326,7 +341,8 @@ export const parseWingetOutput = (output: string): WingetPackage[] => {
           publisher: 'Detected',
           category: category,
           version: version,
-          availableVersion: availableVersion
+          availableVersion: availableVersion,
+          isFree: undefined // CLI list doesn't usually provide license easily
         });
       }
     }
@@ -340,10 +356,9 @@ const searchPackagesViaTauri = async (
   settings: AppSettings
 ): Promise<WingetPackage[]> => {
   const { activePackageManager } = settings;
-  const args = ['search', query];
 
   try {
-    const output = await executeCliCommand(activePackageManager, args);
+    const output = await executeCliSearch(activePackageManager, query);
     return parseWingetOutput(output);
   } catch (e: any) {
     console.error("Tauri Search Error:", e);
@@ -390,14 +405,24 @@ const processSearchResult = (text: string | undefined): WingetPackage[] => {
     
     return parsed.filter((pkg: any) => 
       pkg && 
-      (typeof pkg.id === 'string' || typeof pkg.name === 'string')
+      pkg.id && // Must have ID
+      pkg.name && // Must have Name
+      typeof pkg.id === 'string' &&
+      typeof pkg.name === 'string' &&
+      pkg.id.length > 2 && // Too short is likely junk
+      !pkg.id.includes(' ') && // IDs shouldn't have spaces usually (Strict for winget)
+      pkg.id.toLowerCase() !== 'unknown' &&
+      pkg.publisher !== 'Unknown' &&
+      pkg.id !== pkg.name // Hallucination often copies name to ID exactly
     ).map(pkg => ({
       ...pkg,
-      id: pkg.id || pkg.name, // Fallback for systems like apt
-      name: pkg.name || pkg.id,
+      id: pkg.id, 
+      name: pkg.name,
       description: pkg.description || 'No description provided.',
       publisher: pkg.publisher || 'Unknown',
-      category: pkg.category || 'Utility'
+      category: pkg.category || 'Utility',
+      // Map JSON snake_case (requested in prompt) to camelCase type
+      isFree: typeof pkg.is_free === 'boolean' ? pkg.is_free : (pkg.isFree || undefined)
     })) as WingetPackage[];
   } catch (e) {
     console.warn("Failed to parse JSON from search result", e);
@@ -412,6 +437,11 @@ export const searchPackages = async (
   signal?: AbortSignal
 ): Promise<WingetPackage[]> => {
   
+  // 0. Handle GitHub Search Explicitly
+  if (settings.activePackageManager === 'github') {
+    return await searchGitHubRepos(query, settings.githubToken);
+  }
+
   // 1. If running in Tauri, use real CLI
   if (isTauri() && query !== "POPULAR_ESSENTIALS") {
     // If it's a special prompt (alternatives), we might still want AI for logic,
@@ -443,18 +473,21 @@ Always return a strictly valid JSON array.
 CRITICAL RULES:
 1. ${managerInfo.validation}
 2. Use REAL, EXISTING Package IDs compatible with \`${managerInfo.cmd}\`.
-3. HALLUCINATIONS OF IDs ARE FORBIDDEN. If you are unsure of an ID, do not invent one.
-4. Prioritize Exact Matches. If the user searches for a specific tool, ensure it is the first result.
-5. Classify them into categories like 'Development', 'Utilities', 'Browsers', 'Media', 'Gaming', 'System'.
+3. HALLUCINATIONS OF IDs ARE FORBIDDEN. If you are unsure of an ID, DO NOT include the item.
+4. Do not output items with 'Unknown' publisher or generic IDs like 'App.ID'.
+5. If you cannot find verified packages, return an empty list.
+6. Prioritize Exact Matches. If the user searches for a specific tool, ensure it is the first result.
+7. Classify them into categories like 'Development', 'Utilities', 'Browsers', 'Media', 'Gaming', 'System'.
 `;
   
   let prompt = "";
   const excludeStr = excludeIds.length > 0 ? `Do NOT include these IDs: ${excludeIds.join(', ')}.` : "";
+  const jsonStructure = `Return ONLY a JSON array of objects with keys: id, name, description, publisher, category, version, is_free (boolean: true if Free/Open Source, false if Paid/Freemium/Subscription/Trial).`;
 
   if (isPopularRequest) {
     prompt = `List 24 essential and popular apps for ${managerInfo.name} users (e.g. VS Code, Terminal, Chrome, 7zip, Docker, Discord, Spotify). 
     ${excludeStr} 
-    Return ONLY a JSON array of objects with keys: id, name, description, publisher, category, version.
+    ${jsonStructure}
     Ensure the JSON is valid and strictly formatted.`;
   } else if (isAlternativesRequest) {
     const targetApp = query.replace(/^alternatives to\s+/i, '').trim();
@@ -465,7 +498,7 @@ CRITICAL RULES:
     4. Return up to 18 relevant packages.
     ${excludeStr}
     
-    Return ONLY a raw JSON array of objects with keys: id, name, description, publisher, category, version.
+    ${jsonStructure}
     Example ID format: ${managerInfo.idExample}`;
   } else {
     prompt = `The user is searching for software using the term "${query}" on ${managerInfo.name}.
@@ -474,7 +507,7 @@ CRITICAL RULES:
     3. Return up to 18 relevant packages.
     ${excludeStr}
     
-    Return ONLY a raw JSON array of objects with keys: id, name, description, publisher, category, version.
+    ${jsonStructure}
     Example ID format: ${managerInfo.idExample}`;
   }
 
@@ -543,7 +576,7 @@ export const generateSpeech = async (text: string): Promise<string | null> => {
 export const chatWithAI = async (
   message: string, 
   history: { role: string, parts: { text: string }[] }[],
-  modelType: ChatModelType, // Legacy param, ignored if custom provider active
+  modelType: ChatModelType, // 'fast' | 'balanced' | 'smart' | 'thinking'
   settings: AppSettings,
   signal?: AbortSignal
 ) => {
@@ -568,13 +601,16 @@ Your goal is to assist users in finding, installing, upgrading, and removing sof
       
       const ai = new GoogleGenAI({ apiKey });
       
-      // Determine model from config OR legacy logic
       let modelName = aiConfig.modelId || 'gemini-2.5-flash';
-      // Preserve the "Thinking" mode logic if using Gemini
       let thinkingConfig = undefined;
 
-      // If user selected specific modes in the legacy UI but didn't override model ID manually in settings:
-      if (!aiConfig.modelId) {
+      // Allow ChatInterface Model Selection to override default settings
+      // We prioritize the specific user selection in the Chat UI over the generic setting
+      // UNLESS the user has set a custom model ID that isn't one of the defaults.
+      
+      const isDefaultModelConfig = ['gemini-2.5-flash', 'gemini-2.5-flash-lite', 'gemini-3-pro-preview', 'gemini-2.0-flash-exp'].some(m => aiConfig.modelId?.includes(m));
+      
+      if (isDefaultModelConfig || !aiConfig.modelId) {
           if (modelType === 'fast') modelName = 'gemini-2.5-flash-lite';
           else if (modelType === 'balanced') modelName = 'gemini-2.5-flash';
           else if (modelType === 'smart') modelName = 'gemini-3-pro-preview';
@@ -584,9 +620,10 @@ Your goal is to assist users in finding, installing, upgrading, and removing sof
           }
       }
 
-      // Manual complexity check for Chat
+      // Auto-upgrade for complexity is mostly handled by modelType selection now, 
+      // but we keep a safety check if they are in 'balanced' mode but ask something huge.
       const complexity = detectTaskComplexity(message);
-      if (complexity === 'complex' && modelType !== 'thinking' && ['gemini-2.5-flash', 'gemini-2.5-flash-lite'].includes(modelName)) {
+      if (complexity === 'complex' && modelType === 'balanced' && ['gemini-2.5-flash'].includes(modelName)) {
            console.log("Auto-upgrading Chat model to Pro for complex task");
            modelName = 'gemini-3-pro-preview';
       }
@@ -655,11 +692,18 @@ Your goal is to assist users in finding, installing, upgrading, and removing sof
 
 export const enhancePrompt = async (originalPrompt: string, settings: AppSettings): Promise<string> => {
   try {
-    const prompt = `Rewrite the following user query to be more specific and effective for finding software packages. 
-      Keep it concise. Return ONLY the rewriten prompt text.
-      Original: "${originalPrompt}"`;
+    const prompt = `You are a prompt engineering expert for software search queries.
+      User Query: "${originalPrompt}"
       
-    return await generateAIResponse(settings, prompt, "You are a prompt engineer.", false);
+      Create 3 distinct variations of this prompt to get better results from an AI package assistant:
+      1. Concise: Short and direct.
+      2. Detailed: Adds context about specific needs (e.g. for development, for gaming).
+      3. Technical: Uses specific terminology (versions, dependencies).
+      
+      Return ONLY a JSON array of objects with keys: 'label' (string) and 'text' (string).
+      Do not include markdown code blocks. Just raw JSON.`;
+      
+    return await generateAIResponse(settings, prompt, "You are a JSON-only prompt engineer.", false);
   } catch (error) {
     return originalPrompt;
   }
