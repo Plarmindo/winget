@@ -1,8 +1,8 @@
 
 import { create } from 'zustand';
 import { persist, createJSONStorage } from 'zustand/middleware';
-import { AppSettings, WingetPackage, AppMode, ChatModelType } from '../types';
-import { DEFAULT_THEMES, PRESET_CATEGORIES } from '../constants';
+import { AppSettings, WingetPackage, AppMode } from '../types';
+import { DEFAULT_THEMES } from '../constants';
 
 interface AppState {
   // Settings Slice
@@ -31,9 +31,10 @@ interface AppState {
   setPackages: (packages: WingetPackage[]) => void;
   loading: boolean;
   setLoading: (loading: boolean) => void;
-  error: string | null;
-  setError: (error: string | null) => void;
-  
+
+  error: any | null; // Allow structured WingetError or string
+  setError: (error: any | null) => void;
+
   // Chat Integration
   pendingChatQuery: string;
   setPendingChatQuery: (query: string) => void;
@@ -47,7 +48,7 @@ const DEFAULT_SETTINGS: AppSettings = {
   activeThemeId: 'default',
   themes: DEFAULT_THEMES,
   customSubjects: ['Browsers', 'Communication', 'Dev Tools'],
-  itemsPerPage: 6, 
+  itemsPerPage: 6,
   activePackageManager: 'winget',
   aiConfig: { provider: 'gemini', apiKey: '', baseUrl: '', modelId: 'gemini-2.5-flash' },
   githubToken: ''
@@ -95,6 +96,7 @@ export const useAppStore = create<AppState>()(
       setPackages: (packages) => set({ packages }),
       loading: false,
       setLoading: (loading) => set({ loading }),
+
       error: null,
       setError: (error) => set({ error }),
 
@@ -106,7 +108,13 @@ export const useAppStore = create<AppState>()(
       name: 'winget-app-storage',
       storage: createJSONStorage(() => localStorage),
       partialize: (state) => ({
-        settings: state.settings,
+        settings: {
+          ...state.settings,
+          // Exclude AI config from localStorage (stored securely via Tauri)
+          aiConfig: { provider: 'gemini', apiKey: '', baseUrl: '', modelId: 'gemini-2.5-flash' },
+          // Exclude GitHub token from localStorage (also sensitive)
+          githubToken: ''
+        },
         cart: state.cart
       }),
     }

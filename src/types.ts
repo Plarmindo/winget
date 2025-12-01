@@ -2,14 +2,15 @@
 export interface WingetPackage {
   id: string;
   name: string;
-  description: string;
-  publisher: string;
-  category: string;
+  description?: string;
+  publisher?: string;
+  category?: string;
   version?: string;
   availableVersion?: string;
   isFree?: boolean; // True = Free/Open Source, False = Paid/Freemium/Trial
   stars?: number;
   forks?: number;
+  source?: string;
 }
 
 export interface SearchState {
@@ -78,4 +79,20 @@ export interface AppSettings {
   activePackageManager: PackageManagerType;
   aiConfig: AiConfig;
   githubToken: string;
+}
+
+export type WingetErrorCode =
+  | 'INSUFFICIENT_PRIVILEGES'
+  | 'PACKAGE_NOT_FOUND'
+  | 'NETWORK_ERROR'
+  | 'INVALID_INPUT'
+  | 'NOT_IMPLEMENTED'
+  | 'COMMAND_FAILED'
+  | 'PARSE_ERROR'
+  | 'UNKNOWN_ERROR';
+
+export interface WingetError {
+  type: WingetErrorCode;
+  details: any;
+  message?: string; // Helper for simple display
 }
