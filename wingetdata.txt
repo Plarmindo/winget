@@ -1,0 +1,20 @@
+
+   - 
+                                                                                                                        
+
+   - 
+   \ 
+   | 
+   / 
+   - 
+                                                                                                                        
+Name                            Id                              Version                 Available               Source
+-----------------------------------------------------------------------------------------------------------------------
+Visual Studio Community 2022 (ΓÇª Microsoft.VisualStudio.2022.CoΓÇª < 17.14.21              17.14.21                winget
+Visual Studio Build Tools 2022  Microsoft.VisualStudio.2022.BuΓÇª < 17.14.21              17.14.21                winget
+ProSheets                       DiRoots.ProSheets               2.0.7                   2.1.0                   winget
+Microsoft .NET SDK 10.0.100-rcΓÇª Microsoft.DotNet.SDK.Preview    10.0.100-rc.1.25451.107 10.0.100-rc.2.25502.107 winget
+Microsoft Visual C++ 2015-2022ΓÇª Microsoft.VCRedist.2015+.x64    14.44.35211.0           14.50.35719.0           winget
+Python 3.13.9 (64-bit)          Python.Python.3.13              3.13.9                  3.13.10                 winget
+PowerToys (Preview) x64         XP89DCGQ3K6VLD                  0.95.1                  0.96.1                  msstore
+7 upgrades available.

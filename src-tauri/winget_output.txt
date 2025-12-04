@@ -1,0 +1,363 @@
+
+   - 
+                                                                                                                        
+Name                              Id                              Version               Match         Source
+-------------------------------------------------------------------------------------------------------------
+#Code                             9NBLGGH4S3MF                    Unknown                             msstore
+Visual Studio Code                XP9KHM4BK9FZ7Q                  Unknown                             msstore
+Visual Studio Code - Insiders     XP8LFCZM790F6B                  Unknown                             msstore
+Code Writer                       9WZDNCRFHZDT                    Unknown                             msstore
+Serris Code Editor                9NBLGGH4RM22                    Unknown                             msstore
+Kano Code                         9P4Q1393C2DZ                    Unknown                             msstore
+One Calendar                      9WZDNCRDR0SF                    Unknown                             msstore
+Microsoft Visual Studio Code      Microsoft.VisualStudioCode      1.106.3               Command: code winget
+Lingma                            Alibaba.Lingma                  1.100.0               Tag: code     winget
+σ░Åτ¿ïσ║Åσ╝ÇσÅæΦÇàσ╖Ñσà╖                  Alibaba.MiniProgramStudio       3.9.92                Tag: code     winget
+Qoder                             Alibaba.Qoder                   1.100.0               Tag: code     winget
+Kiro                              Amazon.Kiro                     0.7.0                 Tag: code     winget
+Claude Code                       Anthropic.ClaudeCode            2.0.57                Tag: code     winget
+Cursor                            Anysphere.Cursor                2.1.46                Tag: code     winget
+Apache NetBeans                   Apache.NetBeans                 28                    Tag: code     winget
+scc                               BenBoyter.scc                   3.6.0                 Tag: code     winget
+Password Generator 2020 Pro Trial BinaryMark.PasswordGenerator    3.0                   Tag: code     winget
+Bluefish                          Bluefish.Bluefish               2.2.19                Tag: code     winget
+Trae                              ByteDance.Trae                  3.2.2                 Tag: code     winget
+Trae CN                           ByteDance.Trae.CN               3.0.2                 Tag: code     winget
+CP Editor                         CPEditor.CPEditor               6.11.2                Tag: code     winget
+MsixCertImportTool                Chill-Astro.MsixCertImportTool  1.1                   Tag: code     winget
+CodeLite                          CodeLite.CodeLite               17.0.0                Tag: code     winget
+Aide                              CodeStory.Aide                  1.96.4.25031          Tag: code     winget
+Windsurf                          Codeium.Windsurf                1.12.37               Tag: code     winget
+µ╡╖Θ╛ƒτ╝ûΦ╛æσÖ¿ 2.0                    Codemao.TurtleEditor.2          2.7.6                 Tag: code     winget
+Phoenix Code                      Core-ai.PhoenixCode             4.0.3                 Tag: code     winget
+Lepton                            CosmoX.Lepton                   1.10.0                Tag: code     winget
+Cppcheck                          Cppcheck.Cppcheck               2.18.0                Tag: code     winget
+Uzi                               Devflow.Uzi                     0.0.2                 Tag: code     winget
+EditPlus                          ES-Computing.EditPlus           6.1.780.0             Tag: code     winget
+TheiaIDE                          EclipseFoundation.TheiaIDE      1.66.200              Tag: code     winget
+Embarcadero Dev-C++               Embarcadero.Dev-C++             6.3                   Tag: code     winget
+EmEditor                          Emurasoft.EmEditor              25.4.3                Tag: code     winget
+EverEdit                          EverEdit.EverEdit               4.5.0.4500            Tag: code     winget
+Exercism CLI                      Exercism.CLI                    3.5.7                 Tag: code     winget
+GDevelop                          GDevelop.GDevelop               5.6.249               Tag: code     winget
+Void                              GlassDevtools.Void              1.99.30044            Tag: code     winget
+Antigravity                       Google.Antigravity              1.11.9                Tag: code     winget
+Greenfoot                         GreenfootTeam.Greenfoot         3.9.0                 Tag: code     winget
+HHD Software Free Hex Editor Neo  HHDSoftware.FreeHexEditorNeo    7.50.04.8813          Tag: code     winget
+HHD Software Hex Editor Neo       HHDSoftware.HexEditorNeo        7.50.04.8813          Tag: code     winget
+AionUi                            HaiYing.AionUi                  1.6.0                 Tag: code     winget
+Haystack Editor                   HaystackSoftware.HaystackEditor 1.90.0                Tag: code     winget
+DevEco Studio                     Huawei.DevEco                   223.8617.56.36.310501 Tag: code     winget
+PSPad editor (x64)                JanFiala.PSPad.x64              5.5.1.825             Tag: code     winget
+PSPad editor (x86)                JanFiala.PSPad.x86              5.5.1.825             Tag: code     winget
+CLion                             JetBrains.CLion                 2025.2.5              Tag: code     winget
+CLion (EAP)                       JetBrains.CLion.EAP             253.28294.125         Tag: code     winget
+GoLand                            JetBrains.GoLand                2025.2.4              Tag: code     winget
+GoLand (EAP)                      JetBrains.GoLand.EAP            253.28294.175         Tag: code     winget
+IntelliJ IDEA Community Edition   JetBrains.IntelliJIDEA.CommuniΓÇª 2025.2.5              Tag: code     winget
+IntelliJ IDEA Community Edition ΓÇª JetBrains.IntelliJIDEA.CommuniΓÇª 252.26199.7           Tag: code     winget
+IntelliJ IDEA Educational Edition JetBrains.IntelliJIDEA.EducatiΓÇª 2022.2.2              Tag: code     winget
+IntelliJ IDEA Ultimate Edition    JetBrains.IntelliJIDEA.Ultimate 2025.2.5              Tag: code     winget
+IntelliJ IDEA Ultimate Edition (ΓÇª JetBrains.IntelliJIDEA.UltimatΓÇª 253.28294.169         Tag: code     winget
+JetBrains MPS                     JetBrains.MPS                   2025.2.1              Tag: code     winget
+JetBrains MPS (EAP)               JetBrains.MPS.EAP               MPS-253.28294.300     Tag: code     winget
+PhpStorm                          JetBrains.PhpStorm              2025.2.5              Tag: code     winget
+PhpStorm (EAP)                    JetBrains.PhpStorm.EAP          253.28294.163         Tag: code     winget
+PyCharm                           JetBrains.PyCharm               2025.2.4              Tag: code     winget
+PyCharm Community Edition         JetBrains.PyCharm.Community     2025.2.5              Tag: code     winget
+PyCharm Community Edition (EAP)   JetBrains.PyCharm.Community.EAP 252.23892.194         Tag: code     winget
+PyCharm Professional Edition      JetBrains.PyCharm.Professional  2024.3.5              Tag: code     winget
+PyCharm Professional Edition (EAΓÇª JetBrains.PyCharm.ProfessionalΓÇª 253.28294.166         Tag: code     winget
+JetBrains Rider                   JetBrains.Rider                 2025.3.0.3            Tag: code     winget
+JetBrains Rider (EAP)             JetBrains.Rider.EAP             253.28086.30          Tag: code     winget
+RubyMine                          JetBrains.RubyMine              2025.2.5              Tag: code     winget
+RubyMine (EAP)                    JetBrains.RubyMine.EAP          253.28294.170         Tag: code     winget
+RustRover                         JetBrains.RustRover             2025.2.4.1            Tag: code     winget
+RustRover (EAP)                   JetBrains.RustRover.EAP         253.28294.188         Tag: code     winget
+WebStorm                          JetBrains.WebStorm              2025.2.5              Tag: code     winget
+WebStorm (EAP)                    JetBrains.WebStorm.EAP          253.28294.86          Tag: code     winget
+kdevelop                          KDE.KDevelop                    5.5.0                 Tag: code     winget
+Kate                              KDE.Kate                        25.11.90              Tag: code     winget
+Kate                              KDE.Kate.AppX                   25.1190.10678.0       Tag: code     winget
+Lapce                             Lapce.Lapce                     0.4.5                 Tag: code     winget
+Text Editor Pro                   LasseMarkusRautiainen.TextEditΓÇª 35.1.0                Tag: code     winget
+Lite XL                           LiteXLTeam.LiteXL               2.1.8                 Tag: code     winget
+Edit                              Microsoft.Edit                  1.2.1                 Tag: code     winget
+Kimi CLI                          MoonshotAI.KimiCLI              0.60                  Tag: code     winget
+OOMOL Studio                      OOMOL.OOMOLStudio               1.4.12                Tag: code     winget
+Dev-C++                           Orwell.Dev-C++                  5.11                  Tag: code     winget
+PearAI                            PearAI.PearAI                   1.8.9                 Tag: code     winget
+10x                               PureDevSoftware.10x             1.0.385.0             Tag: code     winget
+Replit                            Replit.Replit                   1.0.14                Tag: code     winget
+Notepad3                          Rizonesoft.Notepad3             6.25.822.1            Tag: code     winget
+Red Panda C++                     RoyQu.RedPanda-C++              3.4                   Tag: code     winget
+opencode                          SST.opencode                    1.0.129               Tag: code     winget
+Programmer's Notepad              SimonSteele.ProgrammersNotepad  2.4.2                 Tag: code     winget
+Sonic Pi                          SonicPi.SonicPi                 4.6.0                 Tag: code     winget
+010 Editor                        SweetScape.010Editor            16.0.2                Tag: code     winget
+NetPad                            TareqImbasher.NetPad            0.11.0                Tag: code     winget
+NetPad vNext                      TareqImbasher.NetPad.vNext      0.11.0                Tag: code     winget
+CodeBuddy                         Tencent.CodeBuddy               1.100.0               Tag: code     winget
+QQσ░Åτ¿ïσ║Åσ╝ÇσÅæΦÇàσ╖Ñσà╖                Tencent.QQDevTools              0.72.2502070.19       Tag: code     winget
+σ╛«Σ┐íσ╝ÇσÅæΦÇàσ╖Ñσà╖                    Tencent.WeixinDevTools          2.01.2510241          Tag: code     winget
+Codespace                         TristanEdwards.Codespace        1.6.1                 Tag: code     winget
+TinyCodes                         Vogan.TinyCodes                 0.7.1                 Tag: code     winget
+Wing 101                          Wingware.Wing.101               11.0.6.0              Tag: code     winget
+Wing Personal                     Wingware.Wing.Personal          11.0.6.0              Tag: code     winget
+Wing Pro                          Wingware.Wing.Pro               11.0.6.0              Tag: code     winget
+tokei                             XAMPPRocky.Tokei                12.1.2                Tag: code     winget
+Brackets                          brackets-cont.brackets          2.2.1                 Tag: code     winget
+NoteHighlight2016                 elvirbrk.notehighlight2016      3.7                   Tag: code     winget
+jEdit                             jEdit.jEdit                     5.7.0                 Tag: code     winget
+Black                             psf.black                       25.1.0                Tag: code     winget
+τ╝ûτ¿ïτî½σ«Üσê╢Φ»╛                      Codemao.Lessons                 3.6.0                 Tag: Code     winget
+µ╡╖Θ╛ƒτ╝ûΦ╛æσÖ¿                        Codemao.TurtleEditor.1          1.8.7                 Tag: Code     winget
+µ║Éτáüτ╝ûΦ╛æσÖ¿ 4.0                    Codemao.kitten.4                4.11.15               Tag: Code     winget
+PVS-Studio                        PVS-Studio.PVS-Studio           7.39.99095.2022       Tag: Code     winget
+Visual Studio / Code for CommandΓÇª 15722UsefulApp.WorkspaceLaunchΓÇª 1.17.0.0                            winget
+Configuration Builder             AudioCodes.ConfigurationBuilder 1.1                                 winget
+INI Viewer & Editor               AudioCodes.INIViewerEditor      2.11                                winget
+SBC Configuration Wizard          AudioCodes.SBCConfigurationWizΓÇª 2.31                                winget
+SBC Configuration Wizard          AudioCodes.SyslogViewer         2.27                                winget
+Avocode                           Avocode.Avocode                 4.15.6                              winget
+Bandicam MPEG-1 Decoder           BandicamCompany.BandicamMPEG-1ΓÇª 1.2.0                               winget
+Herd                              BeyondCode.Herd                 1.24.0                              winget
+Wasmtime                          BytecodeAlliance.Wasmtime       39.0.1                              winget
+Wasmtime                          BytecodeAlliance.Wasmtime.PortΓÇª 39.0.1                              winget
+DxGPT-Ai                          CodeBerserkers888.DxGPT-AI      1.5.0                               winget
+Code::Blocks                      CodeBlocks.CodeBlocks           25.03                               winget
+Code::Blocks with MinGW           CodeBlocks.CodeBlocks.MinGW     25.03                               winget
+ffzap                             CodeF0x.ffzap                   1.1.2                               winget
+Violin                            CodeF0x.violin                  3.1.1                               winget
+Launchy                           CodeJelly.Launchy               2.5.0                               winget
+IFSCL                             CodeLyokoGames.IFSCL.Standalone 4.7                                 winget
+Kolossus Launcher                 CodeLyokoGames.KolossusLauncher 1.7.1-3                             winget
+Code.org Maker App                CodeOrg.MakerApp                1.1.9.0                             winget
+Direct Folders                    CodeSector.DirectFolders        4.3.5                               winget
+TeraCopy                          CodeSector.TeraCopy             3.17                                winget
+Turbo.net Desktop                 CodeSystems.Turbo               25.7.32.1814                        winget
+Turbo Studio                      CodeSystems.TurboStudio         25.10.2.0                           winget
+BitMeter OS                       Codebox.BitMeterOS              0.7.6                               winget
+K-Lite Codec Pack Basic           CodecGuide.K-LiteCodecPack.BasΓÇª 19.3.0                              winget
+K-Lite Codec Pack Full            CodecGuide.K-LiteCodecPack.Full 19.3.0                              winget
+K-Lite Mega Codec Pack            CodecGuide.K-LiteCodecPack.Mega 19.3.0                              winget
+K-Lite Codec Pack Standard        CodecGuide.K-LiteCodecPack.StaΓÇª 19.3.0                              winget
+AutoActions                       Codectory.AutoActions           1.9.27                              winget
+ScienceFair                       CodeforScience.ScienceFair      1.0.6                               winget
+PowerSaves                        Codejunkies.PowerSaves          1.32                                winget
+µ║ÉτáüµÖ║ΘÇáτ╝ûΦ╛æσÖ¿                    Codemao.SmartEditor             1.1.0                               winget
+µ║Éτáüτ╝ûΦ╛æσÖ¿                        Codemao.kitten.3                3.8.2                               winget
+Coder                             Coder.Coder                     2.29.0                              winget
+Coder Desktop (Core)              Coder.CoderDesktop              0.8.1                               winget
+Quick CPU x64                     CoderBag.QuickCPUx64            6.0.0.0                             winget
+SteamCleaner                      Codeusa.SteamCleaner            2.4                                 winget
+XYplorer                          CologneCodeCompany.XYplorer     28.00.1200                          winget
+XYplorer Portable                 CologneCodeCompany.XYplorerPorΓÇª 28.00.1200                          winget
+AMP Instance Manager              CubeCodersLimited.AMPInstanceMΓÇª 2.6.4.0                             winget
+Pure Codec                        Dio.PureCodec                   20251130                            winget
+Find and Run Robot                DonationCoder.FindandRunRobot   2.239.03                            winget
+Screenshot Captor                 DonationCoder.ScreenshotCaptor  4.36.2                              winget
+UnicodeInput                      FileFormatDotInfo.UnicodeInput  0.2                                 winget
+FocusWriter                       GottCode.FocusWriter            1.8.13                              winget
+SciDAVis                          HighPerformanceCoders.SciDAVis  2.8                                 winget
+DevEco Device Tool                Huawei.DevEcoDeviceTool         4.0.0.400                           winget
+dBpoweramp m4a QAAC (iTunes) EncΓÇª Illustrate.dBpowerampAACiTunesΓÇª R3                                  winget
+dBpoweramp Codec Central: CLI EnΓÇª Illustrate.dBpowerampCLIEncoder R6                                  winget
+dBpoweramp Codec Central: Ogg VoΓÇª Illustrate.dBpowerampOggVorbisΓÇª R27                                 winget
+dBpoweramp Codec Central: Wave64ΓÇª Illustrate.dBpowerampWave64EncΓÇª R2                                  winget
+code-radio-cli                    JasonWei512.code-radio-cli      1.0.5                               winget
+QR Codes for Command Palette      JiriPolasek.QRCodesforCommandPΓÇª 0.4.0.0                             winget
+Command Palette - VS Code         JonahFintzDEV.CommandPalette-VΓÇª 1.6.0.0                             winget
+LemonTree.Connect.Codebeamer      LieberLieber.LemonTree.ConnectΓÇª 3.3.1                               winget
+Winstow                           MathiasCodes.Winstow            0.3.0                               winget
+osslsigncode                      MichalTrojnara.osslsigncode     2.10                                winget
+Microsoft Visual Studio Code CLI  Microsoft.VisualStudioCode.CLI  1.106.3                             winget
+Microsoft Visual Studio Code InsΓÇª Microsoft.VisualStudioCode.InsΓÇª 1.107.0                             winget
+Microsoft Visual Studio Code InsΓÇª Microsoft.VisualStudioCode.InsΓÇª 1.107.0                             winget
+4zur3                             Minecodes.4zur3                 1.1.1.0                             winget
+Misfit Model 3D                   MisfitCode.MisfitModel3D        1.2.4                               winget
+Misfit Model 3D (Dev)             MisfitCode.MisfitModel3D.dev    1.3.8                               winget
+EclipseFlashTool18                NDXCode.EclipseFlashTool        1.8                                 winget
+Packet Sender                     NagleCode.PacketSender          8.9.1                               winget
+Ais Decoder                       NealArundale.AisDecoder         3.5.149                             winget
+SimpleCodeGenerator               NirSoft.SimpleCodeGenerator     1.17                                winget
+AMD Encoder for OBS Studio        OBSProject.obs-amd-encoder      2.6.0.0                             winget
+RapidCRC                          OV2.RapidCRCUnicode             0.3.40                              winget
+AroCrypt                          OfficialAroCodes.AroCrypt       v0.8.1                              winget
+Codex CLI                         OpenAI.Codex                    0.64.0                              winget
+QR-Code Reader                    OttoZumkeller.QR-CodeReader     1.1.2                               winget
+Barcode2Win                       Paludour.Barcode2Win            1.8.8595                            winget
+Shutter Encoder                   PaulPacifico.ShutterEncoder     19.6                                winget
+QREncode for Windows              PedroAlbanese.QREncode          4.1.1                               winget
+foobar2000 Free Encoder Pack      PeterPawlowski.foobar2000.EncoΓÇª 2025-08-29                          winget
+VidCoder                          RandomEngy.VidCoder             12.12.0                             winget
+VidCoder Beta                     RandomEngy.VidCoder.Beta        12.3                                winget
+easyWSL                           RedCodeLabs.easyWSL             0.1.8.0                             winget
+QR Code for CmdPal                Riri.QRCodeforCmdPal            0.0.1.0                             winget
+µ╢êµ₧üσÄïσê╢                          TedZyzsdy.NegativeEncoder       5.0.8                               winget
+Wii Balance Board GUI             TheOneCodes.Wii-Balance-Board-ΓÇª 2.0.0.0                             winget
+SQL Schema Compare                TiCodeX.SQLSchemaCompare        2025.8.1                            winget
+TweakNow QR Code Maker            TweakNow.QRCodeMaker            3.6.2                               winget
+Ut Video Codec Suite              UMEZAWATakeshi.UtvideoCodecSuiΓÇª 23.2.0                              winget
+IoctlDecoder                      UweSieber.IoctlDecoder          0.4.0.0                             winget
+Veracode CLI                      Veracode.CLI                    2.43.0                              winget
+Vovsoft Bulk Barcode Generator    VovSoft.BulkBarcodeGenerator    1.1.0.0                             winget
+Vovsoft Bulk QR Code Generator    VovSoft.BulkQRCodeGenerator     2.3.0.0                             winget
+Vovsoft QR Code And Barcode ReadΓÇª VovSoft.QRCodeAndBarcodeReader  1.6.0.0                             winget
+Vovsoft Text Decoder And Encoder  VovSoft.TextDecoderAndEncoder   2.3.0.0                             winget
+CodeMeter Runtime Kit             Wibu-Systems.CodeMeterRuntimeKΓÇª 8.40                                winget
+DbSchema                          WiseCoders.DbSchema             9.9.2                               winget
+XMedia Recode                     XMediaRecode.XMediaRecode       3.6.1.9                             winget
+XRECODE 3                         XRECODE.XRECODE3                1.174                               winget
+massCode                          antonreshetov.massCode          4.3.0                               winget
+TypeCode                          byCrookie.TypeCode              1.1.11                              winget
+carnac                            code52.Carnac                   2.3.13                              winget
+Neo Cowsay                        codehex.Neo-cowsay              2.0.4                               winget
+Very Sleepy                       codersnotes.VerySleepy          0.91                                winget
+NoteGen                           codexu.NoteGen                  0.22.3                              winget
+GHDL                              ghdl.ghdl.ucrt64.mcode          5.1.1                               winget
+Interview Coder                   ibttf.InterviewCoder            1.0.26                              winget
+ILSpy                             icsharpcode.ILSpy               9.1.0.7988                          winget
+Codex                             jcv8000.Codex                   2.0.5                               winget
+Code Notes                        lauthieb.code-notes             1.2.4                               winget
+Recode Converter                  murgatt.recode-converter        2.0.11                              winget
+SubRenamer                        qwqcode.SubRenamer              2.4.0                               winget
+claude-code-config-manager        ronghuaxueleng.ClaudeCodeConfiΓÇª 1.6.0                               winget
+Claude Code Θàìτ╜«τ«íτÉåσÖ¿ - σæ╜Σ╗ñΦíîΓÇª  ronghuaxueleng.ClaudeCodeConfiΓÇª 1.6.0                               winget
+iNFekt NFO Viewer                 syndicode.iNFekt                1.3.0                               winget
+javascript-package-delegator      the-code-fixer-23.javascript-pΓÇª 3.0.0                               winget
+MrCode                            zokugun.MrCode                  1.82.0.23253                        winget
+Image Encode                      EvanR.ImageFiles                0.9.4                               winget
+VS Code Config Helper             Guyutongxue.Vscch               4.0.10                              winget
+Uncrustify Code Beautifier        Uncrustify.Uncrustify           0.79.0                              winget
+Zint Barcode Generator            Zint.Zint                       2.15.0                              winget
+Battle Encoder Shiras├⌐            mion.BES.Stable                 1.7.10                              winget
+Nginx UI                          0xJacky.nginx-ui                2.2.1                 Tag: code-coΓÇª winget
+Codium                            Alex313031.Codium               1.93.1.24277          Tag: vscode   winget
+TheiaBlueprint                    EclipseFoundation.TheiaBluepriΓÇª 1.44.0                Tag: vscode   winget
+Huawei QuickApp IDE               Huawei.QuickAppIde              14.0.1                Tag: vscode   winget
+DevPod                            LoftLabs.DevPod                 0.6.15                Tag: vscode   winget
+DevPod CLI                        LoftLabs.DevPod.CLI             0.6.15                Tag: vscode   winget
+VSCodium                          VSCodium.VSCodium               1.106.37943           Tag: vscode   winget
+VSCodium Insiders                 VSCodium.VSCodium.Insiders      1.106.07591           Tag: vscode   winget
+vscli                             michidk.vscli                   1.3.0                 Tag: vscode   winget
+Upgit                             pluveto.Upgit                   0.2.18                Tag: vscode   winget
+AWS Copilot CLI                   Amazon.CopilotCLI               1.34.1                Tag: infrastΓÇª winget
+Trivy                             AquaSecurity.Trivy              0.68.1                Tag: infrastΓÇª winget
+Pulumi                            Pulumi.Pulumi                   3.209.0               Tag: infrastΓÇª winget
+DNSControl                        StackExchange.DNSControl        4.27.1                Tag: infrastΓÇª winget
+Quill                             Anchore.Quill                   0.5.1                 Tag: codesign winget
+AppFlowy                          AppFlowy.AppFlowy               0.10.5                Tag: low-code winget
+ProRes RAW for Windows            Apple.ProResRAWforWindows       1.3                   Tag: adobemeΓÇª winget
+FFmpeg (GPL static variant, mastΓÇª BtbN.FFmpeg.GPL                 N-121938-g2456a39581ΓÇª Tag: codec    winget
+FFmpeg (GPL static variant, 5.1 ΓÇª BtbN.FFmpeg.GPL.5.1             5.1.6-20250131        Tag: codec    winget
+FFmpeg (GPL static variant, 6.1 ΓÇª BtbN.FFmpeg.GPL.6.1             6.1.3-20250831        Tag: codec    winget
+FFmpeg (GPL static variant, 7.1 ΓÇª BtbN.FFmpeg.GPL.7.1             7.1.3-20251130        Tag: codec    winget
+FFmpeg (GPL static variant, 8.0 ΓÇª BtbN.FFmpeg.GPL.8.0             8.0.1-20251130        Tag: codec    winget
+FFmpeg (GPL shared variant, mastΓÇª BtbN.FFmpeg.GPL.Shared          N-121583-g4348bde2d2ΓÇª Tag: codec    winget
+FFmpeg (GPL shared variant, 5.1 ΓÇª BtbN.FFmpeg.GPL.Shared.5.1      5.1.6-20250131        Tag: codec    winget
+FFmpeg (GPL shared variant, 6.1 ΓÇª BtbN.FFmpeg.GPL.Shared.6.1      6.1.3-20250831        Tag: codec    winget
+FFmpeg (GPL shared variant, 7.1 ΓÇª BtbN.FFmpeg.GPL.Shared.7.1      7.1.2-20251031        Tag: codec    winget
+FFmpeg (GPL shared variant, 8.0 ΓÇª BtbN.FFmpeg.GPL.Shared.8.0      8.0-20251031          Tag: codec    winget
+FFmpeg (LGPL static variant, masΓÇª BtbN.FFmpeg.LGPL                N-121938-g2456a39581ΓÇª Tag: codec    winget
+FFmpeg (LGPL static variant, 5.1ΓÇª BtbN.FFmpeg.LGPL.5.1            5.1.6-20250131        Tag: codec    winget
+FFmpeg (LGPL static variant, 6.1ΓÇª BtbN.FFmpeg.LGPL.6.1            6.1.3-20250831        Tag: codec    winget
+FFmpeg (LGPL static variant, 7.1ΓÇª BtbN.FFmpeg.LGPL.7.1            7.1.3-20251130        Tag: codec    winget
+FFmpeg (LGPL static variant, 8.0ΓÇª BtbN.FFmpeg.LGPL.8.0            8.0.1-20251130        Tag: codec    winget
+FFmpeg (LGPL shared variant, masΓÇª BtbN.FFmpeg.LGPL.Shared         N-121583-g4348bde2d2ΓÇª Tag: codec    winget
+FFmpeg (LGPL shared variant, 5.1ΓÇª BtbN.FFmpeg.LGPL.Shared.5.1     5.1.6-20241231        Tag: codec    winget
+FFmpeg (LGPL shared variant, 6.1ΓÇª BtbN.FFmpeg.LGPL.Shared.6.1     6.1.3-20250831        Tag: codec    winget
+FFmpeg (LGPL shared variant, 7.1ΓÇª BtbN.FFmpeg.LGPL.Shared.7.1     7.1.2-20251031        Tag: codec    winget
+FFmpeg (LGPL shared variant, 8.0ΓÇª BtbN.FFmpeg.LGPL.Shared.8.0     8.0-20251031          Tag: codec    winget
+GPAC                              GPAC.GPAC                       2.4                   Tag: codec    winget
+FFmpeg                            Gyan.FFmpeg                     8.0.1                 Tag: codec    winget
+FFmpeg (Essentials Build)         Gyan.FFmpeg.Essentials          8.0.1                 Tag: codec    winget
+FFmpeg (Shared)                   Gyan.FFmpeg.Shared              8.0.1                 Tag: codec    winget
+Japplis Toolbox                   Japplis.Toolbox                 6.0                   Tag: codec    winget
+Japplis Toolbox Pro               Japplis.Toolbox.Pro             6.0                   Tag: codec    winget
+FLAC                              Xiph.FLAC                       1.5.0                 Tag: codec    winget
+vgmstream                         vgmstream.vgmstream             r2023                 Tag: codec    winget
+BeagleEditor                      BeagleSoftware.BeagleEditor     2024.4.0.1            Tag: codeediΓÇª winget
+Batch Encoding Converter Free EdΓÇª BinaryMark.BatchEncodingConverΓÇª 5.0                   Tag: unicode  winget
+ugrep                             Genivia.ugrep                   7.5.0                 Tag: unicode  winget
+Dev Numbers for Command Palette   JiriPolasek.DevNumbersforCommaΓÇª 0.2.0                 Tag: unicode  winget
+OpenKey                           Tuyenvm.OpenKey                 2.0.5                 Tag: unicode  winget
+File Encoding Checker             amrali-eg.EncodingChecker       2.0.1.0               Tag: unicode  winget
+Contour                           contour-terminal.Contour        0.6.1.7494            Tag: unicode  winget
+Chafa                             hpjansson.Chafa                 1.18.0                Tag: unicode  winget
+Batch Text File Editor Free EditΓÇª BinaryMark.BatchTextFileEditor  5.0                   Tag: code-edΓÇª winget
+QTextPad                          QTextPad.QTextPad               1.12                  Tag: code-edΓÇª winget
+Zed                               ZedIndustries.Zed               0.215.3               Tag: code-edΓÇª winget
+Zed Preview                       ZedIndustries.Zed.Preview       0.216.0-pre           Tag: code-edΓÇª winget
+Vim                               vim.vim                         9.1.1882              Tag: code-edΓÇª winget
+Vim                               vim.vim.nightly                 9.1.1948              Tag: code-edΓÇª winget
+micro                             zyedidia.micro                  2.0.14                Tag: code-edΓÇª winget
+Biome                             BiomeJS.Biome                   2.3.8                 Tag: static-ΓÇª winget
+Ruff                              astral-sh.ruff                  0.14.7                Tag: static-ΓÇª winget
+HandBrake                         HandBrake.HandBrake             1.10.2                Tag: encode   winget
+HandBrake CLI                     HandBrake.HandBrake.CLI         1.10.2                Tag: encode   winget
+VidBatch                          HighMotionSoftware.VidBatch     1.1.0                 Tag: encode   winget
+Movavi Video Converter            Movavi.MovaviVideoConverter     24.4.0                Tag: encode   winget
+Hybrid                            Selur.Hybrid                    2025.11.09            Tag: encode   winget
+Utilso                            SerhiiSlieptsov.Utilso          4.4.0                 Tag: encode   winget
+Wondershare AniSmall              Wondershare.AniSmall            1.0.7.64              Tag: encode   winget
+Wondershare UniConverter 13       Wondershare.UniConverter.13     13.6.4.1              Tag: encode   winget
+Wondershare UniConverter 14       Wondershare.UniConverter.14     14.1.11.147           Tag: encode   winget
+Wondershare UniConverter 15       Wondershare.UniConverter.15     15.7.3.47             Tag: encode   winget
+Wondershare UniConverter 16       Wondershare.UniConverter.16     16.7.0.368            Tag: encode   winget
+Wondershare UniConverter 17       Wondershare.UniConverter.17     17.1.0.454            Tag: encode   winget
+Σ╕çσà┤Σ╝ÿΦ╜¼                          Wondershare.UniConverter.CN     14.0.11.49            Tag: encode   winget
+FFmpeg Batch AV Converter         eibol.FFmpegBatchAVConverter    3.2.4                 Tag: encode   winget
+DocuToolbox                       C-PartnerSystemhausGmbH.DocuToΓÇª 4.4.48                Tag: Barcode  winget
+DocuToolbox.AllFeatures           C-PartnerSystemhausGmbH.DocuToΓÇª 4.4.38                Tag: Barcode  winget
+GS-Base                           Citadel5-JP.GS-Base             22.3.1                Tag: code-snΓÇª winget
+bcm converter                     sf-yuzifu.bcm_convertor         2.0.0                 Tag: codemao  winget
+Typos                             Crate-CI.Typos                  1.34.0                Tag: code-quΓÇª winget
+EditorConfig-Checker              EditorConfig-Checker.EditorConΓÇª 3.6.0                 Tag: code-quΓÇª winget
+nanovision                        IgorBayerl.nanovision           0.1.2                 Tag: code-quΓÇª winget
+Qodana CLI                        JetBrains.QodanaCLI             2025.2.3              Tag: code-quΓÇª winget
+quick-lint-js                     quick-lint.quick-lint-js        3.2.0                 Tag: code-quΓÇª winget
+N Air σ«ƒΘ¿ôτëê                      DWANGO.NAIR.experimental        1.1.20251203-unstablΓÇª Tag: NiconicΓÇª winget
+DevToys                           DevToys-app.DevToys             2.0-preview.8         Tag: decoder  winget
+LameXP                            lordmulder.LameXP               4.21                  Tag: encoder  winget
+winLAME                           vividos.winLAME                 2.24.1.152            Tag: encoder  winget
+markdown-oxide                    FelixZeller.markdown-oxide      0.25.10               Tag: vscode-ΓÇª winget
+Protecc                           FireCubeStudios.Protecc         1.2.11.0              Tag: 2fa-codΓÇª winget
+MeshCAM                           GRZ.MeshCAM                     9.56                  Tag: G-code   winget
+Terragrunt                        Gruntwork.Terragrunt            0.93.12               Tag: InfrastΓÇª winget
+MakeMKV                           GuinpinSoft.MakeMKV             v1.18.2               Tag: media-tΓÇª winget
+CCometixLine                      Haleclipse.CCometixLine         1.0.8                 Tag: claude-ΓÇª winget
+Claudiatron                       Haleclipse.Claudiatron          1.0.3                 Tag: claude-ΓÇª winget
+CLI Proxy API                     LuisPater.CLIProxyAPI           6.5.38                Tag: claude-ΓÇª winget
+Claude Workbench                  anyme123.ClaudeWorkbench        5.4.3                 Tag: claude-ΓÇª winget
+gifski                            ImageOptim.gifski               1.14.4                Tag: gifencoΓÇª winget
+Relock                            ManfredMueller.Relock           1.0.1                 Tag: qrcode   winget
+qrcp                              claudiodangelis.qrcp            0.11.6                Tag: qrcode   winget
+qrtool                            sorairolake.qrtool              0.13.1                Tag: qrcode   winget
+Qt-DAB                            JvanKatwijk.Qt-DAB              6.5                   Tag: dab-decΓÇª winget
+LaserWeb                          LaserWeb.LaserWeb               4.0.999               Tag: gcode    winget
+PrusaSlicer                       Prusa3D.PrusaSlicer             2.9.4                 Tag: gcode    winget
+PrusaSlicer Alpha                 Prusa3D.PrusaSlicer.Alpha       2.6.0-rc2             Tag: gcode    winget
+recall                            zippoxer.recall                 0.3.0                 Tag: codex    winget
+DSC v3                            Microsoft.DSC                   3.1.1                 Tag: configuΓÇª winget
+DSC v3 Preview                    Microsoft.DSC.Preview           3.2.2                 Tag: configuΓÇª winget
+WinGet Studio (Experimental)      Microsoft.WinGetStudio.ExperimΓÇª 0.100.320.0           Tag: configuΓÇª winget
+Windows User                      UniversalDsc.User               0.1.2                 Tag: configuΓÇª winget
+DirectX Texture Assembler         Microsoft.DirectXTex.TexassembΓÇª 2025.7.10             Tag: wic-codΓÇª winget
+DirectX Texture Converter         Microsoft.DirectXTex.Texconv    2025.7.10             Tag: wic-codΓÇª winget
+DirectX Texture Diagnostic Tool   Microsoft.DirectXTex.Texdiag    2025.7.10             Tag: wic-codΓÇª winget
+Electron                          OpenJS.Electron.33              33.4.11               Tag: works-wΓÇª winget
+Electron                          OpenJS.Electron.34              34.5.8                Tag: works-wΓÇª winget
+Electron                          OpenJS.Electron.35              35.7.5                Tag: works-wΓÇª winget
+Electron                          OpenJS.Electron.36              36.9.5                Tag: works-wΓÇª winget
+Electron                          OpenJS.Electron.37              37.10.3               Tag: works-wΓÇª winget
+Electron                          OpenJS.Electron.38              38.7.2                Tag: works-wΓÇª winget
+Electron                          OpenJS.Electron.39              39.0.0                Tag: works-wΓÇª winget
+x264                              VideoLAN.x264                   3204                  Tag: video-eΓÇª winget
+NSwagStudio                       RicoSuter.NSwagStudio           14.6.3.0              Tag: codegen  winget
+Tabby                             TabbyML.Tabby                   0.31.2                Tag: codegen  winget
+Jpegoptim                         TimoKokkonen.Jpegoptim          1.5.6                 Tag: jpeg-enΓÇª winget
+ast-grep                          ast-grep.ast-grep               0.40.0                Tag: codemod  winget
+KochMorse                         hmatuschek.kochmorse            3.5.0                 Tag: morse-cΓÇª winget
+vivid                             sharkdp.vivid                   0.10.1                Tag: ansi-coΓÇª winget
+spacectl                          spacelift-io.spacectl           1.15.2                Tag: infra-aΓÇª winget

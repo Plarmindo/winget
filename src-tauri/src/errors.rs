@@ -49,6 +49,9 @@ pub enum WingetError {
     Other {
         message: String,
     },
+
+    /// User cancelled the operation
+    UserCancelled,
 }
 
 impl WingetError {
@@ -83,11 +86,13 @@ impl WingetError {
             Self::ParseError { message } => {
                 format!("Failed to parse winget output: {}", message)
             }
+            Self::UserCancelled => "Operation cancelled by user.".to_string(),
             Self::Other { message } => message.clone(),
         }
     }
     
     /// Get error code for frontend error handling
+    #[allow(dead_code)]
     pub fn error_code(&self) -> &'static str {
         match self {
             Self::InsufficientPrivileges { .. } => "INSUFFICIENT_PRIVILEGES",
@@ -97,6 +102,7 @@ impl WingetError {
             Self::OperationNotImplemented { .. } => "NOT_IMPLEMENTED",
             Self::CommandFailed { .. } => "COMMAND_FAILED",
             Self::ParseError { .. } => "PARSE_ERROR",
+            Self::UserCancelled => "USER_CANCELLED",
             Self::Other { .. } => "UNKNOWN_ERROR",
         }
     }
@@ -133,6 +139,10 @@ pub fn parse_winget_error(stderr: &[u8], operation: &str) -> WingetError {
         return WingetError::NetworkError {
             message: "Unable to connect to package repository".to_string(),
         };
+    }
+
+    if stderr_str.contains("canceled") || stderr_str.contains("cancelled") || stderr_str.contains("operation was canceled") {
+        return WingetError::UserCancelled;
     }
     
     // Default to command failed with sanitized error

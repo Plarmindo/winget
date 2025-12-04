@@ -1,0 +1,31 @@
+
+FullName : D:\Users\paulo\Documents\GitHub\WingetInterfaceAndMore\winget\src-tauri\src\winget_commands.rs
+Lines    : 363
+
+FullName : D:\Users\paulo\Documents\GitHub\WingetInterfaceAndMore\winget\src\App.tsx
+Lines    : 355
+
+FullName : D:\Users\paulo\Documents\GitHub\WingetInterfaceAndMore\winget\src\components\ChatInterface.tsx
+Lines    : 290
+
+FullName : D:\Users\paulo\Documents\GitHub\WingetInterfaceAndMore\winget\src\services\wingetService.ts
+Lines    : 287
+
+FullName : D:\Users\paulo\Documents\GitHub\WingetInterfaceAndMore\winget\src\App.tsx.backup
+Lines    : 269
+
+FullName : D:\Users\paulo\Documents\GitHub\WingetInterfaceAndMore\winget\src\components\settings\AiTab.tsx
+Lines    : 250
+
+FullName : D:\Users\paulo\Documents\GitHub\WingetInterfaceAndMore\winget\src\components\SearchInput.tsx
+Lines    : 228
+
+FullName : D:\Users\paulo\Documents\GitHub\WingetInterfaceAndMore\winget\src\components\HelpModal.tsx
+Lines    : 207
+
+FullName : D:\Users\paulo\Documents\GitHub\WingetInterfaceAndMore\winget\src-tauri\src\package_managers.rs
+Lines    : 206
+
+FullName : D:\Users\paulo\Documents\GitHub\WingetInterfaceAndMore\winget\src\components\settings\AppearanceTab.tsx
+Lines    : 204
+

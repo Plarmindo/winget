@@ -1,0 +1,10 @@
+
+Name             Versio
+                 n
+----             ------
+firefox-eme-free 145.0…
+firefox-esr      140.5…
+firefox          145.0…
+firefoxpwa       2.17.2
+tor-browser      15.0.2
+

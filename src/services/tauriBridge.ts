@@ -20,26 +20,37 @@ export const invokeTauri = async <T>(command: string, args?: InvokeArgs): Promis
     return await invoke(command, args);
   } catch (e: any) {
     console.error("Tauri Invoke Error:", e);
+    console.error("Caught error type:", typeof e);
+    console.error("Caught error content:", e);
 
-    // Check if it's a structured WingetError (JSON string)
-    if (typeof e === 'string') {
+    // Helper to try parsing JSON error
+    const tryParseError = (errorStr: string) => {
       try {
-        // Try to parse as JSON first
-        if (e.trim().startsWith('{')) {
-          const parsed = JSON.parse(e);
+        if (errorStr.trim().startsWith('{')) {
+          const parsed = JSON.parse(errorStr);
           if (parsed.type && parsed.details) {
-            // It's a structured error
-            const error: any = new Error(parsed.details.message || e);
+            const error: any = new Error(parsed.details.message || errorStr);
             error.code = parsed.type;
             error.details = parsed.details;
-            throw error;
+            return error;
           }
         }
       } catch (parseError) {
-        // Not JSON, fall through to string handling
+        // Ignore
       }
+      return null;
+    };
+
+    // Check if it's a structured WingetError (JSON string)
+    if (typeof e === 'string') {
+      const structured = tryParseError(e);
+      if (structured) throw structured;
       throw new Error(e);
     } else if (e.message) {
+      // Also try to parse message as JSON, in case the error was wrapped
+      const structured = tryParseError(e.message);
+      if (structured) throw structured;
+
       throw new Error(`Backend Error: ${e.message}`);
     } else {
       throw new Error("An unexpected error occurred in the backend.");
@@ -53,6 +64,14 @@ export const executeCliSearch = async (manager: string, query: string): Promise<
 
 export const executeCliOperation = async (manager: string, mode: string, packages: string[]): Promise<void> => {
   return await invokeTauri<void>('run_winget_operation', { request: { manager, mode, packages } });
+};
+
+export const executeListInstalled = async (): Promise<string> => {
+  return await invokeTauri<string>('list_installed_packages_command');
+};
+
+export const executeListUpgradable = async (): Promise<string> => {
+  return await invokeTauri<string>('list_upgradable_packages_command');
 };
 
 export const checkIsAdmin = async (): Promise<boolean> => {
@@ -91,4 +110,50 @@ export const deleteApiConfig = async (): Promise<void> => {
     return;
   }
   await invokeTauri('delete_api_config');
+};
+
+export const saveScriptToDesktop = async (filename: string, content: string): Promise<string> => {
+  if (!isTauri()) {
+    throw new Error("Cannot save to desktop in web mode");
+  }
+  return await invokeTauri<string>('save_script_to_desktop', { filename, content });
+};
+
+export const listOllamaModels = async (): Promise<string[]> => {
+  if (!isTauri()) {
+    // Web Mode fallback: try localhost API
+    try {
+      const res = await fetch('http://localhost:11434/api/tags');
+      if (res.ok) {
+        const data = await res.json();
+        return data.models?.map((m: any) => m.name) || [];
+      }
+    } catch (e) {
+      console.warn("Web Mode Ollama fetch failed:", e);
+    }
+    return [];
+  }
+  return await invokeTauri<string[]>('list_ollama_models');
+};
+
+// Git Operations
+export const gitCloneRepo = async (url: string, destination: string): Promise<string> => {
+  if (!isTauri()) {
+    throw new Error("Git clone requires desktop app");
+  }
+  return await invokeTauri<string>('git_clone_repo', { url, destination });
+};
+
+export const gitPullRepo = async (repoPath: string): Promise<string> => {
+  if (!isTauri()) {
+    throw new Error("Git pull requires desktop app");
+  }
+  return await invokeTauri<string>('git_pull_repo', { repoPath });
+};
+
+export const gitRepoStatus = async (repoPath: string): Promise<string> => {
+  if (!isTauri()) {
+    throw new Error("Git status requires desktop app");
+  }
+  return await invokeTauri<string>('git_repo_status', { repoPath });
 };

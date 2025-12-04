@@ -14,6 +14,7 @@ describe('tauriBridge', () => {
                 },
             },
             writable: true,
+            configurable: true, // Important for cleanup
         });
     });
 

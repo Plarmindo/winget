@@ -38,6 +38,11 @@ interface AppState {
   // Chat Integration
   pendingChatQuery: string;
   setPendingChatQuery: (query: string) => void;
+
+  // Status Bar
+  statusMessage: string | null;
+  statusType: 'info' | 'success' | 'error';
+  setStatusMessage: (message: string | null, type?: 'info' | 'success' | 'error') => void;
 }
 
 const DEFAULT_SETTINGS: AppSettings = {
@@ -102,19 +107,18 @@ export const useAppStore = create<AppState>()(
 
       // --- Chat ---
       pendingChatQuery: '',
-      setPendingChatQuery: (pendingChatQuery) => set({ pendingChatQuery })
+      setPendingChatQuery: (pendingChatQuery) => set({ pendingChatQuery }),
+
+      // --- Status Bar ---
+      statusMessage: null,
+      statusType: 'info',
+      setStatusMessage: (message, type = 'info') => set({ statusMessage: message, statusType: type })
     }),
     {
       name: 'winget-app-storage',
       storage: createJSONStorage(() => localStorage),
       partialize: (state) => ({
-        settings: {
-          ...state.settings,
-          // Exclude AI config from localStorage (stored securely via Tauri)
-          aiConfig: { provider: 'gemini', apiKey: '', baseUrl: '', modelId: 'gemini-2.5-flash' },
-          // Exclude GitHub token from localStorage (also sensitive)
-          githubToken: ''
-        },
+        settings: state.settings,
         cart: state.cart
       }),
     }

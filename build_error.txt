@@ -1,0 +1,7 @@
+
+> winget-web-interface@1.5.0 build
+> npx tsc && vite build
+
+error TS6305: Output file 'D:/Users/paulo/Documents/GitHub/WingetInterfaceAndMore/winget/vite.config.d.ts' has not been built from source file 'D:/Users/paulo/Documents/GitHub/WingetInterfaceAndMore/winget/vite.config.ts'.
+  The file is in the program because:
+    Matched by include pattern 'vite.config.ts' in 'D:/Users/paulo/Documents/GitHub/WingetInterfaceAndMore/winget/tsconfig.json'

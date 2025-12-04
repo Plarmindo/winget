@@ -1,0 +1,11 @@
+    Checking winget-interface v0.0.0 (D:\Users\paulo\Documents\GitHub\WingetInterfaceAndMore\winget\src-tauri)
+error: this file contains an unclosed delimiter
+   --> src\main.rs:185:2
+    |
+ 77 | async fn save_script_to_desktop(filename: String, content: String) -> Result<String, String> {
+    |                                                                                              - unclosed delimiter
+...
+185 | }
+    |  ^
+
+error: could not compile `winget-interface` (bin "winget-interface") due to 1 previous error

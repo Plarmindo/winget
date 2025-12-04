@@ -39,7 +39,9 @@ export interface ChatMessage {
 
 export type ChatModelType = 'fast' | 'balanced' | 'smart' | 'thinking';
 
-export type AppMode = 'install' | 'upgrade' | 'uninstall';
+export type AppMode = 'install' | 'upgrade' | 'uninstall' | 'github';
+
+export type GitHubAction = 'star' | 'unstar' | 'fork' | 'open' | 'watch' | 'unwatch' | 'details';
 
 export type PackageManagerType = 'winget' | 'chocolatey' | 'scoop' | 'brew' | 'apt' | 'github';
 
@@ -95,4 +97,11 @@ export interface WingetError {
   type: WingetErrorCode;
   details: any;
   message?: string; // Helper for simple display
+}
+
+export interface ProgressEvent {
+  operation: string;
+  package: string;
+  percent: number;
+  message: string;
 }

@@ -1,17 +1,58 @@
-   Compiling markup5ever v0.11.0
-   Compiling html5ever v0.26.0
-   Compiling derive_more v0.99.20
-   Compiling libc v0.2.177
-   Compiling byteorder v1.5.0
-    Checking siphasher v0.3.11
-   Compiling new_debug_unreachable v1.0.6
-    Checking scopeguard v1.2.0
-   Compiling icu_provider v2.1.1
-   Compiling icu_collections v2.1.1
-    Checking lock_api v0.4.14
-   Compiling serde_with_macros v3.16.1
-    Checking tinystr v0.8.2
-error: failed to remove D:\Users\paulo\Documents\GitHub\WingetInterface&More\winget\src-tauri\target\debug\build\markup5ever-01f296b9fe00d418\build_script_build-01f296b9fe00d418.build_script_build.ba6bb3e549ac914c-cgu.6.rcgu.o: The process cannot access the file because it is being used by another process. (os error 32)
+    Checking winget-interface v0.0.0 (D:\Users\paulo\Documents\GitHub\WingetInterfaceAndMore\winget\src-tauri)
+warning: unused import: `std::os::windows::process::CommandExt`
+ --> src\winget_commands.rs:2:5
+  |
+2 | use std::os::windows::process::CommandExt;
+  |     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  |
+  = note: `#[warn(unused_imports)]` (part of `#[warn(unused)]`) on by default
 
-error: could not compile `markup5ever` (build script) due to 1 previous error
-warning: build failed, waiting for other jobs to finish...
+warning: unused import: `encoding_rs_io::DecodeReaderBytesBuilder`
+ --> src\winget_commands.rs:4:5
+  |
+4 | use encoding_rs_io::DecodeReaderBytesBuilder;
+  |     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: unused import: `std::io::Read`
+ --> src\winget_commands.rs:5:5
+  |
+5 | use std::io::Read;
+  |     ^^^^^^^^^^^^^
+
+warning: unused import: `WingetError`
+ --> src\winget_commands.rs:6:21
+  |
+6 | use crate::errors::{WingetError, parse_winget_error};
+  |                     ^^^^^^^^^^^
+
+warning: unused import: `serde_json::json`
+ --> src\package_managers.rs:2:5
+  |
+2 | use serde_json::json;
+  |     ^^^^^^^^^^^^^^^^
+
+warning: unused import: `Manager`
+ --> src\progress.rs:1:21
+  |
+1 | use tauri::{Window, Manager};
+  |                     ^^^^^^^
+
+error[E0308]: mismatched types
+   --> src\package_managers.rs:206:44
+    |
+206 |     crate::progress::emit_progress(window, format!("Running {} {}...", manager, mode));
+    |                                            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ expected `ProgressEvent`, found `String`
+    |
+    = note: this error originates in the macro `format` (in Nightly builds, run with -Z macro-backtrace for more info)
+
+error[E0308]: mismatched types
+   --> src\package_managers.rs:217:48
+    |
+217 |         crate::progress::emit_progress(window, format!("Successfully {}ed {}", mode, package_id));
+    |                                                ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ expected `ProgressEvent`, found `String`
+    |
+    = note: this error originates in the macro `format` (in Nightly builds, run with -Z macro-backtrace for more info)
+
+For more information about this error, try `rustc --explain E0308`.
+warning: `winget-interface` (bin "winget-interface") generated 6 warnings
+error: could not compile `winget-interface` (bin "winget-interface") due to 2 previous errors; 6 warnings emitted

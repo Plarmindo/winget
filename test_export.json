@@ -1,0 +1,251 @@
+{
+	"$schema" : "https://aka.ms/winget-packages.schema.2.0.json",
+	"CreationDate" : "2025-12-04T13:18:35.672-00:00",
+	"Sources" : 
+	[
+		{
+			"Packages" : 
+			[
+				{
+					"PackageIdentifier" : "CoreyButler.NVMforWindows"
+				},
+				{
+					"PackageIdentifier" : "7zip.7zip"
+				},
+				{
+					"PackageIdentifier" : "Autodesk.AutodeskAccess"
+				},
+				{
+					"PackageIdentifier" : "TGRMNSoftware.BulkRenameUtility"
+				},
+				{
+					"PackageIdentifier" : "Docker.DockerDesktop"
+				},
+				{
+					"PackageIdentifier" : "Git.Git"
+				},
+				{
+					"PackageIdentifier" : "Microsoft.VSTOR"
+				},
+				{
+					"PackageIdentifier" : "RProject.R"
+				},
+				{
+					"PackageIdentifier" : "VideoLAN.VLC"
+				},
+				{
+					"PackageIdentifier" : "RARLab.WinRAR"
+				},
+				{
+					"PackageIdentifier" : "EclipseAdoptium.Temurin.21.JDK"
+				},
+				{
+					"PackageIdentifier" : "Python.Python.2"
+				},
+				{
+					"PackageIdentifier" : "Microsoft.VCRedist.2010.x64"
+				},
+				{
+					"PackageIdentifier" : "FontForge.FontForge"
+				},
+				{
+					"PackageIdentifier" : "Microsoft.CLRTypesSQLServer.2019"
+				},
+				{
+					"PackageIdentifier" : "GitHub.cli"
+				},
+				{
+					"PackageIdentifier" : "Google.GoogleDrive"
+				},
+				{
+					"PackageIdentifier" : "TrackerSoftware.PDF-XChangeEditor"
+				},
+				{
+					"PackageIdentifier" : "geeksoftwareGmbH.PDF24Creator"
+				},
+				{
+					"PackageIdentifier" : "Nvidia.CUDA"
+				},
+				{
+					"PackageIdentifier" : "Nvidia.PhysX"
+				},
+				{
+					"PackageIdentifier" : "Microsoft.WebDeploy"
+				},
+				{
+					"PackageIdentifier" : "Klocman.BulkCrapUninstaller"
+				},
+				{
+					"PackageIdentifier" : "Microsoft.VisualStudio.2022.Community"
+				},
+				{
+					"PackageIdentifier" : "Microsoft.VisualStudio.2022.BuildTools"
+				},
+				{
+					"PackageIdentifier" : "DiRoots.One"
+				},
+				{
+					"PackageIdentifier" : "Google.Chrome.EXE"
+				},
+				{
+					"PackageIdentifier" : "GnuWin32.Make"
+				},
+				{
+					"PackageIdentifier" : "Microsoft.Edge"
+				},
+				{
+					"PackageIdentifier" : "NSIS.NSIS"
+				},
+				{
+					"PackageIdentifier" : "DiRoots.ProSheets"
+				},
+				{
+					"PackageIdentifier" : "Microsoft.VCRedist.2013.x64"
+				},
+				{
+					"PackageIdentifier" : "Microsoft.DotNet.DesktopRuntime.6"
+				},
+				{
+					"PackageIdentifier" : "Microsoft.VCRedist.2015+.x86"
+				},
+				{
+					"PackageIdentifier" : "Microsoft.DotNet.AspNetCore.8"
+				},
+				{
+					"PackageIdentifier" : "Microsoft.DotNet.SDK.8"
+				},
+				{
+					"PackageIdentifier" : "Microsoft.VCRedist.2012.x86"
+				},
+				{
+					"PackageIdentifier" : "Microsoft.DotNet.SDK.7"
+				},
+				{
+					"PackageIdentifier" : "Microsoft.DotNet.DesktopRuntime.7"
+				},
+				{
+					"PackageIdentifier" : "Google.ChromeRemoteDesktopHost"
+				},
+				{
+					"PackageIdentifier" : "Microsoft.DotNet.SDK.6"
+				},
+				{
+					"PackageIdentifier" : "Microsoft.DotNet.SDK.Preview"
+				},
+				{
+					"PackageIdentifier" : "Microsoft.VCRedist.2013.x86"
+				},
+				{
+					"PackageIdentifier" : "Microsoft.DotNet.Framework.DeveloperPack.4.6"
+				},
+				{
+					"PackageIdentifier" : "Python.Launcher"
+				},
+				{
+					"PackageIdentifier" : "Microsoft.VCRedist.2010.x86"
+				},
+				{
+					"PackageIdentifier" : "Microsoft.DotNet.DesktopRuntime.8"
+				},
+				{
+					"PackageIdentifier" : "Microsoft.VCRedist.2012.x64"
+				},
+				{
+					"PackageIdentifier" : "Microsoft.VCRedist.2015+.x64"
+				},
+				{
+					"PackageIdentifier" : "Microsoft.PowerShell"
+				},
+				{
+					"PackageIdentifier" : "GitHub.GitHubDesktop"
+				},
+				{
+					"PackageIdentifier" : "Microsoft.Sysinternals.Suite"
+				},
+				{
+					"PackageIdentifier" : "Opera.Opera"
+				},
+				{
+					"PackageIdentifier" : "Rustlang.Rustup"
+				},
+				{
+					"PackageIdentifier" : "Schniz.fnm"
+				},
+				{
+					"PackageIdentifier" : "SoftwareOK.ThisIsMyFile"
+				},
+				{
+					"PackageIdentifier" : "ByteDance.Trae"
+				},
+				{
+					"PackageIdentifier" : "Python.Python.3.13"
+				},
+				{
+					"PackageIdentifier" : "Python.Python.3.11"
+				},
+				{
+					"PackageIdentifier" : "Microsoft.VisualStudioCode.Insiders"
+				},
+				{
+					"PackageIdentifier" : "Ollama.Ollama"
+				},
+				{
+					"PackageIdentifier" : "Amazon.Kiro"
+				},
+				{
+					"PackageIdentifier" : "Google.Antigravity"
+				},
+				{
+					"PackageIdentifier" : "Python.Python.3.10"
+				},
+				{
+					"PackageIdentifier" : "Python.Python.3.12"
+				},
+				{
+					"PackageIdentifier" : "Microsoft.Teams"
+				},
+				{
+					"PackageIdentifier" : "Microsoft.AppInstaller"
+				},
+				{
+					"PackageIdentifier" : "Microsoft.UI.Xaml.2.7"
+				},
+				{
+					"PackageIdentifier" : "Microsoft.UI.Xaml.2.8"
+				},
+				{
+					"PackageIdentifier" : "Microsoft.VCLibs.Desktop.14"
+				},
+				{
+					"PackageIdentifier" : "Microsoft.WindowsTerminal"
+				}
+			],
+			"SourceDetails" : 
+			{
+				"Argument" : "https://cdn.winget.microsoft.com/cache",
+				"Identifier" : "Microsoft.Winget.Source_8wekyb3d8bbwe",
+				"Name" : "winget",
+				"Type" : "Microsoft.PreIndexed.Package"
+			}
+		},
+		{
+			"Packages" : 
+			[
+				{
+					"PackageIdentifier" : "XP89DCGQ3K6VLD"
+				},
+				{
+					"PackageIdentifier" : "XP9KHM4BK9FZ7Q"
+				}
+			],
+			"SourceDetails" : 
+			{
+				"Argument" : "https://storeedgefd.dsx.mp.microsoft.com/v9.0",
+				"Identifier" : "StoreEdgeFD",
+				"Name" : "msstore",
+				"Type" : "Microsoft.Rest"
+			}
+		}
+	],
+	"WinGetVersion" : "1.12.350"
+}

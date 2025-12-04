@@ -1,0 +1,42 @@
+   Compiling winget-interface v0.0.0 (D:\Users\paulo\Documents\GitHub\WingetInterfaceAndMore\winget\src-tauri)
+error[E0432]: unresolved import `winget_commands::check_admin`
+ --> src\main.rs:7:104
+  |
+7 | ...run_winget_upgrade, run_winget_uninstall, check_admin, WingetOperationRequest, SearchRequest};
+  |                                              ^^^^^^^^^^^ no `check_admin` in `winget_commands`
+
+error: cannot find macro `__cmd__check_admin` in this scope
+  --> src\main.rs:67:7
+   |
+67 |       check_admin,
+   |       ^^^^^^^^^^^
+
+warning: unused import: `encoding_rs_io::DecodeReaderBytesBuilder`
+ --> src\winget_commands.rs:4:5
+  |
+4 | use encoding_rs_io::DecodeReaderBytesBuilder;
+  |     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  |
+  = note: `#[warn(unused_imports)]` (part of `#[warn(unused)]`) on by default
+
+warning: unused import: `std::io::Read`
+ --> src\winget_commands.rs:5:5
+  |
+5 | use std::io::Read;
+  |     ^^^^^^^^^^^^^
+
+warning: unused import: `WingetError`
+ --> src\winget_commands.rs:6:21
+  |
+6 | use crate::errors::{WingetError, parse_winget_error};
+  |                     ^^^^^^^^^^^
+
+warning: unused import: `Manager`
+ --> src\progress.rs:1:21
+  |
+1 | use tauri::{Window, Manager};
+  |                     ^^^^^^^
+
+For more information about this error, try `rustc --explain E0432`.
+warning: `winget-interface` (bin "winget-interface") generated 4 warnings
+error: could not compile `winget-interface` (bin "winget-interface") due to 2 previous errors; 4 warnings emitted
