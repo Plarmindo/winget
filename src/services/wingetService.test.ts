@@ -10,6 +10,11 @@ vi.mock('./tauriBridge', () => ({
     isTauri: vi.fn().mockReturnValue(true),
 }));
 
+// Mock githubService
+vi.mock('./githubService', () => ({
+    searchGitHubRepos: vi.fn().mockResolvedValue([]),
+}));
+
 describe('wingetService', () => {
     const mockSettings: AppSettings = {
         reducedMotion: false,

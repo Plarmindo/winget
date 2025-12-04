@@ -1,7 +1,6 @@
-
 import { GoogleGenAI, Modality } from "@google/genai";
 import { WingetPackage, AppSettings, ChatModelType, PackageManagerType, AiConfig } from '../types';
-import { executeCliSearch, executeCliOperation } from './tauriBridge';
+import { executeCliSearch, executeCliOperation, executeListInstalled, executeListUpgradable, isTauri } from './tauriBridge';
 import { searchGitHubRepos } from './githubService';
 
 // --- Helpers ---
@@ -45,18 +44,27 @@ export const callOpenAICompatible = async (aiConfig: AiConfig, messages: any[], 
         ...messages
     ];
 
-    const response = await fetch(`${aiConfig.baseUrl}/chat/completions`, {
-        method: 'POST',
-        headers: {
-            'Content-Type': 'application/json',
-            'Authorization': `Bearer ${aiConfig.apiKey}`
-        },
-        body: JSON.stringify({
-            model: aiConfig.modelId,
-            messages: finalMessages,
-        }),
-        signal
-    });
+    const headers: Record<string, string> = {
+        'Content-Type': 'application/json'
+    };
+    if (aiConfig.apiKey) {
+        headers['Authorization'] = `Bearer ${aiConfig.apiKey}`;
+    }
+
+    let response;
+    try {
+        response = await fetch(`${aiConfig.baseUrl}/chat/completions`, {
+            method: 'POST',
+            headers,
+            body: JSON.stringify({
+                model: aiConfig.modelId,
+                messages: finalMessages,
+            }),
+            signal
+        });
+    } catch (networkError) {
+        throw new Error("Unable to connect to AI Provider. Please check your internet connection and Base URL.");
+    }
 
     if (!response.ok) {
         throw new Error(`AI Request Failed: ${response.statusText}`);
@@ -68,9 +76,56 @@ export const callOpenAICompatible = async (aiConfig: AiConfig, messages: any[], 
 
 // --- Exported Services ---
 
-export const searchPackages = async (query: string, installed: WingetPackage[], settings: AppSettings, signal?: AbortSignal): Promise<WingetPackage[]> => {
+export const searchPackages = async (query: string, _installed: WingetPackage[], settings: AppSettings, _signal?: AbortSignal): Promise<WingetPackage[]> => {
     if (settings.activePackageManager === 'github') {
         return searchGitHubRepos(query, settings.githubToken);
+    }
+
+    // If running in browser (not Tauri), use AI to simulate search
+    if (!isTauri()) {
+        console.log(`Web Mode: Using AI to search ${settings.activePackageManager} for "${query}"`);
+
+        // MOCK FOR HELP VIDEO RECORDING
+        if (query.toLowerCase() === 'chrome') {
+            return [{
+                id: 'Google.Chrome',
+                name: 'Google Chrome',
+                version: '120.0.6099.109',
+                description: 'The fast, secure, and free browser built for the modern web.',
+                source: settings.activePackageManager
+            }];
+        }
+
+        const prompt = `
+        Search for "${query}" packages available in the "${settings.activePackageManager}" package manager.
+        Return a strict JSON array of objects. Each object must have these fields:
+        - id: string (package identifier)
+        - name: string (package name)
+        - version: string (latest version)
+        - description: string (short description)
+        - source: string (must be "${settings.activePackageManager}")
+        
+        Limit to 12 results.
+        Ensure the response is ONLY valid JSON. No markdown formatting or explanations.
+        `;
+
+        try {
+            const aiResponse = await generateAIResponse(settings, prompt, "You are a package manager search assistant. Output strict JSON only.", true);
+            // Clean up response if it contains markdown code blocks
+            const cleanJson = aiResponse.replace(/```json/g, '').replace(/```/g, '').trim();
+            const results = JSON.parse(cleanJson);
+
+            if (Array.isArray(results)) {
+                return results.map((pkg: any) => ({
+                    ...pkg,
+                    source: settings.activePackageManager // Ensure source is correct
+                }));
+            }
+            return [];
+        } catch (e) {
+            console.error("AI Search failed:", e);
+            throw new Error(`Failed to fetch results via AI. ${settings.aiConfig.provider === 'ollama' ? 'Check if Ollama is running.' : 'Check your API Key and Settings.'}`);
+        }
     }
 
     try {
@@ -78,12 +133,48 @@ export const searchPackages = async (query: string, installed: WingetPackage[], 
         return parseWingetOutput(result);
     } catch (e) {
         console.error("CLI Search failed:", e);
-        throw e; // Propagate error to UI
+        // Ensure the error is a plain string so UI can display full details
+        if (e instanceof Error) {
+            throw e.message;
+        }
+        throw e;
     }
 };
 
 export const executeRealCommand = async (manager: PackageManagerType, mode: string, packages: string[]) => {
     await executeCliOperation(manager, mode, packages);
+};
+
+export const listInstalledPackages = async (): Promise<WingetPackage[]> => {
+    // If running in browser (not Tauri), return empty
+    if (!isTauri()) {
+        console.warn("List installed is not available in browser mode.");
+        return [];
+    }
+
+    try {
+        const result = await executeListInstalled();
+        return parseWingetOutput(result);
+    } catch (e) {
+        console.error("List installed failed:", e);
+        throw e instanceof Error ? e.message : e;
+    }
+};
+
+export const listUpgradablePackages = async (): Promise<WingetPackage[]> => {
+    // If running in browser (not Tauri), return empty
+    if (!isTauri()) {
+        console.warn("List upgradable is not available in browser mode.");
+        return [];
+    }
+
+    try {
+        const result = await executeListUpgradable();
+        return parseWingetOutput(result);
+    } catch (e) {
+        console.error("List upgradable failed:", e);
+        throw e instanceof Error ? e.message : e;
+    }
 };
 
 // --- Prompt Generators ---
@@ -182,6 +273,7 @@ Your goal is to assist users in finding, installing, upgrading, and removing sof
    - The first column must be the Feature Name (e.g., License, Price, Platform).
    - Subsequent columns must be the App Names.
    - Use concise text in cells.
+   - **DO NOT** output a JSON block for comparisons, only the table.
    Example Table:
    | Feature | App A | App B |
    | --- | --- | --- |
@@ -189,7 +281,20 @@ Your goal is to assist users in finding, installing, upgrading, and removing sof
    | OS | Windows | Multi-platform |
    
 3. **Commands:** When suggesting commands, use code blocks (e.g., \`${managerInfo.cmd} <id>\`).
-4. **Package Lists:** If asked to find apps, include a structured JSON array at the end in a \`\`\`json\`\`\` block.
+4. **Package Lists:** ONLY if asked to find/search/recommend apps to install, include a structured JSON array at the very end of your response in a \`\`\`json\`\`\` block.
+   - The JSON **MUST** be an array of objects with these exact fields:
+     - \`id\`: The package ID (e.g., "Microsoft.VisualStudioCode")
+     - \`name\`: The full name (e.g., "Visual Studio Code")
+     - \`description\`: A short description
+     - \`source\`: "${managerInfo.cmd}"
+   
+   Example JSON:
+   \`\`\`json
+   [
+     { "id": "Mozilla.Firefox", "name": "Mozilla Firefox", "description": "Fast, private browser.", "source": "winget" }
+   ]
+   \`\`\`
+
 5. **Context:** You are currently configured for **${managerInfo.name}**. Do not provide commands for other package managers unless asked.
 `;
 
@@ -208,17 +313,17 @@ Your goal is to assist users in finding, installing, upgrading, and removing sof
         if (isDefaultModelConfig || !aiConfig.modelId) {
             if (modelType === 'fast') modelName = 'gemini-2.5-flash-lite';
             else if (modelType === 'balanced') modelName = 'gemini-2.5-flash';
-            else if (modelType === 'smart') modelName = 'gemini-3-pro-preview';
+            else if (modelType === 'smart') modelName = 'gemini-2.0-flash-exp';
             else if (modelType === 'thinking') {
-                modelName = 'gemini-3-pro-preview';
-                thinkingConfig = { thinkingBudget: 32768 };
+                modelName = 'gemini-2.0-flash-thinking-exp-1219';
+                thinkingConfig = { thinkingBudget: 16384 };
             }
         }
 
         const complexity = detectTaskComplexity(message);
         if (complexity === 'complex' && modelType === 'balanced' && ['gemini-2.5-flash'].includes(modelName)) {
             console.log("Auto-upgrading Chat model to Pro for complex task");
-            modelName = 'gemini-3-pro-preview';
+            modelName = 'gemini-2.0-flash-exp';
         }
 
         const createChatAndSend = async (useSearch: boolean) => {

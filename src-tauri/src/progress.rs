@@ -1,4 +1,4 @@
-use tauri::{Window, Manager};
+use tauri::Window;
 use serde::Serialize;
 
 #[derive(Clone, Serialize)]

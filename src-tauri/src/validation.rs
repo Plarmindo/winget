@@ -3,7 +3,9 @@ use lazy_static::lazy_static;
 use crate::errors::WingetError;
 
 lazy_static! {
-    static ref PACKAGE_ID_REGEX: Regex = Regex::new(r"^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$").unwrap();
+    // Allow backslashes for MSIX packages like "MSIX\Microsoft.Something"
+    // Allow forward slashes for GitHub repos like "owner/repo"
+    static ref PACKAGE_ID_REGEX: Regex = Regex::new(r"^[A-Za-z0-9][A-Za-z0-9._\-\\/]{0,255}$").unwrap();
 }
 
 pub fn validate_package_id(id: &str) -> Result<(), WingetError> {
@@ -14,10 +16,10 @@ pub fn validate_package_id(id: &str) -> Result<(), WingetError> {
         });
     }
     
-    if id.len() > 128 {
+    if id.len() > 256 {
         return Err(WingetError::InvalidInput {
             field: "package_id".to_string(),
-            reason: "Package ID too long (max 128 characters)".to_string(),
+            reason: "Package ID too long (max 256 characters)".to_string(),
         });
     }
     
@@ -62,6 +64,9 @@ mod tests {
         assert!(validate_package_id("Google.Chrome").is_ok());
         assert!(validate_package_id("7zip.7zip").is_ok());
         assert!(validate_package_id("RustLang.Rust.1.75").is_ok());
+        // GitHub repo format
+        assert!(validate_package_id("microsoft/vscode").is_ok());
+        assert!(validate_package_id("facebook/react").is_ok());
     }
 
     #[test]

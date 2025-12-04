@@ -18,10 +18,10 @@ interface NavbarProps {
   isDesktop?: boolean;
 }
 
-export const Navbar: React.FC<NavbarProps> = ({ 
+export const Navbar: React.FC<NavbarProps> = ({
   handleSearch, stopSearch, openDrawer, openSettings, openHelp, resetState, isDesktop
 }) => {
-  const { settings, updateSettings, mode, setMode, query, setQuery, loading, cart, clearCart } = useAppStore();
+  const { settings, updateSettings, mode, setMode, query, setQuery, loading, cart, clearCart, statusMessage, statusType } = useAppStore();
   const [isPaletteOpen, setIsPaletteOpen] = useState(false);
   const [paletteSearch, setPaletteSearch] = useState('');
   const paletteInputRef = useRef<HTMLInputElement>(null);
@@ -54,11 +54,11 @@ export const Navbar: React.FC<NavbarProps> = ({
   }, [isPaletteOpen]);
 
   const commands = [
-    { 
-      id: 'search', 
-      label: 'Search Packages', 
-      icon: <Search size={16} />, 
-      action: () => { setMode('install'); const input = document.querySelector('input[type="text"]') as HTMLInputElement; input?.focus(); } 
+    {
+      id: 'search',
+      label: 'Search Packages',
+      icon: <Search size={16} />,
+      action: () => { setMode('install'); const input = document.querySelector('input[type="text"]') as HTMLInputElement; input?.focus(); }
     },
     { id: 'mode-install', label: 'Install Mode', icon: <Download size={16} />, action: () => setMode('install') },
     { id: 'mode-upgrade', label: 'Upgrade Mode', icon: <RefreshCw size={16} />, action: () => setMode('upgrade') },
@@ -66,7 +66,7 @@ export const Navbar: React.FC<NavbarProps> = ({
     { id: 'open-drawer', label: 'Open Script Drawer', icon: <Package size={16} />, action: openDrawer },
     { id: 'settings', label: 'Open Settings', icon: <Settings size={16} />, action: openSettings },
     { id: 'help', label: 'Help & Walkthrough', icon: <HelpCircle size={16} />, action: openHelp },
-    { id: 'clear-cart', label: 'Clear Cart', icon: <Trash2 size={16} />, action: () => { if(window.confirm("Clear cart?")) clearCart(); } }
+    { id: 'clear-cart', label: 'Clear Cart', icon: <Trash2 size={16} />, action: () => { if (window.confirm("Clear cart?")) clearCart(); } }
   ];
 
   const getThemeColor = () => {
@@ -90,72 +90,82 @@ export const Navbar: React.FC<NavbarProps> = ({
                 <span className="text-xl font-bold bg-clip-text text-transparent bg-gradient-to-r from-[var(--app-text)] to-[var(--app-text-muted)] leading-tight">
                   {settings.activePackageManager.charAt(0).toUpperCase() + settings.activePackageManager.slice(1)} Web
                 </span>
-                <span className={`text-[10px] font-medium flex items-center gap-1 ${isDesktop ? 'text-green-500' : 'text-amber-500'}`}>
-                  {isDesktop ? <Monitor size={10} /> : <Globe size={10} />}
-                  {isDesktop ? 'Local System: Connected' : 'Web Mode: Read Only'}
-                </span>
+                <div className="flex items-center gap-2">
+                  <span className={`text-[10px] font-medium flex items-center gap-1 ${isDesktop ? 'text-green-500' : 'text-amber-500'}`}>
+                    {isDesktop ? <Monitor size={10} /> : <Globe size={10} />}
+                    {isDesktop ? 'Local System: Connected' : 'Web Mode: Read Only'}
+                  </span>
+                  {/* Status Bar Notification */}
+                  {statusMessage && (
+                    <span className={`text-[10px] font-bold animate-in fade-in slide-in-from-left-2 flex items-center gap-1 ${statusType === 'success' ? 'text-emerald-500' : statusType === 'error' ? 'text-red-500' : 'text-blue-500'}`}>
+                      <span className="w-1 h-1 rounded-full bg-current inline-block mb-0.5"></span>
+                      {statusMessage}
+                    </span>
+                  )}
+                </div>
               </div>
             </div>
 
-            {mode === 'install' && (
-              <div className="hidden md:block flex-1 max-w-lg mx-8 relative">
-                <SearchInput 
-                  value={query}
-                  onChange={setQuery}
-                  onSearch={handleSearch}
-                  onStop={stopSearch}
-                  loading={loading}
-                  placeholder={`Search ${settings.activePackageManager} packages...`}
-                />
-              </div>
-            )}
-            {mode !== 'install' && <div className="hidden md:block flex-1" />}
+            <div className="hidden md:block flex-1 max-w-lg mx-8 relative">
+              <SearchInput
+                value={query}
+                onChange={setQuery}
+                onSearch={handleSearch}
+                onStop={stopSearch}
+                loading={loading}
+                placeholder={`Search ${settings.activePackageManager} packages...`}
+              />
+            </div>
 
             <div className="flex items-center space-x-4">
               <div className="hidden md:block relative">
-                <select 
-                  value={settings.activePackageManager} 
-                  onChange={(e) => updateSettings({ activePackageManager: e.target.value as PackageManagerType })} 
+                <select
+                  value={settings.activePackageManager}
+                  onChange={(e) => updateSettings({ activePackageManager: e.target.value as PackageManagerType })}
                   className="bg-[var(--app-bg)] border border-[var(--app-border)] text-[var(--app-text)] text-xs font-medium px-3 py-1.5 rounded-lg focus:outline-none cursor-pointer hover:border-[var(--app-primary)]/50 appearance-none pr-8"
                 >
                   <option value="winget">Winget (Win)</option>
                   <option value="chocolatey">Chocolatey (Win)</option>
                   <option value="scoop">Scoop (Win)</option>
-                  <option value="brew">Homebrew (Mac/Lin)</option>
-                  <option value="apt">APT (Linux)</option>
+                  {!isDesktop && (
+                    <>
+                      <option value="brew">Homebrew (Mac/Lin)</option>
+                      <option value="apt">APT (Linux)</option>
+                    </>
+                  )}
                   <option value="github">GitHub (Any)</option>
                 </select>
                 <div className="absolute right-2 top-2 pointer-events-none text-[var(--app-text-muted)]"><Box size={12} /></div>
               </div>
 
               <Tooltip content="Help & Walkthrough (F1)">
-                 <button 
-                  onClick={openHelp} 
-                  className="hidden md:flex items-center justify-center p-2 text-[var(--app-text-muted)] hover:text-[var(--app-text)] hover:bg-[var(--app-surface)] rounded-full transition-colors" 
+                <button
+                  onClick={openHelp}
+                  className="hidden md:flex items-center justify-center p-2 text-[var(--app-text-muted)] hover:text-[var(--app-text)] hover:bg-[var(--app-surface)] rounded-full transition-colors"
                 >
                   <HelpCircle size={20} />
                 </button>
               </Tooltip>
 
-              <button 
-                onClick={openSettings} 
-                className="hidden md:flex items-center justify-center p-2 text-[var(--app-text-muted)] hover:text-[var(--app-text)] hover:bg-[var(--app-surface)] rounded-full transition-colors" 
+              <button
+                onClick={openSettings}
+                className="hidden md:flex items-center justify-center p-2 text-[var(--app-text-muted)] hover:text-[var(--app-text)] hover:bg-[var(--app-surface)] rounded-full transition-colors"
                 title="Settings"
               >
                 <Settings size={20} />
               </button>
-              
-              <button 
-                onClick={() => setIsPaletteOpen(true)} 
-                className="hidden md:flex items-center space-x-1 text-xs font-mono text-[var(--app-text-muted)] border border-[var(--app-border)] rounded px-2 py-1 bg-[var(--app-bg)] hover:bg-[var(--app-surface)] hover:text-[var(--app-text)] transition-colors" 
+
+              <button
+                onClick={() => setIsPaletteOpen(true)}
+                className="hidden md:flex items-center space-x-1 text-xs font-mono text-[var(--app-text-muted)] border border-[var(--app-border)] rounded px-2 py-1 bg-[var(--app-bg)] hover:bg-[var(--app-surface)] hover:text-[var(--app-text)] transition-colors"
                 title="Command Palette (Ctrl+K)"
               >
                 <span>CTRL</span><span>K</span>
               </button>
-              
+
               <Tooltip content={`View Cart (${cart.length} items)`}>
-                <button 
-                  onClick={openDrawer} 
+                <button
+                  onClick={openDrawer}
                   className="relative p-2 text-[var(--app-text-muted)] hover:text-[var(--app-text)] transition-colors hover:bg-[var(--app-surface)] rounded-full"
                 >
                   <ShoppingBag size={24} />
@@ -169,15 +179,15 @@ export const Navbar: React.FC<NavbarProps> = ({
             </div>
           </div>
         </div>
-      </nav>
+      </nav >
 
-      <CommandPalette 
-        isOpen={isPaletteOpen} 
-        onClose={() => setIsPaletteOpen(false)} 
-        inputRef={paletteInputRef} 
-        searchTerm={paletteSearch} 
-        setSearchTerm={setPaletteSearch} 
-        commands={commands.filter(c => c.label.toLowerCase().includes(paletteSearch.toLowerCase()))} 
+      <CommandPalette
+        isOpen={isPaletteOpen}
+        onClose={() => setIsPaletteOpen(false)}
+        inputRef={paletteInputRef}
+        searchTerm={paletteSearch}
+        setSearchTerm={setPaletteSearch}
+        commands={commands.filter(c => c.label.toLowerCase().includes(paletteSearch.toLowerCase()))}
       />
     </>
   );

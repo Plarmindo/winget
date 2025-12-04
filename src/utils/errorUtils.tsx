@@ -1,5 +1,5 @@
 import React from 'react';
-import { Activity, WifiOff, FileWarning, AlertCircle, ShieldAlert, PackageX, Terminal } from 'lucide-react';
+import { Activity, WifiOff, AlertCircle, ShieldAlert, PackageX, Terminal } from 'lucide-react';
 import { WingetErrorCode } from '../types';
 
 interface ErrorDetails {
