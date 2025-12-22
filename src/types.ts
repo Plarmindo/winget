@@ -11,6 +11,7 @@ export interface WingetPackage {
   stars?: number;
   forks?: number;
   source?: string;
+  releaseType?: 'binary' | 'source' | 'none'; // For GitHub repos: binary=has .exe/.msi, source=only source files, none=no releases
 }
 
 export interface SearchState {

@@ -4,6 +4,17 @@ import { persist, createJSONStorage } from 'zustand/middleware';
 import { AppSettings, WingetPackage, AppMode } from '../types';
 import { DEFAULT_THEMES } from '../constants';
 
+export interface HistoryEntry {
+  id: string;
+  timestamp: number;
+  operation: 'install' | 'upgrade' | 'uninstall' | 'clone';
+  packageId: string;
+  packageName: string;
+  manager: string;
+  status: 'success' | 'error';
+  errorMessage?: string;
+}
+
 interface AppState {
   // Settings Slice
   settings: AppSettings;
@@ -16,6 +27,17 @@ interface AppState {
   removeFromCart: (id: string) => void;
   clearCart: () => void;
   isInCart: (id: string) => boolean;
+
+  // Favorites Slice
+  favorites: string[]; // Package IDs
+  toggleFavorite: (id: string) => void;
+  isFavorite: (id: string) => boolean;
+
+  // History Slice
+  history: HistoryEntry[];
+  addHistoryEntry: (entry: Omit<HistoryEntry, 'id' | 'timestamp'>) => void;
+  clearHistory: () => void;
+  getRecentHistory: (limit?: number) => HistoryEntry[];
 
   // Comparison Slice
   compareList: WingetPackage[];
@@ -32,6 +54,10 @@ interface AppState {
   loading: boolean;
   setLoading: (loading: boolean) => void;
 
+  // Sort/Filter
+  sortBy: 'name-asc' | 'name-desc' | 'manager';
+  setSortBy: (sortBy: 'name-asc' | 'name-desc' | 'manager') => void;
+
   error: any | null; // Allow structured WingetError or string
   setError: (error: any | null) => void;
 
@@ -43,6 +69,12 @@ interface AppState {
   statusMessage: string | null;
   statusType: 'info' | 'success' | 'error';
   setStatusMessage: (message: string | null, type?: 'info' | 'success' | 'error') => void;
+
+  // Chat Messages (persisted)
+  chatMessages: Array<{ id: string; role: 'user' | 'model'; text: string; timestamp: number; sources?: any[] }>;
+  addChatMessage: (message: { role: 'user' | 'model'; text: string; sources?: any[] }) => void;
+  setChatMessages: (messages: Array<{ id: string; role: 'user' | 'model'; text: string; timestamp: number; sources?: any[] }>) => void;
+  clearChatMessages: () => void;
 }
 
 const DEFAULT_SETTINGS: AppSettings = {
@@ -81,6 +113,35 @@ export const useAppStore = create<AppState>()(
       clearCart: () => set({ cart: [] }),
       isInCart: (id) => !!get().cart.find(p => p.id === id),
 
+      // --- Favorites ---
+      favorites: [],
+      history: [],
+      toggleFavorite: (id) => set((state) => {
+        const isFav = state.favorites.includes(id);
+        return { favorites: isFav ? state.favorites.filter(fid => fid !== id) : [...state.favorites, id] };
+      }),
+      isFavorite: (id) => get().favorites.includes(id),
+
+      // --- History ---
+      addHistoryEntry: (entry) => {
+        const newEntry: HistoryEntry = {
+          ...entry,
+          id: `${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
+          timestamp: Date.now(),
+        };
+        set((state) => ({
+          history: [newEntry, ...state.history].slice(0, 100), // Keep last 100 entries
+        }));
+      },
+
+      clearHistory: () => {
+        set({ history: [] });
+      },
+
+      getRecentHistory: (limit = 10) => {
+        return get().history.slice(0, limit);
+      },
+
       // --- Comparison ---
       compareList: [],
       toggleCompare: (pkg) => set((state) => {
@@ -102,6 +163,10 @@ export const useAppStore = create<AppState>()(
       loading: false,
       setLoading: (loading) => set({ loading }),
 
+      // --- Sort/Filter ---
+      sortBy: 'name-asc',
+      setSortBy: (sortBy) => set({ sortBy }),
+
       error: null,
       setError: (error) => set({ error }),
 
@@ -112,14 +177,30 @@ export const useAppStore = create<AppState>()(
       // --- Status Bar ---
       statusMessage: null,
       statusType: 'info',
-      setStatusMessage: (message, type = 'info') => set({ statusMessage: message, statusType: type })
+      setStatusMessage: (message, type = 'info') => set({ statusMessage: message, statusType: type }),
+
+      // --- Chat Messages ---
+      chatMessages: [],
+      addChatMessage: (message) => set((state) => ({
+        chatMessages: [...state.chatMessages, {
+          id: Date.now().toString() + Math.random(),
+          ...message,
+          timestamp: Date.now()
+        }]
+      })),
+      setChatMessages: (messages) => set({ chatMessages: messages }),
+      clearChatMessages: () => set({ chatMessages: [] })
     }),
     {
       name: 'winget-app-storage',
       storage: createJSONStorage(() => localStorage),
       partialize: (state) => ({
         settings: state.settings,
-        cart: state.cart
+        cart: state.cart,
+        favorites: state.favorites,
+        history: state.history,
+        sortBy: state.sortBy,
+        chatMessages: state.chatMessages,
       }),
     }
   )

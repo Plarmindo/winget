@@ -36,8 +36,23 @@ export const parseWingetOutput = (output: string): WingetPackage[] => {
     }
 };
 
+// Helper to normalize AI config with provider-specific defaults
+const normalizeAiConfig = (aiConfig: AiConfig): AiConfig => {
+    const normalized = { ...aiConfig };
+
+    // Apply default baseUrl for Ollama if not set
+    if (aiConfig.provider === 'ollama' && !aiConfig.baseUrl) {
+        normalized.baseUrl = 'http://localhost:11434/v1';
+    }
+
+    return normalized;
+};
+
 export const callOpenAICompatible = async (aiConfig: AiConfig, messages: any[], systemInstruction: string, signal?: AbortSignal): Promise<string> => {
-    if (!aiConfig.baseUrl || !aiConfig.modelId) throw new Error("Invalid AI Configuration for Custom Provider");
+    // Normalize config to apply provider-specific defaults
+    const normalizedConfig = normalizeAiConfig(aiConfig);
+
+    if (!normalizedConfig.baseUrl || !normalizedConfig.modelId) throw new Error("Invalid AI Configuration for Custom Provider");
 
     const finalMessages = [
         { role: 'system', content: systemInstruction },
@@ -47,17 +62,17 @@ export const callOpenAICompatible = async (aiConfig: AiConfig, messages: any[], 
     const headers: Record<string, string> = {
         'Content-Type': 'application/json'
     };
-    if (aiConfig.apiKey) {
-        headers['Authorization'] = `Bearer ${aiConfig.apiKey}`;
+    if (normalizedConfig.apiKey) {
+        headers['Authorization'] = `Bearer ${normalizedConfig.apiKey}`;
     }
 
     let response;
     try {
-        response = await fetch(`${aiConfig.baseUrl}/chat/completions`, {
+        response = await fetch(`${normalizedConfig.baseUrl}/chat/completions`, {
             method: 'POST',
             headers,
             body: JSON.stringify({
-                model: aiConfig.modelId,
+                model: normalizedConfig.modelId,
                 messages: finalMessages,
             }),
             signal

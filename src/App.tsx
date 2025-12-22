@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { RefreshCw, Trash2, Download, Scale, X, Sparkles, Github } from 'lucide-react';
+import { RefreshCw, Trash2, Download, Scale, X, Sparkles, Github, Star, Search as SearchIcon } from 'lucide-react';
 import { AppMode, WingetPackage } from './types';
 import { parseWingetOutput, generateAppDetailsPrompt, generateComparisonPrompt, generateAIResponse } from './services/wingetService';
 import { isTauri } from './services/tauriBridge';
@@ -7,6 +7,8 @@ import { PRESET_CATEGORIES, STORAGE_KEYS, DEFAULT_THEMES } from './constants';
 import { useAppStore } from './stores/store';
 import { usePackageOperations } from './hooks/usePackageOperations';
 import { useSearchLogic } from './hooks/useSearchLogic';
+import { useKeyboardShortcuts } from './hooks/useKeyboardShortcuts';
+import { HistoryModal } from './components/HistoryModal';
 
 // Components
 import { PackageGrid } from './components/PackageGrid';
@@ -22,6 +24,9 @@ import { WelcomeScreen } from './components/WelcomeScreen';
 import { ProgressBar } from './components/ProgressBar';
 import { GitHubPanel } from './components/GitHubPanel';
 import { StatusBar } from './components/StatusBar';
+import { FilterBar } from './components/FilterBar';
+import { EmptyState } from './components/EmptyState';
+import ErrorBoundary from './components/ErrorBoundary';
 
 function App() {
   // Global Store
@@ -34,18 +39,48 @@ function App() {
     error, setError,
     clearCart,
     compareList, clearCompare,
-    setPendingChatQuery, pendingChatQuery
+    pendingChatQuery, setPendingChatQuery,
+    sortBy
   } = useAppStore();
 
   // Custom Hooks
-  const { executeOperation } = usePackageOperations();
+  const { executeOperation, CloneDialogComponent } = usePackageOperations();
   const { handleSearch, handleStopSearch, searched, setSearched, setHasMore, storePackagesForFiltering } = useSearchLogic();
+
+  // Keyboard Shortcuts
+  useKeyboardShortcuts([
+    { key: 'k', ctrl: true, handler: () => {/* TODO: Open command palette */ }, description: 'Open command palette' },
+    { key: '1', ctrl: true, handler: () => setMode('install'), description: 'Switch to Install' },
+    { key: '2', ctrl: true, handler: () => setMode('upgrade'), description: 'Switch to Upgrade' },
+    { key: '3', ctrl: true, handler: () => setMode('uninstall'), description: 'Switch to Uninstall' },
+    { key: '4', ctrl: true, handler: () => setMode('github'), description: 'Switch to GitHub' },
+    {
+      key: 'f', ctrl: true, handler: () => {
+        const searchInput = document.querySelector('input[type="text"]') as HTMLInputElement;
+        searchInput?.focus();
+      }, description: 'Focus search'
+    },
+    { key: 'c', ctrl: true, shift: true, handler: () => setIsDrawerOpen(true), description: 'Open cart' },
+    { key: ',', ctrl: true, handler: () => setIsSettingsOpen(true), description: 'Open settings' },
+    { key: '/', ctrl: true, handler: () => setIsHelpOpen(true), description: 'Open help' },
+    {
+      key: 'Escape', handler: () => {
+        if (isSettingsOpen) setIsSettingsOpen(false);
+        else if (isHelpOpen) setIsHelpOpen(false);
+        else if (isDrawerOpen) setIsDrawerOpen(false);
+        else if (isCompareModalOpen) setIsCompareModalOpen(false);
+        else if (isHistoryOpen) setIsHistoryOpen(false);
+      }, description: 'Close modal'
+    },
+    { key: 'h', ctrl: true, handler: () => setIsHistoryOpen(true), description: 'Installation history' },
+  ]);
 
   // Local UI State (Modals)
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
   const [isHelpOpen, setIsHelpOpen] = useState(false);
   const [isDrawerOpen, setIsDrawerOpen] = useState(false);
   const [isCompareModalOpen, setIsCompareModalOpen] = useState(false);
+  const [isHistoryOpen, setIsHistoryOpen] = useState(false);
   const [compareResult, setCompareResult] = useState<string | null>(null);
   const [isComparing, setIsComparing] = useState(false);
 
@@ -245,7 +280,7 @@ function App() {
 
   const handleFetchAiDetails = async (pkg: WingetPackage): Promise<string> => {
     const basePrompt = generateAppDetailsPrompt(pkg.name, pkg.id);
-    const prompt = `${basePrompt}\nConstraint: Keep the response under 80 words. Focus on key features.`;
+    const prompt = `${basePrompt} \nConstraint: Keep the response under 80 words.Focus on key features.`;
     return await generateAIResponse(settings, prompt, "You are a helpful software assistant.", false);
   };
 
@@ -305,12 +340,14 @@ function App() {
 
     if (mode === 'github') {
       return (
-        <GitHubPanel
-          token={settings.githubToken}
-          query={query}
-          onClone={(url, _name) => executeOperation(`git clone ${url}`, 'install')}
-          onFetchDetails={handleFetchAiDetails}
-        />
+        <ErrorBoundary>
+          <GitHubPanel
+            token={settings.githubToken}
+            query={query}
+            onClone={(url, _name) => executeOperation(`git clone ${url}`, 'install')}
+            onFetchDetails={handleFetchAiDetails}
+          />
+        </ErrorBoundary>
       );
     }
 
@@ -320,6 +357,22 @@ function App() {
         {mode === 'install' && (
           <div className="flex flex-wrap gap-2 mb-8">
             <button onClick={() => handleSearch("POPULAR_ESSENTIALS")} className="px-4 py-1.5 rounded-full text-xs font-medium border bg-[var(--app-primary)]/10 text-[var(--app-primary)] border-[var(--app-primary)]/30">Essentials</button>
+            <button
+              onClick={() => {
+                const { favorites, packages: allPackages } = useAppStore.getState();
+                const favPackages = allPackages.filter(p => favorites.includes(p.id));
+                if (favPackages.length > 0) {
+                  setPackages(favPackages);
+                  setSearched(true);
+                } else {
+                  setError('No favorites yet. Star some packages to see them here!');
+                }
+              }}
+              className="px-4 py-1.5 rounded-full text-xs font-medium bg-amber-500/10 text-amber-500 border border-amber-500/30 hover:bg-amber-500/20 flex items-center gap-1"
+            >
+              <Star size={12} className="fill-current" />
+              Favorites
+            </button>
             {PRESET_CATEGORIES.map(cat => <button key={cat} onClick={() => handleSearch(cat.toLowerCase())} className="px-4 py-1.5 rounded-full text-xs font-medium bg-[var(--app-surface)] text-[var(--app-text-muted)] border border-[var(--app-border)] hover:bg-[var(--app-border)] hover:text-[var(--app-text)]">{cat}</button>)}
           </div>
         )}
@@ -327,14 +380,53 @@ function App() {
           <h2 className="text-2xl font-bold">{searched ? (query ? `Results for "${query}"` : 'Recommended') : 'Popular'}</h2>
         </div>
 
+        {/* Filter Bar - show when packages exist */}
+        {packages.length > 0 && <FilterBar />}
+
+        {/* Package Grid or Empty State */}
         <div className="w-full mb-8">
-          <PackageGrid
-            packages={packages}
-            onExecute={handleDirectExecution}
-            handleSearch={handleSearch}
-            onFetchDetails={handleFetchAiDetails}
-            isDesktop={isDesktop}
-          />
+          {searched && packages.length === 0 && !loading ? (
+            <EmptyState
+              icon={SearchIcon}
+              title="No packages found"
+              description={query ? `No results for "${query}".Try different keywords or check your package manager settings.` : "Search for packages to get started."}
+              action={query ? {
+                label: "Clear Search",
+                onClick: () => {
+                  setQuery('');
+                  setPackages([]);
+                  setSearched(false);
+                }
+              } : undefined}
+            />
+          ) : (
+            <PackageGrid
+              packages={(() => {
+                // Apply sorting
+                const sorted = [...packages].sort((a, b) => {
+                  if (sortBy === 'name-asc') {
+                    return (a.name || '').localeCompare(b.name || '');
+                  } else if (sortBy === 'name-desc') {
+                    return (b.name || '').localeCompare(a.name || '');
+                  } else if (sortBy === 'manager') {
+                    const managerA = a.source || '';
+                    const managerB = b.source || '';
+                    if (managerA !== managerB) {
+                      return managerA.localeCompare(managerB);
+                    }
+                    return (a.name || '').localeCompare(b.name || '');
+                  }
+                  return 0;
+                });
+                return sorted;
+              })()}
+              onExecute={handleDirectExecution}
+              handleSearch={handleSearch}
+              onFetchDetails={handleFetchAiDetails}
+              isDesktop={isDesktop}
+              loading={loading}
+            />
+          )}
         </div>
       </>
     );
@@ -349,6 +441,7 @@ function App() {
         onClearData={handleClearData}
       />
       <HelpModal isOpen={isHelpOpen} onClose={() => setIsHelpOpen(false)} />
+      <HistoryModal isOpen={isHistoryOpen} onClose={() => setIsHistoryOpen(false)} />
       <CompareModal isOpen={isCompareModalOpen} onClose={() => setIsCompareModalOpen(false)} result={compareResult} isLoading={isComparing} />
 
       <Navbar
@@ -362,7 +455,7 @@ function App() {
       />
 
       <div className="bg-[var(--app-surface)] border-b border-[var(--app-border)] py-2"><div className="max-w-7xl mx-auto px-4 flex gap-1 justify-center sm:justify-start">
-        {['install', 'upgrade', 'uninstall', 'github'].map(m => <button key={m} onClick={() => setMode(m as AppMode)} className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-all ${mode === m ? (m === 'upgrade' ? 'bg-emerald-600 text-white' : m === 'uninstall' ? 'bg-red-600 text-white' : m === 'github' ? 'bg-gray-800 text-white' : 'bg-[var(--app-primary)] text-white') : 'text-[var(--app-text-muted)] hover:bg-[var(--app-bg)]'}`}>{m === 'install' ? <Download size={16} /> : m === 'upgrade' ? <RefreshCw size={16} /> : m === 'uninstall' ? <Trash2 size={16} /> : <Github size={16} />} <span className="capitalize">{m}</span></button>)}
+        {['install', 'upgrade', 'uninstall', 'github'].map(m => <button key={m} onClick={() => setMode(m as AppMode)} className={`flex items - center gap - 2 px - 4 py - 2 rounded - lg text - sm font - medium transition - all ${mode === m ? (m === 'upgrade' ? 'bg-emerald-600 text-white' : m === 'uninstall' ? 'bg-red-600 text-white' : m === 'github' ? 'bg-gray-800 text-white' : 'bg-[var(--app-primary)] text-white') : 'text-[var(--app-text-muted)] hover:bg-[var(--app-bg)]'} `}>{m === 'install' ? <Download size={16} /> : m === 'upgrade' ? <RefreshCw size={16} /> : m === 'uninstall' ? <Trash2 size={16} /> : <Github size={16} />} <span className="capitalize">{m}</span></button>)}
       </div></div>
 
       {/* Search Bar (Mobile) - Visible in all modes */}
@@ -389,7 +482,7 @@ function App() {
               <span>{compareList.length} Selected</span>
             </div>
             <div className="h-6 w-[1px] bg-[var(--app-border)]"></div>
-            <button onClick={runComparison} disabled={compareList.length < 2} className={`flex items-center gap-2 px-4 py-1.5 rounded-full text-xs font-bold transition-all ${compareList.length >= 2 ? 'bg-[var(--app-primary)] text-white hover:opacity-90' : 'bg-[var(--app-bg)] text-[var(--app-text-muted)] cursor-not-allowed'}`}>
+            <button onClick={runComparison} disabled={compareList.length < 2} className={`flex items - center gap - 2 px - 4 py - 1.5 rounded - full text - xs font - bold transition - all ${compareList.length >= 2 ? 'bg-[var(--app-primary)] text-white hover:opacity-90' : 'bg-[var(--app-bg)] text-[var(--app-text-muted)] cursor-not-allowed'} `}>
               <Sparkles size={14} /> Compare Selected
             </button>
             <button onClick={clearCompare} className="p-1 hover:bg-[var(--app-bg)] rounded-full text-[var(--app-text-muted)] hover:text-[var(--app-text)] transition-colors"><X size={16} /></button>
@@ -404,13 +497,20 @@ function App() {
         onDeepScan={() => { setMode('upgrade'); setPackages([]); }}
       />
 
-      <ChatInterface
-        onShowResults={(res) => { setMode('install'); setPackages(res); setSearched(true); window.scrollTo({ top: 0, behavior: 'smooth' }); }}
-        pendingMessage={pendingChatQuery}
-        onClearPendingMessage={() => setPendingChatQuery('')}
-      />
+
+      <ErrorBoundary>
+        <ChatInterface
+          onShowResults={(res) => { setMode('install'); setPackages(res); setSearched(true); window.scrollTo({ top: 0, behavior: 'smooth' }); }}
+          pendingMessage={pendingChatQuery}
+          onClearPendingMessage={() => setPendingChatQuery('')}
+        />
+      </ErrorBoundary>
+
 
       <StatusBar />
+
+      {/* Clone Dialog */}
+      {CloneDialogComponent}
     </div>
   );
 }

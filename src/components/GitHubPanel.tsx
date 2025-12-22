@@ -11,7 +11,8 @@ import {
     watchRepo, unwatchRepo,
     getRepoBranches, getRepoCommits, getRepoIssues, getRepoPRs, getLatestRelease,
     getRepoReadme, getRepoContents, getRepoLanguages, createRepo,
-    GitHubRepo, GitHubUser, GitHubBranch, GitHubCommit, GitHubIssue, GitHubPR, GitHubRelease, GitHubContent, CreateRepoOptions
+    GitHubRepo, GitHubUser, GitHubBranch, GitHubCommit, GitHubIssue, GitHubPR, GitHubRelease, GitHubContent, CreateRepoOptions,
+    detectReleaseType
 } from '../services/githubService';
 import { WingetPackage, GitHubAction } from '../types';
 import { PackageGrid } from './PackageGrid';
@@ -32,6 +33,9 @@ export const GitHubPanel: React.FC<GitHubPanelProps> = ({ token, query, onClone,
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
     const [activeTab, setActiveTab] = useState<'repos' | 'starred'>('repos');
+
+    // Mapped packages with release types
+    const [mappedPackages, setMappedPackages] = useState<WingetPackage[]>([]);
 
     // Details Modal State
     const [detailsModal, setDetailsModal] = useState<{
@@ -91,23 +95,50 @@ export const GitHubPanel: React.FC<GitHubPanelProps> = ({ token, query, onClone,
         }
     };
 
+    // Map repos to packages with release types
+    useEffect(() => {
+        const mapRepos = async () => {
+            if (repos.length === 0 && starredRepoObjects.length === 0) {
+                setMappedPackages([]);
+                return;
+            }
+
+            const reposToMap = activeTab === 'repos' ? filteredRepos : starredRepoObjects.filter(r =>
+                (r.name || '').toLowerCase().includes(safeQuery) || ((r.description || '').toLowerCase().includes(safeQuery))
+            );
+
+            // Map all repos in parallel
+            const mapped = await Promise.all(reposToMap.map(mapToPackage));
+            setMappedPackages(mapped);
+        };
+
+        mapRepos();
+    }, [repos, starredRepoObjects, activeTab, query]);
+
     const safeQuery = (query || '').toLowerCase();
     const filteredRepos = repos.filter(repo =>
         (repo.name || '').toLowerCase().includes(safeQuery) ||
         (repo.description || '').toLowerCase().includes(safeQuery)
     );
 
-    const mapToPackage = (repo: GitHubRepo): WingetPackage => ({
-        id: repo.full_name,
-        name: repo.name,
-        description: repo.description || 'No description',
-        version: 'latest',
-        source: 'github',
-        stars: repo.stargazers_count,
-        forks: repo.forks_count,
-        isFree: true,
-        publisher: repo.owner?.login
-    });
+    const mapToPackage = async (repo: GitHubRepo): Promise<WingetPackage> => {
+        // Fetch latest release to detect type
+        const release = await getLatestRelease(repo.owner.login, repo.name, token).catch(() => null);
+        const releaseType = detectReleaseType(release);
+
+        return {
+            id: repo.full_name,
+            name: repo.name,
+            description: repo.description || 'No description',
+            version: 'latest',
+            source: 'github',
+            stars: repo.stargazers_count,
+            forks: repo.forks_count,
+            isFree: true,
+            publisher: repo.owner?.login,
+            releaseType
+        };
+    };
 
     const handleGitHubAction = async (id: string, action: GitHubAction) => {
         const [owner, repo] = id.split('/');
@@ -203,15 +234,6 @@ export const GitHubPanel: React.FC<GitHubPanelProps> = ({ token, query, onClone,
         }
     };
 
-    if (loading) {
-        return (
-            <div className="flex items-center justify-center h-64">
-                <Loader2 className="animate-spin" size={32} />
-                <span className="ml-2">Loading GitHub data...</span>
-            </div>
-        );
-    }
-
     if (error) {
         return (
             <div className="flex flex-col items-center justify-center h-64 text-center p-4">
@@ -284,15 +306,13 @@ export const GitHubPanel: React.FC<GitHubPanelProps> = ({ token, query, onClone,
             </div>
 
             <PackageGrid
-                packages={activeTab === 'repos'
-                    ? filteredRepos.map(mapToPackage)
-                    : starredRepoObjects.filter(r => (r.name || '').toLowerCase().includes(safeQuery) || ((r.description || '').toLowerCase().includes(safeQuery))).map(mapToPackage)
-                }
+                packages={mappedPackages}
                 handleSearch={() => { }}
                 onExecute={(id) => onClone?.(`https://github.com/${id}.git`, id.split('/')[1])}
                 onFetchDetails={onFetchDetails}
                 onGitHubAction={handleGitHubAction}
                 isDesktop={true}
+                loading={loading}
             />
 
             {/* Details Modal */}

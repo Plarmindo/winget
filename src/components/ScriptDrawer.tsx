@@ -5,6 +5,7 @@ import { generateScript } from '../utils/scriptUtils';
 import { ScriptPreview } from './ScriptPreview';
 import { isTauri } from '../services/tauriBridge';
 import { executeRealCommand } from '../services/wingetService';
+import { BatchProgressModal, BatchOperation } from './BatchProgressModal';
 
 interface ScriptDrawerProps {
    isOpen: boolean;
@@ -14,9 +15,13 @@ interface ScriptDrawerProps {
 }
 
 export const ScriptDrawer: React.FC<ScriptDrawerProps> = ({ isOpen, onClose }) => {
-   const { cart, removeFromCart, clearCart, mode, settings } = useAppStore();
+   const { cart, removeFromCart, clearCart, mode, settings, addHistoryEntry } = useAppStore();
    const [selectedIds, setSelectedIds] = useState<string[]>([]);
    const [showPreview, setShowPreview] = useState(false);
+   const [showBatchProgress, setShowBatchProgress] = useState(false);
+   const [batchOperations, setBatchOperations] = useState<BatchOperation[]>([]);
+   const [currentBatchIndex, setCurrentBatchIndex] = useState(0);
+   const [isCancelled, setIsCancelled] = useState(false);
    const isDesktop = isTauri();
    const packageManager = settings.activePackageManager;
 
@@ -27,18 +32,133 @@ export const ScriptDrawer: React.FC<ScriptDrawerProps> = ({ isOpen, onClose }) =
    const scriptContent = generateScript(activePackages, mode, packageManager);
 
    const handleExecuteNow = async () => {
-      if (confirm(`Launch terminal to ${mode} ${selectedIds.length} packages?`)) {
+      // Block GitHub repos from being executed
+      if (packageManager === 'github') {
+         alert('GitHub repositories cannot be batch installed. Please install them individually from the search results.');
+         return;
+      }
+
+      if (!confirm(`${mode} ${selectedIds.length} packages?`)) return;
+
+      // Initialize batch operations
+      const ops: BatchOperation[] = selectedIds.map(id => ({
+         id,
+         name: cart.find(p => p.id === id)?.name || id,
+         status: 'pending' as const,
+      }));
+
+      setBatchOperations(ops);
+      setCurrentBatchIndex(0);
+      setIsCancelled(false);
+      setShowBatchProgress(true);
+
+      // Execute operations sequentially
+      for (let i = 0; i < ops.length; i++) {
+         if (isCancelled) break;
+
+         setCurrentBatchIndex(i);
+         setBatchOperations(prev => prev.map((op, idx) =>
+            idx === i ? { ...op, status: 'processing' } : op
+         ));
+
          try {
-            await executeRealCommand(packageManager, mode, selectedIds);
+            await executeRealCommand(packageManager, mode, [ops[i].id]);
+
+            // Mark as success
+            setBatchOperations(prev => prev.map((op, idx) =>
+               idx === i ? { ...op, status: 'success' } : op
+            ));
+
+            // Log to history
+            addHistoryEntry({
+               operation: mode as 'install' | 'upgrade' | 'uninstall',
+               packageId: ops[i].id,
+               packageName: ops[i].name,
+               manager: packageManager,
+               status: 'success',
+            });
          } catch (e: any) {
-            console.error("Execution failed:", e);
-            alert(`Execution failed: ${e.message || e}`);
+            // Skip user cancellation
+            if (e.code === 'USER_CANCELLED') {
+               setBatchOperations(prev => prev.map((op, idx) =>
+                  idx === i ? { ...op, status: 'pending' } : op
+               ));
+               continue;
+            }
+
+            // Mark as error
+            setBatchOperations(prev => prev.map((op, idx) =>
+               idx === i ? { ...op, status: 'error', errorMessage: e.message || String(e) } : op
+            ));
+
+            // Log error to history
+            addHistoryEntry({
+               operation: mode as 'install' | 'upgrade' | 'uninstall',
+               packageId: ops[i].id,
+               packageName: ops[i].name,
+               manager: packageManager,
+               status: 'error',
+               errorMessage: e.message || String(e),
+            });
          }
       }
    };
 
    const toggleSelection = (id: string) => setSelectedIds(prev => prev.includes(id) ? prev.filter(i => i !== id) : [...prev, id]);
    const toggleAll = () => setSelectedIds(selectedIds.length === cart.length ? [] : cart.map(p => p.id));
+
+   const handleCancelBatch = () => {
+      setIsCancelled(true);
+   };
+
+   const handleRetryFailed = async () => {
+      const failedOps = batchOperations.filter(op => op.status === 'error');
+      if (failedOps.length === 0) return;
+
+      // Reset failed operations to pending
+      setBatchOperations(prev => prev.map(op =>
+         op.status === 'error' ? { ...op, status: 'pending', errorMessage: undefined } : op
+      ));
+      setIsCancelled(false);
+
+      // Re-execute failed operations
+      for (let i = 0; i < batchOperations.length; i++) {
+         if (batchOperations[i].status !== 'pending') continue;
+         if (isCancelled) break;
+
+         setCurrentBatchIndex(i);
+         setBatchOperations(prev => prev.map((op, idx) =>
+            idx === i ? { ...op, status: 'processing' } : op
+         ));
+
+         try {
+            await executeRealCommand(packageManager, mode, [batchOperations[i].id]);
+            setBatchOperations(prev => prev.map((op, idx) =>
+               idx === i ? { ...op, status: 'success' } : op
+            ));
+            addHistoryEntry({
+               operation: mode as 'install' | 'upgrade' | 'uninstall',
+               packageId: batchOperations[i].id,
+               packageName: batchOperations[i].name,
+               manager: packageManager,
+               status: 'success',
+            });
+         } catch (e: any) {
+            if (e.code === 'USER_CANCELLED') continue;
+            setBatchOperations(prev => prev.map((op, idx) =>
+               idx === i ? { ...op, status: 'error', errorMessage: e.message || String(e) } : op
+            ));
+            addHistoryEntry({
+               operation: mode as 'install' | 'upgrade' | 'uninstall',
+               packageId: batchOperations[i].id,
+               packageName: batchOperations[i].name,
+               manager: packageManager,
+               status: 'error',
+               errorMessage: e.message || String(e),
+            });
+         }
+      }
+   };
 
    return (
       <>
@@ -85,6 +205,18 @@ export const ScriptDrawer: React.FC<ScriptDrawerProps> = ({ isOpen, onClose }) =
                </div>
             )}
          </div>
+
+         {/* Batch Progress Modal */}
+         <BatchProgressModal
+            isOpen={showBatchProgress}
+            onClose={() => setShowBatchProgress(false)}
+            operations={batchOperations}
+            currentIndex={currentBatchIndex}
+            onCancel={handleCancelBatch}
+            operationType={mode as 'install' | 'upgrade' | 'uninstall'}
+            canRetry={true}
+            onRetry={handleRetryFailed}
+         />
       </>
    );
 };
