@@ -213,6 +213,32 @@ export const getLatestRelease = async (owner: string, repo: string, token?: stri
   }
 };
 
+// Helper: Check if an asset filename indicates an installable binary
+const isInstallableAsset = (filename: string): boolean => {
+  const lowerName = filename.toLowerCase();
+  const installableExtensions = ['.exe', '.msi', '.dmg', '.pkg', '.deb', '.rpm', '.appimage'];
+  return installableExtensions.some(ext => lowerName.endsWith(ext));
+};
+
+// Helper: Detect release type from assets
+export type ReleaseType = 'binary' | 'source' | 'none';
+export const detectReleaseType = (release: GitHubRelease | null): ReleaseType => {
+  if (!release || !release.assets || release.assets.length === 0) {
+    return 'none';
+  }
+
+  const hasInstallableAssets = release.assets.some(asset => isInstallableAsset(asset.name));
+  return hasInstallableAssets ? 'binary' : 'source';
+};
+
+// Helper: Get installable asset names from release
+export const getInstallableAssets = (release: GitHubRelease | null): string[] => {
+  if (!release || !release.assets) return [];
+  return release.assets
+    .filter(asset => isInstallableAsset(asset.name))
+    .map(asset => asset.name);
+};
+
 // Get repo README
 export const getRepoReadme = async (owner: string, repo: string, token?: string): Promise<string | null> => {
   try {

@@ -3,6 +3,7 @@ import { WingetPackage, AppMode, GitHubAction } from '../types';
 import { useAppStore } from '../stores/store';
 import { generateAppDetailsPrompt, generateAlternativesPrompt, generateEvaluationPrompt } from '../services/wingetService';
 import { Plus, Check, RefreshCw, Trash2, ChevronDown, ChevronUp, Globe, Sparkles, Terminal, GitFork, Star, Scale, Loader2, Gift, CircleDollarSign, ExternalLink, Eye, Info } from 'lucide-react';
+import { checkRateLimit } from '../utils/rateLimiter';
 
 interface PackageCardProps {
   pkg: WingetPackage;
@@ -15,7 +16,7 @@ interface PackageCardProps {
 }
 
 export const PackageCard: React.FC<PackageCardProps> = ({ pkg, onExecute, handleSearch, onFetchDetails, onGitHubAction, isDesktop, style }) => {
-  const { cart, addToCart, removeFromCart, mode, settings, compareList, toggleCompare, setPendingChatQuery, setMode } = useAppStore();
+  const { cart, addToCart, removeFromCart, mode, settings, compareList, toggleCompare, setPendingChatQuery, setMode, toggleFavorite, isFavorite } = useAppStore();
 
   const isInCart = !!cart.find(c => c.id === pkg.id);
   const isInCompare = !!compareList.find(c => c.id === pkg.id);
@@ -64,6 +65,13 @@ export const PackageCard: React.FC<PackageCardProps> = ({ pkg, onExecute, handle
     const willExpand = !isExpanded;
     setIsExpanded(willExpand);
     if (willExpand && !aiSummary && onFetchDetails) {
+      // Check rate limit before fetching AI details
+      const { allowed, waitTime } = checkRateLimit('details');
+      if (!allowed) {
+        setAiSummary(`⏱️ AI rate limit reached. Please wait ${waitTime} seconds before requesting details.`);
+        return;
+      }
+
       setLoadingSummary(true);
       try {
         const text = await onFetchDetails(pkg);
@@ -128,6 +136,44 @@ export const PackageCard: React.FC<PackageCardProps> = ({ pkg, onExecute, handle
         </div>
       )}
 
+      {/* Favorite Star */}
+      <button
+        onClick={(e) => {
+          e.stopPropagation();
+          toggleFavorite(pkg.id);
+        }}
+        className={`absolute top-3 left-3 p-1.5 rounded-full z-10 transition-all ${isFavorite(pkg.id)
+          ? 'bg-amber-500/20 text-amber-500 border border-amber-500/30'
+          : 'bg-[var(--app-bg)]/80 text-[var(--app-text-muted)] border border-[var(--app-border)] hover:bg-amber-500/10 hover:text-amber-500'
+          }`}
+        title={isFavorite(pkg.id) ? "Remove from favorites" : "Add to favorites"}
+      >
+        <Star size={12} className={isFavorite(pkg.id) ? 'fill-current' : ''} />
+      </button>
+
+      {/* GitHub Release Type Badge */}
+      {isGitHub && pkg.releaseType && (
+        <div
+          className={`absolute top-3 left-14 px-2 py-1 rounded-full text-[10px] font-bold z-10 flex items-center gap-1 ${pkg.releaseType === 'binary'
+              ? 'bg-green-500/20 text-green-500 border border-green-500/30'
+              : pkg.releaseType === 'source'
+                ? 'bg-blue-500/20 text-blue-500 border border-blue-500/30'
+                : 'bg-gray-500/20 text-gray-400 border border-gray-500/30'
+            }`}
+          title={
+            pkg.releaseType === 'binary'
+              ? 'Has installable releases (.exe, .msi, .dmg)'
+              : pkg.releaseType === 'source'
+                ? 'Source only - requires compilation'
+                : 'No releases available'
+          }
+        >
+          {pkg.releaseType === 'binary' && '⚡'}
+          {pkg.releaseType === 'source' && '📦'}
+          {pkg.releaseType === 'none' && '🔨'}
+          {pkg.releaseType === 'binary' ? 'Direct Install' : pkg.releaseType === 'source' ? 'Source' : 'Dev Only'}
+        </div>
+      )}
       {/* Badges and Header */}
       <div className="flex justify-between items-start mb-3">
         <div className="flex items-center space-x-3 w-full pr-6">

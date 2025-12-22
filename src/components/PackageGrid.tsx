@@ -2,6 +2,7 @@
 import React, { useState, useEffect } from 'react';
 import { WingetPackage, AppMode, GitHubAction } from '../types';
 import { PackageCard } from './PackageCard';
+import { PackageCardSkeleton } from './skeletons/PackageCardSkeleton';
 import { useAppStore } from '../stores/store';
 import { ChevronLeft, ChevronRight } from 'lucide-react';
 
@@ -12,10 +13,11 @@ interface PackageGridProps {
   onFetchDetails?: (pkg: WingetPackage) => Promise<string>;
   onGitHubAction?: (id: string, action: GitHubAction) => void;
   isDesktop?: boolean;
+  loading?: boolean;
 }
 
 export const PackageGrid: React.FC<PackageGridProps> = ({
-  packages, onExecute, handleSearch, onFetchDetails, onGitHubAction, isDesktop
+  packages, onExecute, handleSearch, onFetchDetails, onGitHubAction, isDesktop, loading = false
 }) => {
   const { settings } = useAppStore();
   const [currentPage, setCurrentPage] = useState(1);
@@ -24,6 +26,17 @@ export const PackageGrid: React.FC<PackageGridProps> = ({
   useEffect(() => {
     setCurrentPage(1);
   }, [packages]);
+
+  // Show skeletons while loading
+  if (loading) {
+    return (
+      <div className={`grid grid-cols-1 ${settings.compactMode ? 'md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4' : 'md:grid-cols-2 lg:grid-cols-3'} gap-4`}>
+        {Array.from({ length: 8 }).map((_, i) => (
+          <PackageCardSkeleton key={i} />
+        ))}
+      </div>
+    );
+  }
 
   if (packages.length === 0) return null;
 

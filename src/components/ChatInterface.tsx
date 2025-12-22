@@ -1,7 +1,7 @@
 
 import React, { useState, useRef, useEffect } from 'react';
 import { MessageSquare, Send, X, Bot, Trash2, Loader2, Zap, BrainCircuit, Sparkles, Box, RotateCcw } from 'lucide-react';
-import { ChatMessage, ChatModelType, WingetPackage } from '../types';
+import { ChatModelType, WingetPackage } from '../types';
 import { chatWithAI } from '../services/wingetService';
 import { useChatAudio } from '../hooks/useChatAudio';
 import { useAppStore } from '../stores/store';
@@ -10,7 +10,7 @@ import { useAppStore } from '../stores/store';
 /* const HighlightedText = ({ text, highlight }: { text: string, highlight: string }) => {
     if (!highlight.trim()) return <span>{text}</span>;
     const escaped = highlight.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-    const parts = text.split(new RegExp(`(${escaped})`, 'gi'));
+    const parts = text.split(new RegExp(`(${ escaped })`, 'gi'));
     return (
         <span>
             {parts.map((part, i) =>
@@ -53,7 +53,7 @@ const MessageContent = ({ text, onShowResults }: { text: string, onShowResults?:
                                     <thead>
                                         <tr className="bg-[var(--app-primary)]/10 border-b border-[var(--app-border)]">
                                             {header.map((h, i) => (
-                                                <th key={i} className={`p-4 font-bold text-[var(--app-text)] whitespace-nowrap ${i === 0 ? 'bg-[var(--app-surface)]/50' : ''}`}>
+                                                <th key={i} className={`p - 4 font - bold text - [var(--app - text)]whitespace - nowrap ${i === 0 ? 'bg-[var(--app-surface)]/50' : ''} `}>
                                                     {h}
                                                 </th>
                                             ))}
@@ -63,7 +63,7 @@ const MessageContent = ({ text, onShowResults }: { text: string, onShowResults?:
                                         {body.map((row, rI) => (
                                             <tr key={rI} className="hover:bg-[var(--app-primary)]/5 transition-colors group">
                                                 {row.map((c, cI) => (
-                                                    <td key={cI} className={`p-3 align-top ${cI === 0 ? 'font-semibold text-[var(--app-text-muted)] bg-[var(--app-bg)]/30 border-r border-[var(--app-border)]' : 'text-[var(--app-text)]'}`}>
+                                                    <td key={cI} className={`p - 3 align - top ${cI === 0 ? 'font-semibold text-[var(--app-text-muted)] bg-[var(--app-bg)]/30 border-r border-[var(--app-border)]' : 'text-[var(--app-text)]'} `}>
                                                         {c}
                                                     </td>
                                                 ))}
@@ -138,10 +138,10 @@ const MessageContent = ({ text, onShowResults }: { text: string, onShowResults?:
                                 </span>
                             );
                         })}
-                    </div>
+                    </div >
                 );
             })}
-        </div>
+        </div >
     );
 };
 
@@ -152,9 +152,8 @@ interface ChatInterfaceProps {
 }
 
 export const ChatInterface: React.FC<ChatInterfaceProps> = ({ onShowResults, pendingMessage, onClearPendingMessage }) => {
-    const { settings, updateSettings } = useAppStore();
+    const { settings, updateSettings, chatMessages, addChatMessage, clearChatMessages } = useAppStore();
     const [isOpen, setIsOpen] = useState(false);
-    const [messages, setMessages] = useState<ChatMessage[]>([]);
     const [inputHistory, setInputHistory] = useState<string[]>([]);
     const [historyIndex, setHistoryIndex] = useState(-1);
     const [input, setInput] = useState('');
@@ -210,7 +209,7 @@ export const ChatInterface: React.FC<ChatInterfaceProps> = ({ onShowResults, pen
 
     // Smart Auto-scroll
     useEffect(() => {
-        if (messages.length === 0 && !isLoading) return;
+        if (chatMessages.length === 0 && !isLoading) return;
 
         // If loading (thinking), scroll to bottom to show the loader
         if (isLoading) {
@@ -219,7 +218,7 @@ export const ChatInterface: React.FC<ChatInterfaceProps> = ({ onShowResults, pen
         }
 
         // If new message added
-        const lastMsg = messages[messages.length - 1];
+        const lastMsg = chatMessages[chatMessages.length - 1];
         if (lastMsg) {
             if (lastMsg.role === 'user') {
                 // User just sent a message, scroll to bottom
@@ -236,7 +235,7 @@ export const ChatInterface: React.FC<ChatInterfaceProps> = ({ onShowResults, pen
                 }, 100);
             }
         }
-    }, [messages, isLoading]);
+    }, [chatMessages, isLoading]);
 
     const handleModelChange = (type: ChatModelType) => {
         setModelType(type);
@@ -252,18 +251,18 @@ export const ChatInterface: React.FC<ChatInterfaceProps> = ({ onShowResults, pen
         setHistoryIndex(-1);
 
         setInput('');
-        const userMsg: ChatMessage = { id: Date.now().toString(), role: 'user', text, timestamp: Date.now() };
-        setMessages(prev => [...prev, userMsg]);
+        const userMsg = { role: 'user' as const, text };
+        addChatMessage(userMsg);
         setIsLoading(true);
 
         try {
-            const history = messages.map(m => ({ role: m.role, parts: [{ text: m.text }] }));
+            const history = chatMessages.map(m => ({ role: m.role, parts: [{ text: m.text }] }));
             const response = await chatWithAI(text, history, modelType, settings);
-            const botMsg: ChatMessage = { id: Date.now().toString(), role: 'model', text: response.text, timestamp: Date.now(), sources: response.sources };
-            setMessages(prev => [...prev, botMsg]);
+            const botMsg = { role: 'model' as const, text: response.text, sources: response.sources };
+            addChatMessage(botMsg);
         } catch (e: any) {
             console.error("AI Chat Error:", e);
-            setMessages(prev => [...prev, { id: Date.now().toString(), role: 'model', text: `Error connecting to AI: ${e.message || e}`, timestamp: Date.now() }]);
+            addChatMessage({ role: 'model' as const, text: `Error connecting to AI: ${e.message || e}` });
         } finally {
             setIsLoading(false);
         }
@@ -397,19 +396,19 @@ export const ChatInterface: React.FC<ChatInterfaceProps> = ({ onShowResults, pen
                                     </div>
                                 </div>
                             )}
-                            <button onClick={() => setMessages([])} className="p-1.5 hover:bg-red-500/10 rounded-lg text-[var(--app-text-muted)] hover:text-red-500 transition-colors" title="Clear Chat"><Trash2 size={16} /></button>
+                            <button onClick={() => clearChatMessages()} className="p-1.5 hover:bg-red-500/10 rounded-lg text-[var(--app-text-muted)] hover:text-red-500 transition-colors" title="Clear Chat"><Trash2 size={16} /></button>
                         </div>
                     </div>
 
                     {/* Messages Area */}
                     <div className="flex-1 overflow-y-auto p-4 space-y-4 bg-[var(--app-bg)]/50 scroll-smooth">
-                        {messages.length === 0 && (
+                        {chatMessages.length === 0 && (
                             <div className="flex flex-col items-center justify-center h-full text-center text-[var(--app-text-muted)] opacity-60">
                                 <Bot size={48} className="mb-2" />
                                 <p className="text-sm">How can I help you manage your software today?</p>
                             </div>
                         )}
-                        {messages.map(m => (
+                        {chatMessages.map(m => (
                             <div key={m.id} className={`flex ${m.role === 'user' ? 'justify-end' : 'justify-start'}`}>
                                 <div className={`max-w-[90%] p-3 rounded-2xl text-sm shadow-sm ${m.role === 'user' ? 'bg-[var(--app-primary)] text-white rounded-tr-none user-message-bubble' : 'bg-[var(--app-surface)] border border-[var(--app-border)] rounded-tl-none'}`}>
                                     {m.role === 'user' ? m.text : <MessageContent text={m.text} onShowResults={onShowResults} />}
