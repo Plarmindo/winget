@@ -1,5 +1,5 @@
 
-import { WingetPackage, AppSettings } from '../types';
+import { WingetPackage } from '../types';
 import { logger } from '../utils/logger';
 
 // Helper function to get auth headers

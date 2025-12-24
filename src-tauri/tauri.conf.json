@@ -82,7 +82,7 @@
       }
     ],
     "security": {
-      "csp": null
+      "csp": "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; connect-src 'self' http://localhost:11434 https://api.github.com https://generativelanguage.googleapis.com; img-src 'self' asset: https://asset.localhost https://avatars.githubusercontent.com data: blob:"
     },
     "bundle": {
       "active": true,

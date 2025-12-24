@@ -6,18 +6,19 @@ import {
     Plus, FolderOpen, FileText, Copy, Lock, Unlock, Folder, File
 } from 'lucide-react';
 import {
-    getCurrentUser, getUserRepos,
-    getStarredRepos, starRepo, unstarRepo, forkRepo,
+    starRepo, unstarRepo, forkRepo,
     watchRepo, unwatchRepo,
     getRepoBranches, getRepoCommits, getRepoIssues, getRepoPRs, getLatestRelease,
     getRepoReadme, getRepoContents, getRepoLanguages, createRepo,
-    GitHubRepo, GitHubUser, GitHubBranch, GitHubCommit, GitHubIssue, GitHubPR, GitHubRelease, GitHubContent, CreateRepoOptions,
+    GitHubRepo, GitHubBranch, GitHubCommit, GitHubIssue, GitHubPR, GitHubRelease, GitHubContent, CreateRepoOptions,
     detectReleaseType
 } from '../services/githubService';
+import { useGitHubData } from '../hooks/useGitHubData';
 import { openUrl } from '../services/tauriBridge';
 import { WingetPackage, GitHubAction } from '../types';
 import { logger } from '../utils/logger';
 import { PackageGrid } from './PackageGrid';
+import { GitHubDetailsSkeleton } from './skeletons/GitHubDetailsSkeleton';
 
 interface GitHubPanelProps {
     token: string;
@@ -28,14 +29,13 @@ interface GitHubPanelProps {
 }
 
 export const GitHubPanel: React.FC<GitHubPanelProps> = ({ token, query, onClone, onDirectInstall, onFetchDetails }) => {
-    const [user, setUser] = useState<GitHubUser | null>(null);
-    const [repos, setRepos] = useState<GitHubRepo[]>([]);
-    const [starredRepoObjects, setStarredRepoObjects] = useState<GitHubRepo[]>([]);
-    const [starredRepos, setStarredRepos] = useState<Set<string>>(new Set());
+    const {
+        user, repos, starredRepoObjects, starredRepos,
+        activeTab, setActiveTab, loading, error,
+        loadData, toggleStar
+    } = useGitHubData(token, query);
+
     const [watchedRepos, setWatchedRepos] = useState<Set<string>>(new Set());
-    const [loading, setLoading] = useState(true);
-    const [error, setError] = useState<string | null>(null);
-    const [activeTab, setActiveTab] = useState<'repos' | 'starred'>('repos');
 
     // Mapped packages with release types
     const [mappedPackages, setMappedPackages] = useState<WingetPackage[]>([]);
@@ -66,38 +66,6 @@ export const GitHubPanel: React.FC<GitHubPanelProps> = ({ token, query, onClone,
         autoInit: boolean;
     }>({ open: false, loading: false, name: '', description: '', isPrivate: false, autoInit: true });
 
-    useEffect(() => {
-        loadData();
-    }, [token]);
-
-    const loadData = async () => {
-        if (!token) {
-            setError('No GitHub token configured. Add one in Settings → Connections.');
-            setLoading(false);
-            return;
-        }
-
-        setLoading(true);
-        setError(null);
-
-        try {
-            const [userData, reposData, starredData] = await Promise.all([
-                getCurrentUser(token),
-                getUserRepos(token),
-                getStarredRepos(token).catch(() => [])
-            ]);
-
-            setUser(userData);
-            setRepos(reposData);
-            setStarredRepoObjects(starredData);
-            setStarredRepos(new Set(starredData.map(r => r.full_name)));
-        } catch (e: any) {
-            setError(e.message);
-        } finally {
-            setLoading(false);
-        }
-    };
-
     // Map repos to packages with release types
     useEffect(() => {
         const mapRepos = async () => {
@@ -106,9 +74,10 @@ export const GitHubPanel: React.FC<GitHubPanelProps> = ({ token, query, onClone,
                 return;
             }
 
-            const reposToMap = activeTab === 'repos' ? filteredRepos : starredRepoObjects.filter(r =>
-                (r.name || '').toLowerCase().includes(safeQuery) || ((r.description || '').toLowerCase().includes(safeQuery))
-            );
+            const safeQuery = (query || '').toLowerCase();
+            const reposToMap = activeTab === 'repos'
+                ? repos.filter(repo => (repo.name || '').toLowerCase().includes(safeQuery) || (repo.description || '').toLowerCase().includes(safeQuery))
+                : starredRepoObjects.filter(r => (r.name || '').toLowerCase().includes(safeQuery) || ((r.description || '').toLowerCase().includes(safeQuery)));
 
             // Map all repos in parallel
             const mapped = await Promise.all(reposToMap.map(mapToPackage));
@@ -118,11 +87,7 @@ export const GitHubPanel: React.FC<GitHubPanelProps> = ({ token, query, onClone,
         mapRepos();
     }, [repos, starredRepoObjects, activeTab, query]);
 
-    const safeQuery = (query || '').toLowerCase();
-    const filteredRepos = repos.filter(repo =>
-        (repo.name || '').toLowerCase().includes(safeQuery) ||
-        (repo.description || '').toLowerCase().includes(safeQuery)
-    );
+
 
     const mapToPackage = async (repo: GitHubRepo): Promise<WingetPackage> => {
         // Fetch latest release to detect type
@@ -151,11 +116,11 @@ export const GitHubPanel: React.FC<GitHubPanelProps> = ({ token, query, onClone,
                 case 'star':
                     if (starredRepos.has(id)) {
                         await unstarRepo(owner, repo, token);
-                        setStarredRepos(prev => { const next = new Set(prev); next.delete(id); return next; });
+                        toggleStar(id, true);
                         alert(`Unstarred ${repo}`);
                     } else {
                         await starRepo(owner, repo, token);
-                        setStarredRepos(prev => new Set(prev).add(id));
+                        toggleStar(id, false);
                         alert(`Starred ${repo}`);
                     }
                     break;
@@ -336,9 +301,7 @@ export const GitHubPanel: React.FC<GitHubPanelProps> = ({ token, query, onClone,
                         </div>
 
                         {detailsModal.loading ? (
-                            <div className="flex items-center justify-center h-64">
-                                <Loader2 className="animate-spin" size={32} />
-                            </div>
+                            <GitHubDetailsSkeleton />
                         ) : (
                             <div className="p-4 overflow-y-auto space-y-4">
                                 {/* Latest Release */}

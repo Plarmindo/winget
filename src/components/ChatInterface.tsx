@@ -4,6 +4,7 @@ import { MessageSquare, Send, X, Bot, Trash2, Loader2, Zap, BrainCircuit, Sparkl
 import { ChatModelType, WingetPackage } from '../types';
 import { chatWithAI } from '../services/wingetService';
 import { useChatAudio } from '../hooks/useChatAudio';
+import { useRateLimit } from '../hooks/useRateLimit';
 import { useAppStore } from '../stores/store';
 
 // Helper for highlighting text safely
@@ -165,6 +166,7 @@ export const ChatInterface: React.FC<ChatInterfaceProps> = ({ onShowResults, pen
 
     const messagesEndRef = useRef<HTMLDivElement>(null);
     const { isRecording, startRecording, stopRecording } = useChatAudio(settings, setInput);
+    const { isRateLimited, secondsRemaining, checkRateLimit } = useRateLimit(5, 60, 30);
 
     useEffect(() => {
         if (pendingMessage) { setIsOpen(true); handleSend(pendingMessage); if (onClearPendingMessage) onClearPendingMessage(); }
@@ -245,6 +247,11 @@ export const ChatInterface: React.FC<ChatInterfaceProps> = ({ onShowResults, pen
     const handleSend = async (textInput?: string) => {
         const text = textInput || input;
         if (!text.trim()) return;
+
+        if (!checkRateLimit()) {
+            addChatMessage({ role: 'model', text: `You're sending messages too quickly. Please wait ${secondsRemaining} seconds.` });
+            return;
+        }
 
         // Add to history
         setInputHistory(prev => [...prev, text]);
@@ -463,7 +470,14 @@ export const ChatInterface: React.FC<ChatInterfaceProps> = ({ onShowResults, pen
                                 >
                                     <RotateCcw size={18} />
                                 </button>
-                                <button onClick={() => handleSend()} disabled={!input.trim() && !isLoading} className="p-2.5 bg-[var(--app-primary)] hover:opacity-90 disabled:opacity-50 text-white rounded-xl shadow-lg transition-all"><Send size={18} /></button>
+                                <button
+                                    onClick={() => handleSend()}
+                                    disabled={(!input.trim() && !isLoading) || isRateLimited}
+                                    className={`p-2.5 bg-[var(--app-primary)] hover:opacity-90 disabled:opacity-50 text-white rounded-xl shadow-lg transition-all flex items-center gap-2 ${isRateLimited ? 'cursor-not-allowed bg-red-500 hover:bg-red-600' : ''}`}
+                                    title={isRateLimited ? `Wait ${secondsRemaining}s` : "Send"}
+                                >
+                                    {isRateLimited ? <span className="text-xs font-mono w-4">{secondsRemaining}</span> : <Send size={18} />}
+                                </button>
                             </div>
                         </div>
                     </div>

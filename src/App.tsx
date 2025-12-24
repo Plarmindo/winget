@@ -2,11 +2,12 @@ import { useState, useEffect } from 'react';
 import { AppMode, WingetPackage } from './types';
 import { parseWingetOutput, generateAppDetailsPrompt, generateComparisonPrompt, generateAIResponse } from './services/wingetService';
 import { isTauri, openUrl } from './services/tauriBridge';
-import { STORAGE_KEYS, DEFAULT_THEMES } from './constants';
+import { STORAGE_KEYS } from './constants';
 import { useAppStore } from './stores/store';
 import { usePackageOperations } from './hooks/usePackageOperations';
 import { useSearchLogic } from './hooks/useSearchLogic';
 import { useKeyboardShortcuts } from './hooks/useKeyboardShortcuts';
+import { useThemeSync } from './hooks/useThemeSync';
 import { logger } from './utils/logger';
 
 // Components
@@ -21,6 +22,7 @@ import { HelpModal } from './components/HelpModal';
 import { ProgressBar } from './components/ProgressBar';
 import { StatusBar } from './components/StatusBar';
 import ErrorBoundary from './components/ErrorBoundary';
+import { OnboardingModal } from './components/OnboardingModal';
 
 // New extracted components
 import { ModeNavigation } from './components/layout/ModeNavigation';
@@ -81,6 +83,7 @@ function App() {
   const [isHistoryOpen, setIsHistoryOpen] = useState(false);
   const [compareResult, setCompareResult] = useState<string | null>(null);
   const [isComparing, setIsComparing] = useState(false);
+  const [showOnboarding, setShowOnboarding] = useState(false);
 
   // Import State
   const [importText, setImportText] = useState('');
@@ -122,6 +125,13 @@ function App() {
       }
     };
     loadConfig();
+
+    // Check onboarding
+    const hasSeenOnboarding = localStorage.getItem('onboarding_seen');
+    if (!hasSeenOnboarding) {
+      // Delay slightly to allow app to settle
+      setTimeout(() => setShowOnboarding(true), 1500);
+    }
   }, []);
 
   // Enforce valid provider for Web Mode - DISABLED per user request
@@ -134,23 +144,19 @@ function App() {
   useEffect(() => {
     if (!isTauri()) return;
 
-    // We need to dynamically import the event module or use window.__TAURI__
-    // Since we don't have the tauri API types fully set up in this context, we'll use the window object
     const setupListener = async () => {
       try {
-        // @ts-ignore
-        if (window.__TAURI__ && window.__TAURI__.event) {
-          // @ts-ignore
-          const unlisten = await window.__TAURI__.event.listen('operation-progress', (event) => {
-            const progress = event.payload;
-            // console.log('Progress:', progress);
+        const { listen } = await import('@tauri-apps/api/event');
+        const unlisten = await listen<{ operation: string; percent: number; message: string }>('operation-progress', (event) => {
+          const progress = event.payload;
+          // console.log('Progress:', progress);
 
-            if (progress.percent === 100) {
-              setLoading(false);
-            }
-          });
-          return unlisten;
-        }
+          if (progress.percent === 100) {
+            setLoading(false);
+          }
+        });
+        return unlisten;
+        return unlisten;
       } catch (e) {
         console.error("Failed to setup progress listener", e);
       }
@@ -165,19 +171,8 @@ function App() {
   }, []);
 
   // Apply Theme
-  useEffect(() => {
-    const activeTheme = settings.themes.find(t => t.id === settings.activeThemeId) || DEFAULT_THEMES[0];
-    if (activeTheme && activeTheme.colors) {
-      const root = document.documentElement;
-      root.style.setProperty('--app-bg', activeTheme.colors.bg);
-      root.style.setProperty('--app-surface', activeTheme.colors.surface);
-      root.style.setProperty('--app-border', activeTheme.colors.border);
-      root.style.setProperty('--app-text', activeTheme.colors.text);
-      root.style.setProperty('--app-text-muted', activeTheme.colors.textMuted);
-      root.style.setProperty('--app-primary', activeTheme.colors.primary);
-      root.style.setProperty('--app-primary-hover', activeTheme.colors.primaryHover);
-    }
-  }, [settings.activeThemeId, settings.themes]);
+  // Apply Theme
+  useThemeSync(settings);
 
   // Reset on Mode Change + Auto-load for Desktop Mode
   useEffect(() => {
@@ -325,6 +320,7 @@ function App() {
       <HelpModal isOpen={isHelpOpen} onClose={() => setIsHelpOpen(false)} onOpenSettings={() => setIsSettingsOpen(true)} />
       <HistoryModal isOpen={isHistoryOpen} onClose={() => setIsHistoryOpen(false)} />
       <CompareModal isOpen={isCompareModalOpen} onClose={() => setIsCompareModalOpen(false)} result={compareResult} isLoading={isComparing} />
+      {showOnboarding && <OnboardingModal onClose={() => { setShowOnboarding(false); localStorage.setItem('onboarding_seen', 'true'); }} />}
 
       <Navbar
         handleSearch={handleSearch}
