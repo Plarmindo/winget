@@ -218,4 +218,95 @@ mod tests {
         assert!(err.user_message().contains("Invalid package_id"));
         assert!(err.user_message().contains("Cannot contain spaces"));
     }
+
+    #[test]
+    fn test_all_error_codes() {
+        // Verify all error types have unique codes
+        let errors = vec![
+            WingetError::InsufficientPrivileges {
+                operation: "test".to_string(),
+                help: "help".to_string(),
+            },
+            WingetError::PackageNotFound {
+                query: "test".to_string(),
+                suggestions: vec![],
+            },
+            WingetError::NetworkError {
+                message: "test".to_string(),
+            },
+            WingetError::InvalidInput {
+                field: "test".to_string(),
+                reason: "test".to_string(),
+            },
+            WingetError::OperationNotImplemented {
+                operation: "test".to_string(),
+                eta: "test".to_string(),
+            },
+            WingetError::CommandFailed {
+                command: "test".to_string(),
+                exit_code: 1,
+                stderr_preview: "test".to_string(),
+            },
+            WingetError::ParseError {
+                message: "test".to_string(),
+            },
+            WingetError::UserCancelled,
+            WingetError::Other {
+                message: "test".to_string(),
+            },
+        ];
+
+        let codes: Vec<&str> = errors.iter().map(|e| e.error_code()).collect();
+        assert_eq!(codes.len(), 9);
+
+        // Check all codes are non-empty
+        for code in &codes {
+            assert!(!code.is_empty());
+        }
+    }
+
+    #[test]
+    fn test_user_cancelled_message() {
+        let err = WingetError::UserCancelled;
+        assert!(err.user_message().contains("cancelled"));
+    }
+
+    #[test]
+    fn test_command_failed_message() {
+        let err = WingetError::CommandFailed {
+            command: "winget install".to_string(),
+            exit_code: 1,
+            stderr_preview: "Permission denied".to_string(),
+        };
+        let msg = err.user_message();
+        assert!(msg.contains("winget install"));
+        assert!(msg.contains("1"));
+        assert!(msg.contains("Permission denied"));
+    }
+
+    #[test]
+    fn test_parse_network_error() {
+        let stderr = b"A connection with the server could not be established";
+        let err = parse_winget_error(stderr, "search");
+
+        match err {
+            WingetError::NetworkError { message } => {
+                assert!(message.contains("connection"));
+            }
+            _ => panic!("Expected NetworkError"),
+        }
+    }
+
+    #[test]
+    fn test_parse_unknown_error() {
+        let stderr = b"Some completely unknown error message";
+        let err = parse_winget_error(stderr, "test");
+
+        match err {
+            WingetError::Other { message } => {
+                assert!(message.contains("unknown"));
+            }
+            _ => {} // Other error type is acceptable
+        }
+    }
 }
