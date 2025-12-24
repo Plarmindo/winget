@@ -27,6 +27,23 @@ export default defineConfig({
     minify: !process.env.TAURI_DEBUG ? 'esbuild' : false,
     // produce sourcemaps for debug builds
     sourcemap: !!process.env.TAURI_DEBUG,
+    // Bundle splitting for smaller initial load
+    rollupOptions: {
+      output: {
+        manualChunks: {
+          // Core React libraries
+          'react-vendor': ['react', 'react-dom'],
+          // State management
+          'state': ['zustand'],
+          // Icons
+          'icons': ['lucide-react'],
+          // AI/API related
+          'ai': ['@google/genai'],
+        }
+      }
+    },
+    // Reduce chunk size warnings threshold
+    chunkSizeWarningLimit: 500,
   },
   test: {
     globals: true,
