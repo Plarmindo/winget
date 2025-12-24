@@ -5,10 +5,10 @@ export const PRESET_CATEGORIES = [
 ];
 
 export const POPULAR_SUGGESTIONS = [
-  "Google Chrome", "Mozilla Firefox", "Visual Studio Code", "Discord", "Spotify", 
-  "Steam", "Git", "Node.js", "Python", "Docker Desktop", "7-Zip", "VLC Media Player", 
-  "Notepad++", "Zoom", "Slack", "WhatsApp", "Telegram", "Obsidian", "PowerToys", 
-  "Windows Terminal", "Adobe Acrobat Reader", "Microsoft Teams", "Postman", 
+  "Google Chrome", "Mozilla Firefox", "Visual Studio Code", "Discord", "Spotify",
+  "Steam", "Git", "Node.js", "Python", "Docker Desktop", "7-Zip", "VLC Media Player",
+  "Notepad++", "Zoom", "Slack", "WhatsApp", "Telegram", "Obsidian", "PowerToys",
+  "Windows Terminal", "Adobe Acrobat Reader", "Microsoft Teams", "Postman",
   "IntelliJ IDEA", "Android Studio", "Vim", "Neovim", "Blender", "GIMP", "Audacity",
   "OBS Studio", "Epic Games Launcher", "Dropbox", "OneDrive", "ShareX", "HandBrake"
 ];
@@ -65,8 +65,8 @@ export const DEFAULT_THEMES: AppTheme[] = [
     id: 'cyberpunk',
     name: 'Cyberpunk',
     colors: {
-      bg: '#09090b', 
-      surface: '#18181b', 
+      bg: '#09090b',
+      surface: '#18181b',
       border: '#27272a',
       text: '#e4e4e7',
       textMuted: '#a1a1aa',
@@ -75,3 +75,41 @@ export const DEFAULT_THEMES: AppTheme[] = [
     }
   }
 ];
+
+// AI Model Configuration
+export const AI_MODELS = {
+  GEMINI: {
+    FAST: 'gemini-2.5-flash-lite',
+    BALANCED: 'gemini-2.5-flash',
+    SMART: 'gemini-2.0-flash-exp',
+    THINKING: 'gemini-2.0-flash-thinking-exp-1219',
+    TTS: 'gemini-2.5-flash-preview-tts'
+  },
+  DEFAULT_MODEL: 'gemini-2.5-flash'
+} as const;
+
+// API Configuration
+export const API_CONFIG = {
+  OLLAMA_DEFAULT_URL: 'http://localhost:11434/v1',
+  THINKING_BUDGET: 16384,
+  MAX_SEARCH_RESULTS: 12,
+  MAX_HISTORY_ENTRIES: 100
+} as const;
+
+// UI Configuration
+export const UI_CONFIG = {
+  DEFAULT_ITEMS_PER_PAGE: 6,
+  MAX_COMPARE_ITEMS: 4,
+  ANIMATION_DURATION: 300,
+  TOAST_DURATION: 3000
+} as const;
+
+// Package Manager Commands
+export const PACKAGE_MANAGERS = {
+  winget: { name: 'Windows Package Manager', cmd: 'winget' },
+  chocolatey: { name: 'Chocolatey', cmd: 'choco' },
+  scoop: { name: 'Scoop', cmd: 'scoop' },
+  brew: { name: 'Homebrew', cmd: 'brew' },
+  apt: { name: 'APT', cmd: 'apt' },
+  github: { name: 'GitHub', cmd: 'git' }
+} as const;

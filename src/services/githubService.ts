@@ -1,5 +1,6 @@
 
-import { WingetPackage } from '../types';
+import { WingetPackage, AppSettings } from '../types';
+import { logger } from '../utils/logger';
 
 // Helper function to get auth headers
 const getAuthHeaders = (token?: string): HeadersInit => {
@@ -19,7 +20,7 @@ export const validateGitHubToken = async (token: string): Promise<boolean> => {
     return false;
   }
 
-  console.log('Validating token starting with:', token.substring(0, 10) + '...');
+  logger.debug('Validating token starting with:', token.substring(0, 10) + '...');
 
   // Try Bearer first (works for fine-grained PATs and some classic PATs)
   try {
@@ -29,7 +30,7 @@ export const validateGitHubToken = async (token: string): Promise<boolean> => {
         'Accept': 'application/vnd.github.v3+json'
       }
     });
-    console.log('GitHub Bearer auth result:', res.status, res.statusText);
+    logger.debug('GitHub Bearer auth result:', res.status, res.statusText);
 
     if (res.ok) return true;
 
@@ -41,7 +42,7 @@ export const validateGitHubToken = async (token: string): Promise<boolean> => {
           'Accept': 'application/vnd.github.v3+json'
         }
       });
-      console.log('GitHub token auth result:', res.status, res.statusText);
+      logger.debug('GitHub token auth result:', res.status, res.statusText);
 
       if (res.ok) return true;
     }

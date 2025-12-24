@@ -157,3 +157,35 @@ export const gitRepoStatus = async (repoPath: string): Promise<string> => {
   }
   return await invokeTauri<string>('git_repo_status', { repoPath });
 };
+
+export const getDocumentDir = async (): Promise<string> => {
+  if (!isTauri()) return '';
+  try {
+    // @ts-ignore
+    return await window.__TAURI__.path.documentDir();
+  } catch (e) {
+    console.error("Failed to get document directory:", e);
+    return '';
+  }
+};
+
+export const downloadAndInstall = async (url: string, filename: string): Promise<string> => {
+  if (!isTauri()) {
+    throw new Error("Direct install requires desktop app");
+  }
+  return await invokeTauri<string>('download_and_install_command', { url, filename });
+};
+
+export const openUrl = async (url: string): Promise<void> => {
+  if (isTauri()) {
+    try {
+      // @ts-ignore
+      await window.__TAURI__.shell.open(url);
+    } catch (e) {
+      console.error("Failed to open URL:", e);
+      window.open(url, '_blank');
+    }
+  } else {
+    window.open(url, '_blank');
+  }
+};

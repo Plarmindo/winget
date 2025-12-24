@@ -1,54 +1,39 @@
-use serde::{Serialize, Deserialize};
+use serde::{Deserialize, Serialize};
 
 /// Structured error types for winget operations
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(tag = "type", content = "details")]
 pub enum WingetError {
     /// Admin privileges required for the operation
-    InsufficientPrivileges {
-        operation: String,
-        help: String,
-    },
-    
+    InsufficientPrivileges { operation: String, help: String },
+
     /// Package not found in repository
     PackageNotFound {
         query: String,
         suggestions: Vec<String>,
     },
-    
+
     /// Network connectivity issues
-    NetworkError {
-        message: String,
-    },
-    
+    NetworkError { message: String },
+
     /// Invalid input provided
-    InvalidInput {
-        field: String,
-        reason: String,
-    },
-    
+    InvalidInput { field: String, reason: String },
+
     /// Operation not yet implemented
-    OperationNotImplemented {
-        operation: String,
-        eta: String,
-    },
-    
+    OperationNotImplemented { operation: String, eta: String },
+
     /// Command execution failed
     CommandFailed {
         command: String,
         exit_code: i32,
         stderr_preview: String,
     },
-    
+
     /// Parser failed to process output
-    ParseError {
-        message: String,
-    },
-    
+    ParseError { message: String },
+
     /// Generic error with custom message
-    Other {
-        message: String,
-    },
+    Other { message: String },
 
     /// User cancelled the operation
     UserCancelled,
@@ -59,7 +44,10 @@ impl WingetError {
     pub fn user_message(&self) -> String {
         match self {
             Self::InsufficientPrivileges { operation, help } => {
-                format!("Administrator privileges required for '{}'.\n\n{}", operation, help)
+                format!(
+                    "Administrator privileges required for '{}'.\n\n{}",
+                    operation, help
+                )
             }
             Self::PackageNotFound { query, suggestions } => {
                 let mut msg = format!("Package '{}' not found.", query);
@@ -69,15 +57,25 @@ impl WingetError {
                 msg
             }
             Self::NetworkError { message } => {
-                format!("Network error: {}.\n\nPlease check your internet connection and try again.", message)
+                format!(
+                    "Network error: {}.\n\nPlease check your internet connection and try again.",
+                    message
+                )
             }
             Self::InvalidInput { field, reason } => {
                 format!("Invalid {}: {}", field, reason)
             }
             Self::OperationNotImplemented { operation, eta } => {
-                format!("The '{}' operation is not yet available.\n\nExpected availability: {}", operation, eta)
+                format!(
+                    "The '{}' operation is not yet available.\n\nExpected availability: {}",
+                    operation, eta
+                )
             }
-            Self::CommandFailed { command, exit_code, stderr_preview } => {
+            Self::CommandFailed {
+                command,
+                exit_code,
+                stderr_preview,
+            } => {
                 format!(
                     "Command failed: {}\nExit code: {}\n\nError: {}",
                     command, exit_code, stderr_preview
@@ -90,7 +88,7 @@ impl WingetError {
             Self::Other { message } => message.clone(),
         }
     }
-    
+
     /// Get error code for frontend error handling
     #[allow(dead_code)]
     pub fn error_code(&self) -> &'static str {
@@ -117,34 +115,44 @@ impl std::fmt::Display for WingetError {
 impl std::error::Error for WingetError {}
 
 /// Helper function to parse stderr and classify error type
+#[allow(dead_code)]
 pub fn parse_winget_error(stderr: &[u8], operation: &str) -> WingetError {
     let stderr_str = String::from_utf8_lossy(stderr).to_lowercase();
-    
+
     // Check for common error patterns
-    if stderr_str.contains("privilege") || stderr_str.contains("admin") || stderr_str.contains("access denied") {
+    if stderr_str.contains("privilege")
+        || stderr_str.contains("admin")
+        || stderr_str.contains("access denied")
+    {
         return WingetError::InsufficientPrivileges {
             operation: operation.to_string(),
             help: "Right-click the application and select 'Run as Administrator'.".to_string(),
         };
     }
-    
+
     if stderr_str.contains("not found") || stderr_str.contains("no package found") {
         return WingetError::PackageNotFound {
             query: operation.to_string(),
             suggestions: vec![],
         };
     }
-    
-    if stderr_str.contains("network") || stderr_str.contains("connection") || stderr_str.contains("timeout") {
+
+    if stderr_str.contains("network")
+        || stderr_str.contains("connection")
+        || stderr_str.contains("timeout")
+    {
         return WingetError::NetworkError {
             message: "Unable to connect to package repository".to_string(),
         };
     }
 
-    if stderr_str.contains("canceled") || stderr_str.contains("cancelled") || stderr_str.contains("operation was canceled") {
+    if stderr_str.contains("canceled")
+        || stderr_str.contains("cancelled")
+        || stderr_str.contains("operation was canceled")
+    {
         return WingetError::UserCancelled;
     }
-    
+
     // Default to command failed with sanitized error
     let preview = String::from_utf8_lossy(stderr)
         .lines()
@@ -155,7 +163,7 @@ pub fn parse_winget_error(stderr: &[u8], operation: &str) -> WingetError {
         .chars()
         .take(200)
         .collect();
-    
+
     WingetError::CommandFailed {
         command: format!("winget {}", operation),
         exit_code: 1,
@@ -171,7 +179,7 @@ mod tests {
     fn test_parse_insufficient_privileges() {
         let stderr = b"Error: This operation requires administrator privileges";
         let err = parse_winget_error(stderr, "install");
-        
+
         match err {
             WingetError::InsufficientPrivileges { operation, .. } => {
                 assert_eq!(operation, "install");
@@ -184,7 +192,7 @@ mod tests {
     fn test_parse_package_not_found() {
         let stderr = b"No package found matching input criteria.";
         let err = parse_winget_error(stderr, "NonExistent.Package");
-        
+
         match err {
             WingetError::PackageNotFound { query, .. } => {
                 assert_eq!(query, "NonExistent.Package");

@@ -16,24 +16,67 @@
       "shell": {
         "all": false,
         "execute": true,
+        "open": true,
         "scope": [
-          { "name": "winget", "cmd": "winget", "args": true },
-          { "name": "choco", "cmd": "choco", "args": true },
-          { "name": "scoop", "cmd": "scoop", "args": true },
-          { "name": "brew", "cmd": "brew", "args": true },
-          { "name": "apt", "cmd": "apt", "args": true },
-          { "name": "git", "cmd": "git", "args": true },
-          { "name": "powershell", "cmd": "powershell", "args": true },
-          { "name": "osascript", "cmd": "osascript", "args": true },
-          { "name": "x-terminal-emulator", "cmd": "x-terminal-emulator", "args": true }
+          {
+            "name": "winget",
+            "cmd": "winget",
+            "args": true
+          },
+          {
+            "name": "choco",
+            "cmd": "choco",
+            "args": true
+          },
+          {
+            "name": "scoop",
+            "cmd": "scoop",
+            "args": true
+          },
+          {
+            "name": "brew",
+            "cmd": "brew",
+            "args": true
+          },
+          {
+            "name": "apt",
+            "cmd": "apt",
+            "args": true
+          },
+          {
+            "name": "git",
+            "cmd": "git",
+            "args": true
+          },
+          {
+            "name": "powershell",
+            "cmd": "powershell",
+            "args": true
+          },
+          {
+            "name": "osascript",
+            "cmd": "osascript",
+            "args": true
+          },
+          {
+            "name": "x-terminal-emulator",
+            "cmd": "x-terminal-emulator",
+            "args": true
+          }
         ]
+      },
+      "path": {
+        "all": true
+      },
+      "dialog": {
+        "all": true
       }
     },
     "windows": [
       {
         "title": "WinGet Web Interface",
-        "width": 1280,
-        "height": 800,
+        "width": 1600,
+        "height": 900,
         "decorations": true,
         "transparent": false
       }

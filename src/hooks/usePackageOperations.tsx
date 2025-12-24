@@ -3,6 +3,9 @@ import { AppMode } from '../types';
 import { executeRealCommand } from '../services/wingetService';
 import { useAppStore } from '../stores/store';
 import { CloneDialog } from '../components/CloneDialog';
+import { getLatestRelease, getInstallableAssets } from '../services/githubService';
+import { downloadAndInstall } from '../services/tauriBridge';
+import { logger } from '../utils/logger';
 
 export const usePackageOperations = () => {
     const { setLoading, setError, settings, setStatusMessage, addHistoryEntry } = useAppStore();
@@ -34,7 +37,20 @@ export const usePackageOperations = () => {
 
             if (mode === 'install') {
                 // Show clone dialog instead of prompt
-                const cloneUrl = `https://github.com/${id}.git`;
+                // Handle case where id is already a full URL
+                let cloneUrl = id;
+                if (!id.startsWith('http') && !id.startsWith('git@')) {
+                    cloneUrl = `https://github.com/${id}.git`;
+                }
+
+                // Sanitize: Remove trailing slashes which can cause "repository not found"
+                cloneUrl = cloneUrl.replace(/\/+$/, '');
+
+                // Ensure it ends with .git if it's a github https url and doesn't have it
+                if (cloneUrl.startsWith('https://github.com') && !cloneUrl.endsWith('.git')) {
+                    cloneUrl += '.git';
+                }
+
                 setPendingClone({ id, url: cloneUrl });
                 setShowCloneDialog(true);
                 setLoading(false);
@@ -61,7 +77,7 @@ export const usePackageOperations = () => {
         } catch (error: any) {
             // Ignore user cancellation
             if (error.code === 'USER_CANCELLED') {
-                console.log("Operation cancelled by user.");
+                logger.debug('Operation cancelled by user');
                 return;
             }
 
@@ -77,6 +93,66 @@ export const usePackageOperations = () => {
 
             setError(error);
             setStatusMessage(`Failed to ${mode} ${id}`, 'error');
+            setTimeout(() => setStatusMessage('', 'error'), 5000);
+        } finally {
+            setLoading(false);
+        }
+    };
+
+    const handleDirectInstall = async (id: string) => {
+        const [owner, repo] = id.split('/');
+        setLoading(true);
+        setStatusMessage(`Checking releases for ${id}...`, 'info');
+
+        try {
+            const release = await getLatestRelease(owner, repo, settings.githubToken);
+            if (!release) throw new Error('No releases found for this repository.');
+
+            const assets = getInstallableAssets(release);
+            if (assets.length === 0) throw new Error('No installable binaries (.exe, .msi, etc.) found in the latest release.');
+
+            // For now, if multiple assets, we pick the first one or prompt?
+            // User requested: "Implement asset selection if multiple binaries are available"
+            // Let's implement a simple selection if > 1
+            let selectedAsset = assets[0];
+            if (assets.length > 1) {
+                const choice = confirm(`Multiple installable assets found:\n${assets.join('\n')}\n\nInstall the first one (${assets[0]})?`);
+                if (!choice) {
+                    setLoading(false);
+                    return;
+                }
+            }
+
+            const assetDetails = release.assets.find(a => a.name === selectedAsset);
+            if (!assetDetails) throw new Error('Selected asset not found.');
+
+            setStatusMessage(`Downloading ${selectedAsset}...`, 'info');
+            await downloadAndInstall(assetDetails.download_url, selectedAsset);
+
+            setStatusMessage(`Successfully launched installer for ${selectedAsset}!`, 'success');
+
+            // Track in history
+            addHistoryEntry({
+                operation: 'install',
+                packageId: id,
+                packageName: id,
+                manager: 'github',
+                status: 'success',
+            });
+
+            setTimeout(() => setStatusMessage('', 'success'), 5000);
+        } catch (error: any) {
+            addHistoryEntry({
+                operation: 'install',
+                packageId: id,
+                packageName: id,
+                manager: 'github',
+                status: 'error',
+                errorMessage: error.message || String(error),
+            });
+
+            setError(error);
+            setStatusMessage(`Failed to install ${id}: ${error.message || error}`, 'error');
             setTimeout(() => setStatusMessage('', 'error'), 5000);
         } finally {
             setLoading(false);
@@ -139,5 +215,5 @@ export const usePackageOperations = () => {
         />
     ) : null;
 
-    return { executeOperation, operationResult, CloneDialogComponent };
+    return { executeOperation, operationResult, CloneDialogComponent, handleDirectInstall };
 };
