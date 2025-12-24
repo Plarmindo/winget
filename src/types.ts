@@ -42,7 +42,7 @@ export type ChatModelType = 'fast' | 'balanced' | 'smart' | 'thinking';
 
 export type AppMode = 'install' | 'upgrade' | 'uninstall' | 'github';
 
-export type GitHubAction = 'star' | 'unstar' | 'fork' | 'open' | 'watch' | 'unwatch' | 'details';
+export type GitHubAction = 'star' | 'unstar' | 'fork' | 'open' | 'watch' | 'unwatch' | 'details' | 'clone';
 
 export type PackageManagerType = 'winget' | 'chocolatey' | 'scoop' | 'brew' | 'apt' | 'github';
 

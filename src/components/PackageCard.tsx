@@ -11,11 +11,12 @@ interface PackageCardProps {
   handleSearch: (q: string) => void;
   onFetchDetails?: (pkg: WingetPackage) => Promise<string>;
   onGitHubAction?: (id: string, action: GitHubAction) => void;
+  onDirectInstall?: (id: string) => void;
   isDesktop?: boolean;
   style?: React.CSSProperties;
 }
 
-export const PackageCard: React.FC<PackageCardProps> = ({ pkg, onExecute, handleSearch, onFetchDetails, onGitHubAction, isDesktop, style }) => {
+export const PackageCard: React.FC<PackageCardProps> = ({ pkg, onExecute, handleSearch, onFetchDetails, onGitHubAction, onDirectInstall, isDesktop, style }) => {
   const { cart, addToCart, removeFromCart, mode, settings, compareList, toggleCompare, setPendingChatQuery, setMode, toggleFavorite, isFavorite } = useAppStore();
 
   const isInCart = !!cart.find(c => c.id === pkg.id);
@@ -128,7 +129,12 @@ export const PackageCard: React.FC<PackageCardProps> = ({ pkg, onExecute, handle
   const config = getModeConfig();
 
   return (
-    <div style={style} className={`group relative bg-[var(--app-surface)] border ${isInCompare ? 'border-[var(--app-primary)] ring-2 ring-[var(--app-primary)]/30' : 'border-[var(--app-border)] hover:border-[var(--app-primary)]/50'} rounded-xl p-4 transition-all duration-300 flex flex-col shadow-lg overflow-hidden h-full`}>
+    <div
+      style={style}
+      role="article"
+      aria-label={`Package: ${displayName}`}
+      className={`group relative bg-[var(--app-surface)] border ${isInCompare ? 'border-[var(--app-primary)] ring-2 ring-[var(--app-primary)]/30' : 'border-[var(--app-border)] hover:border-[var(--app-primary)]/50'} rounded-xl p-4 transition-all duration-300 flex flex-col shadow-lg overflow-hidden h-full`}
+    >
       {/* License Status Badge */}
       {pkg.isFree !== undefined && (
         <div className={`absolute top-3 right-3 p-1.5 rounded-full z-10 ${pkg.isFree ? 'bg-emerald-500/10 text-emerald-500 border border-emerald-500/20' : 'bg-amber-500/10 text-amber-500 border border-amber-500/20'}`} title={pkg.isFree ? "Free / Open Source" : "Paid / Freemium / Trial"}>
@@ -142,6 +148,8 @@ export const PackageCard: React.FC<PackageCardProps> = ({ pkg, onExecute, handle
           e.stopPropagation();
           toggleFavorite(pkg.id);
         }}
+        aria-label={isFavorite(pkg.id) ? `Remove ${displayName} from favorites` : `Add ${displayName} to favorites`}
+        aria-pressed={isFavorite(pkg.id)}
         className={`absolute top-3 left-3 p-1.5 rounded-full z-10 transition-all ${isFavorite(pkg.id)
           ? 'bg-amber-500/20 text-amber-500 border border-amber-500/30'
           : 'bg-[var(--app-bg)]/80 text-[var(--app-text-muted)] border border-[var(--app-border)] hover:bg-amber-500/10 hover:text-amber-500'
@@ -155,10 +163,10 @@ export const PackageCard: React.FC<PackageCardProps> = ({ pkg, onExecute, handle
       {isGitHub && pkg.releaseType && (
         <div
           className={`absolute top-3 left-14 px-2 py-1 rounded-full text-[10px] font-bold z-10 flex items-center gap-1 ${pkg.releaseType === 'binary'
-              ? 'bg-green-500/20 text-green-500 border border-green-500/30'
-              : pkg.releaseType === 'source'
-                ? 'bg-blue-500/20 text-blue-500 border border-blue-500/30'
-                : 'bg-gray-500/20 text-gray-400 border border-gray-500/30'
+            ? 'bg-green-500/20 text-green-500 border border-green-500/30'
+            : pkg.releaseType === 'source'
+              ? 'bg-blue-500/20 text-blue-500 border border-blue-500/30'
+              : 'bg-gray-500/20 text-gray-400 border border-gray-500/30'
             }`}
           title={
             pkg.releaseType === 'binary'
@@ -220,13 +228,20 @@ export const PackageCard: React.FC<PackageCardProps> = ({ pkg, onExecute, handle
               </div>
             )}
           </div>
-          <button onClick={toggleExpand} className="shrink-0 text-[10px] text-[var(--app-primary)] mt-1 flex items-center gap-1 w-full justify-center hover:bg-[var(--app-bg)] rounded py-0.5">{isExpanded ? <ChevronUp size={10} /> : <ChevronDown size={10} />}</button>
+          <button
+            onClick={toggleExpand}
+            aria-expanded={isExpanded}
+            aria-label={isExpanded ? 'Collapse details' : 'Expand details'}
+            className="shrink-0 text-[10px] text-[var(--app-primary)] mt-1 flex items-center gap-1 w-full justify-center hover:bg-[var(--app-bg)] rounded py-0.5"
+          >
+            {isExpanded ? <ChevronUp size={10} /> : <ChevronDown size={10} />}
+          </button>
         </div>
       )}
 
       <div className="mt-auto space-y-2 shrink-0">
         {(pkg.source === 'github' || settings.activePackageManager === 'github') ? (
-          <div className="grid grid-cols-7 gap-1">
+          <div className="grid grid-cols-8 gap-1">
             <button onClick={() => setPendingChatQuery(generateAppDetailsPrompt(pkg.name, pkg.id))} className="flex items-center justify-center py-1 bg-[var(--app-bg)] rounded text-[var(--app-text-muted)] hover:text-[var(--app-primary)] text-[10px]" title="Ask AI"><Sparkles size={14} /></button>
             <button onClick={(e) => { e.stopPropagation(); onGitHubAction?.(pkg.id, 'star'); }} className="flex items-center justify-center py-1 bg-[var(--app-bg)] rounded text-[var(--app-text-muted)] hover:text-amber-400 text-[10px]" title="Star/Unstar">
               <Star size={14} />
@@ -242,6 +257,9 @@ export const PackageCard: React.FC<PackageCardProps> = ({ pkg, onExecute, handle
             </button>
             <button onClick={(e) => { e.stopPropagation(); onGitHubAction?.(pkg.id, 'open'); }} className="flex items-center justify-center py-1 bg-[var(--app-bg)] rounded text-[var(--app-text-muted)] hover:text-[var(--app-text)] text-[10px]" title="View on GitHub">
               <ExternalLink size={14} />
+            </button>
+            <button onClick={(e) => { e.stopPropagation(); toggleCompare(pkg); }} className={`flex items-center justify-center py-1 rounded text-[10px] transition-colors ${isInCompare ? 'bg-[var(--app-primary)] text-white' : 'bg-[var(--app-bg)] text-[var(--app-text-muted)] hover:text-[var(--app-text)]'}`} title="Compare">
+              <Scale size={14} />
             </button>
             <button onClick={handleCopy} className={`flex items-center justify-center py-1 rounded text-[10px] transition-colors ${showCopied ? 'bg-green-500/20 text-green-500' : 'bg-[var(--app-bg)] text-[var(--app-text-muted)] hover:text-[var(--app-text)]'}`} title="Copy Clone Command">
               <Terminal size={14} />
@@ -268,6 +286,15 @@ export const PackageCard: React.FC<PackageCardProps> = ({ pkg, onExecute, handle
                 {isExecuting ? <Loader2 size={16} className="animate-spin" /> : config.icon}
                 <span>{isExecuting ? 'Processing...' : `${config.text} Now`}</span>
               </button>
+              {isGitHub && pkg.releaseType === 'binary' && onDirectInstall && (
+                <button
+                  onClick={(e) => { e.stopPropagation(); onDirectInstall(pkg.id); }}
+                  className="flex-1 flex items-center justify-center gap-2 py-2 rounded-lg text-sm font-medium text-white transition-all shadow-md bg-emerald-600 hover:bg-emerald-500"
+                >
+                  <Plus size={16} />
+                  <span>Direct Install</span>
+                </button>
+              )}
               <button
                 onClick={() => {
                   if (config.disabled) return;

@@ -12,12 +12,13 @@ interface PackageGridProps {
   handleSearch: (query: string) => void;
   onFetchDetails?: (pkg: WingetPackage) => Promise<string>;
   onGitHubAction?: (id: string, action: GitHubAction) => void;
+  onDirectInstall?: (id: string) => void;
   isDesktop?: boolean;
   loading?: boolean;
 }
 
 export const PackageGrid: React.FC<PackageGridProps> = ({
-  packages, onExecute, handleSearch, onFetchDetails, onGitHubAction, isDesktop, loading = false
+  packages, onExecute, handleSearch, onFetchDetails, onGitHubAction, onDirectInstall, isDesktop, loading = false
 }) => {
   const { settings } = useAppStore();
   const [currentPage, setCurrentPage] = useState(1);
@@ -61,6 +62,7 @@ export const PackageGrid: React.FC<PackageGridProps> = ({
             <PackageCard
               pkg={pkg}
               onExecute={onExecute}
+              onDirectInstall={onDirectInstall}
               handleSearch={handleSearch}
               onFetchDetails={onFetchDetails}
               onGitHubAction={onGitHubAction}

@@ -1,32 +1,31 @@
 import { useState, useEffect } from 'react';
-import { RefreshCw, Trash2, Download, Scale, X, Sparkles, Github, Star, Search as SearchIcon } from 'lucide-react';
 import { AppMode, WingetPackage } from './types';
 import { parseWingetOutput, generateAppDetailsPrompt, generateComparisonPrompt, generateAIResponse } from './services/wingetService';
-import { isTauri } from './services/tauriBridge';
-import { PRESET_CATEGORIES, STORAGE_KEYS, DEFAULT_THEMES } from './constants';
+import { isTauri, openUrl } from './services/tauriBridge';
+import { STORAGE_KEYS, DEFAULT_THEMES } from './constants';
 import { useAppStore } from './stores/store';
 import { usePackageOperations } from './hooks/usePackageOperations';
 import { useSearchLogic } from './hooks/useSearchLogic';
 import { useKeyboardShortcuts } from './hooks/useKeyboardShortcuts';
-import { HistoryModal } from './components/HistoryModal';
+import { logger } from './utils/logger';
 
 // Components
-import { PackageGrid } from './components/PackageGrid';
+import { HistoryModal } from './components/HistoryModal';
 import { ScriptDrawer } from './components/ScriptDrawer';
 import { ChatInterface } from './components/ChatInterface';
 import { SettingsModal } from './components/SettingsModal';
 import { Navbar } from './components/Navbar';
-import { MaintenanceImport } from './components/MaintenanceImport';
 import { SearchInput } from './components/SearchInput';
 import { CompareModal } from './components/CompareModal';
 import { HelpModal } from './components/HelpModal';
-import { WelcomeScreen } from './components/WelcomeScreen';
 import { ProgressBar } from './components/ProgressBar';
-import { GitHubPanel } from './components/GitHubPanel';
 import { StatusBar } from './components/StatusBar';
-import { FilterBar } from './components/FilterBar';
-import { EmptyState } from './components/EmptyState';
 import ErrorBoundary from './components/ErrorBoundary';
+
+// New extracted components
+import { ModeNavigation } from './components/layout/ModeNavigation';
+import { CompareBar } from './components/CompareBar';
+import { ContentArea } from './components/ContentArea';
 
 function App() {
   // Global Store
@@ -39,12 +38,11 @@ function App() {
     error, setError,
     clearCart,
     compareList, clearCompare,
-    pendingChatQuery, setPendingChatQuery,
-    sortBy
+    pendingChatQuery, setPendingChatQuery
   } = useAppStore();
 
   // Custom Hooks
-  const { executeOperation, CloneDialogComponent } = usePackageOperations();
+  const { executeOperation, CloneDialogComponent, handleDirectInstall } = usePackageOperations();
   const { handleSearch, handleStopSearch, searched, setSearched, setHasMore, storePackagesForFiltering } = useSearchLogic();
 
   // Keyboard Shortcuts
@@ -100,7 +98,7 @@ function App() {
         // Dynamic import to avoid issues in pure web mode if not handled by bundler
         const { loadApiConfig } = await import('./services/tauriBridge');
         const config = await loadApiConfig();
-        console.log("Loaded Secure Config:", config);
+        logger.debug('Loaded Secure Config', config);
 
         if (config) {
           // Only update if we have meaningful data, or if we want to enforce defaults
@@ -120,7 +118,7 @@ function App() {
           setTimeout(() => useAppStore.getState().setStatusMessage(null), 4000);
         }
       } catch (e) {
-        console.error("Failed to load secure config:", e);
+        logger.error('Failed to load secure config', e);
       }
     };
     loadConfig();
@@ -288,148 +286,32 @@ function App() {
     executeOperation(id, currentMode);
   };
 
-  const renderContent = () => {
-    if (error) {
-      return (
-        <div className="flex flex-col items-center justify-center py-12 text-center animate-in fade-in slide-in-from-bottom-4 duration-500">
-          <div className="bg-red-500/10 text-red-500 p-4 rounded-full mb-4">
-            <X size={32} />
-          </div>
-          <h3 className="text-xl font-bold mb-2">Something went wrong</h3>
-          <div className="text-left bg-[var(--app-surface)] border border-red-500/20 p-4 rounded-lg mb-6 w-full max-w-2xl overflow-auto max-h-[300px]">
-            <pre className="whitespace-pre-wrap text-sm font-mono text-[var(--app-text)]">
-              {typeof error === 'string' ? error : (error.message || "An unexpected error occurred.")}
-            </pre>
-          </div>
-          <button
-            onClick={() => { setError(null); handleSearch(query || "POPULAR_ESSENTIALS"); }}
-            className="px-6 py-2 bg-[var(--app-primary)] text-white rounded-lg font-medium hover:opacity-90 transition-opacity"
-          >
-            Try Again
-          </button>
-        </div>
-      );
+  const handleGitHubAction = (id: string, action: import('./types').GitHubAction) => {
+    const [owner, repo] = id.split('/');
+    // Check if id is already a URL or just owner/repo
+    const url = id.startsWith('http') ? id : `https://github.com/${owner}/${repo}`;
+
+    switch (action) {
+      case 'open':
+      case 'star':
+      case 'unstar':
+      case 'watch':
+      case 'unwatch':
+      case 'fork':
+      case 'details':
+        openUrl(url).catch(console.error);
+        break;
+      case 'clone':
+        // Ensure we treat this as an install operation (which handles cloning for github)
+        // We might need to handle the case where activePackageManager is NOT github
+        // But usePackageOperations checks settings.activePackageManager.
+        // For now, assume the user is in a context where cloning is appropriate or force it?
+        // Actually, executeOperation checks settings.activePackageManager. 
+        // If we want to force clone, we might need a specific/direct clone function.
+        // But let's try calling executeOperation with 'install' for now.
+        executeOperation(id, 'install');
+        break;
     }
-
-    if (packages.length === 0 && !searched && !loading && mode !== 'github') {
-      if (mode === 'install') {
-        return (
-          <WelcomeScreen
-            handleSearch={handleSearch}
-            openSettings={() => setIsSettingsOpen(true)}
-          />
-        );
-      }
-      return (
-        <MaintenanceImport
-          importText={importText}
-          setImportText={setImportText}
-          importError={importError}
-          handleImport={handleImport}
-        />
-      );
-    }
-
-    if (packages.length === 0 && searched && !loading && mode !== 'github') {
-      return (
-        <div className="text-center py-12">
-          <p className="text-[var(--app-text-muted)]">No packages found.</p>
-        </div>
-      );
-    }
-
-    if (mode === 'github') {
-      return (
-        <ErrorBoundary>
-          <GitHubPanel
-            token={settings.githubToken}
-            query={query}
-            onClone={(url, _name) => executeOperation(`git clone ${url}`, 'install')}
-            onFetchDetails={handleFetchAiDetails}
-          />
-        </ErrorBoundary>
-      );
-    }
-
-    return (
-      <>
-        {/* Category buttons - only show in install mode */}
-        {mode === 'install' && (
-          <div className="flex flex-wrap gap-2 mb-8">
-            <button onClick={() => handleSearch("POPULAR_ESSENTIALS")} className="px-4 py-1.5 rounded-full text-xs font-medium border bg-[var(--app-primary)]/10 text-[var(--app-primary)] border-[var(--app-primary)]/30">Essentials</button>
-            <button
-              onClick={() => {
-                const { favorites, packages: allPackages } = useAppStore.getState();
-                const favPackages = allPackages.filter(p => favorites.includes(p.id));
-                if (favPackages.length > 0) {
-                  setPackages(favPackages);
-                  setSearched(true);
-                } else {
-                  setError('No favorites yet. Star some packages to see them here!');
-                }
-              }}
-              className="px-4 py-1.5 rounded-full text-xs font-medium bg-amber-500/10 text-amber-500 border border-amber-500/30 hover:bg-amber-500/20 flex items-center gap-1"
-            >
-              <Star size={12} className="fill-current" />
-              Favorites
-            </button>
-            {PRESET_CATEGORIES.map(cat => <button key={cat} onClick={() => handleSearch(cat.toLowerCase())} className="px-4 py-1.5 rounded-full text-xs font-medium bg-[var(--app-surface)] text-[var(--app-text-muted)] border border-[var(--app-border)] hover:bg-[var(--app-border)] hover:text-[var(--app-text)]">{cat}</button>)}
-          </div>
-        )}
-        <div className="flex items-center justify-between mb-6">
-          <h2 className="text-2xl font-bold">{searched ? (query ? `Results for "${query}"` : 'Recommended') : 'Popular'}</h2>
-        </div>
-
-        {/* Filter Bar - show when packages exist */}
-        {packages.length > 0 && <FilterBar />}
-
-        {/* Package Grid or Empty State */}
-        <div className="w-full mb-8">
-          {searched && packages.length === 0 && !loading ? (
-            <EmptyState
-              icon={SearchIcon}
-              title="No packages found"
-              description={query ? `No results for "${query}".Try different keywords or check your package manager settings.` : "Search for packages to get started."}
-              action={query ? {
-                label: "Clear Search",
-                onClick: () => {
-                  setQuery('');
-                  setPackages([]);
-                  setSearched(false);
-                }
-              } : undefined}
-            />
-          ) : (
-            <PackageGrid
-              packages={(() => {
-                // Apply sorting
-                const sorted = [...packages].sort((a, b) => {
-                  if (sortBy === 'name-asc') {
-                    return (a.name || '').localeCompare(b.name || '');
-                  } else if (sortBy === 'name-desc') {
-                    return (b.name || '').localeCompare(a.name || '');
-                  } else if (sortBy === 'manager') {
-                    const managerA = a.source || '';
-                    const managerB = b.source || '';
-                    if (managerA !== managerB) {
-                      return managerA.localeCompare(managerB);
-                    }
-                    return (a.name || '').localeCompare(b.name || '');
-                  }
-                  return 0;
-                });
-                return sorted;
-              })()}
-              onExecute={handleDirectExecution}
-              handleSearch={handleSearch}
-              onFetchDetails={handleFetchAiDetails}
-              isDesktop={isDesktop}
-              loading={loading}
-            />
-          )}
-        </div>
-      </>
-    );
   };
 
   return (
@@ -440,7 +322,7 @@ function App() {
         onClose={() => setIsSettingsOpen(false)}
         onClearData={handleClearData}
       />
-      <HelpModal isOpen={isHelpOpen} onClose={() => setIsHelpOpen(false)} />
+      <HelpModal isOpen={isHelpOpen} onClose={() => setIsHelpOpen(false)} onOpenSettings={() => setIsSettingsOpen(true)} />
       <HistoryModal isOpen={isHistoryOpen} onClose={() => setIsHistoryOpen(false)} />
       <CompareModal isOpen={isCompareModalOpen} onClose={() => setIsCompareModalOpen(false)} result={compareResult} isLoading={isComparing} />
 
@@ -454,9 +336,7 @@ function App() {
         resetState={() => { setMode('install'); setSearched(false); setPackages([]); setQuery(''); setError(null); }}
       />
 
-      <div className="bg-[var(--app-surface)] border-b border-[var(--app-border)] py-2"><div className="max-w-7xl mx-auto px-4 flex gap-1 justify-center sm:justify-start">
-        {['install', 'upgrade', 'uninstall', 'github'].map(m => <button key={m} onClick={() => setMode(m as AppMode)} className={`flex items - center gap - 2 px - 4 py - 2 rounded - lg text - sm font - medium transition - all ${mode === m ? (m === 'upgrade' ? 'bg-emerald-600 text-white' : m === 'uninstall' ? 'bg-red-600 text-white' : m === 'github' ? 'bg-gray-800 text-white' : 'bg-[var(--app-primary)] text-white') : 'text-[var(--app-text-muted)] hover:bg-[var(--app-bg)]'} `}>{m === 'install' ? <Download size={16} /> : m === 'upgrade' ? <RefreshCw size={16} /> : m === 'uninstall' ? <Trash2 size={16} /> : <Github size={16} />} <span className="capitalize">{m}</span></button>)}
-      </div></div>
+      <ModeNavigation mode={mode} setMode={setMode} />
 
       {/* Search Bar (Mobile) - Visible in all modes */}
       <div className="md:hidden p-4 border-b border-[var(--app-border)] bg-[var(--app-surface)]/50">
@@ -471,24 +351,39 @@ function App() {
       </div>
 
 
-      <main className="flex-1 max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8 py-8 mb-20">{renderContent()}</main>
 
-      {/* Comparison Floating Bar */}
-      {compareList.length > 0 && (
-        <div className="fixed bottom-6 left-1/2 transform -translate-x-1/2 z-40 animate-in slide-in-from-bottom-6 fade-in duration-300">
-          <div className="bg-[var(--app-surface)] border border-[var(--app-border)] shadow-2xl rounded-full px-6 py-3 flex items-center gap-4">
-            <div className="flex items-center gap-2 text-sm font-semibold">
-              <Scale size={18} className="text-[var(--app-primary)]" />
-              <span>{compareList.length} Selected</span>
-            </div>
-            <div className="h-6 w-[1px] bg-[var(--app-border)]"></div>
-            <button onClick={runComparison} disabled={compareList.length < 2} className={`flex items - center gap - 2 px - 4 py - 1.5 rounded - full text - xs font - bold transition - all ${compareList.length >= 2 ? 'bg-[var(--app-primary)] text-white hover:opacity-90' : 'bg-[var(--app-bg)] text-[var(--app-text-muted)] cursor-not-allowed'} `}>
-              <Sparkles size={14} /> Compare Selected
-            </button>
-            <button onClick={clearCompare} className="p-1 hover:bg-[var(--app-bg)] rounded-full text-[var(--app-text-muted)] hover:text-[var(--app-text)] transition-colors"><X size={16} /></button>
-          </div>
-        </div>
-      )}
+      <main className="flex-1 max-w-[1920px] w-full mx-auto px-4 sm:px-6 lg:px-8 py-8 mb-20">
+        <ContentArea
+          packages={packages}
+          mode={mode}
+          loading={loading}
+          searched={searched}
+          query={query}
+          error={error}
+          isDesktop={isDesktop}
+          importText={importText}
+          setImportText={setImportText}
+          importError={importError}
+          handleSearch={handleSearch}
+          handleImport={handleImport}
+          handleDirectExecution={handleDirectExecution}
+          handleFetchAiDetails={handleFetchAiDetails}
+          handleDirectInstall={handleDirectInstall}
+          handleGitHubAction={handleGitHubAction}
+          executeOperation={executeOperation}
+          openSettings={() => setIsSettingsOpen(true)}
+          setError={setError}
+          setPackages={setPackages}
+          setSearched={setSearched}
+          setQuery={setQuery}
+        />
+      </main>
+
+      <CompareBar
+        compareList={compareList}
+        onCompare={runComparison}
+        onClear={clearCompare}
+      />
 
       <ScriptDrawer
         isOpen={isDrawerOpen}

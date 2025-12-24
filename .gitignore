@@ -25,3 +25,29 @@ dist-ssr
 *.sw?
 
 tsc_output.txt
+tsc_errors.txt
+build_error.txt
+
+# Debug and temp files
+error_*
+upgrade*.txt
+wingetdata*.txt
+test_*
+help.txt
+output.txt
+*.backup
+top_files*.txt
+tsc_*.txt
+build_error.txt
+*.bat
+
+# IDE and editor files
+.vscode/settings.json
+.idea/
+*.swp
+*.swo
+*~
+
+# OS files
+.DS_Store
+Thumbs.db

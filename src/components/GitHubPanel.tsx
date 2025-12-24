@@ -14,17 +14,20 @@ import {
     GitHubRepo, GitHubUser, GitHubBranch, GitHubCommit, GitHubIssue, GitHubPR, GitHubRelease, GitHubContent, CreateRepoOptions,
     detectReleaseType
 } from '../services/githubService';
+import { openUrl } from '../services/tauriBridge';
 import { WingetPackage, GitHubAction } from '../types';
+import { logger } from '../utils/logger';
 import { PackageGrid } from './PackageGrid';
 
 interface GitHubPanelProps {
     token: string;
     query: string;
     onClone?: (repoUrl: string, repoName: string) => void;
+    onDirectInstall?: (repoId: string) => void;
     onFetchDetails?: (pkg: WingetPackage) => Promise<string>;
 }
 
-export const GitHubPanel: React.FC<GitHubPanelProps> = ({ token, query, onClone, onFetchDetails }) => {
+export const GitHubPanel: React.FC<GitHubPanelProps> = ({ token, query, onClone, onDirectInstall, onFetchDetails }) => {
     const [user, setUser] = useState<GitHubUser | null>(null);
     const [repos, setRepos] = useState<GitHubRepo[]>([]);
     const [starredRepoObjects, setStarredRepoObjects] = useState<GitHubRepo[]>([]);
@@ -141,6 +144,7 @@ export const GitHubPanel: React.FC<GitHubPanelProps> = ({ token, query, onClone,
     };
 
     const handleGitHubAction = async (id: string, action: GitHubAction) => {
+        logger.debug('[GitHubPanel] handleGitHubAction called with:', { id, action });
         const [owner, repo] = id.split('/');
         try {
             switch (action) {
@@ -190,7 +194,8 @@ export const GitHubPanel: React.FC<GitHubPanelProps> = ({ token, query, onClone,
                     }
                     break;
                 case 'open':
-                    window.open(`https://github.com/${id}`, '_blank');
+                    logger.debug('[GitHubPanel] Opening URL:', `https://github.com/${id}`);
+                    openUrl(`https://github.com/${id}`);
                     break;
             }
         } catch (e: any) {
@@ -309,6 +314,7 @@ export const GitHubPanel: React.FC<GitHubPanelProps> = ({ token, query, onClone,
                 packages={mappedPackages}
                 handleSearch={() => { }}
                 onExecute={(id) => onClone?.(`https://github.com/${id}.git`, id.split('/')[1])}
+                onDirectInstall={onDirectInstall}
                 onFetchDetails={onFetchDetails}
                 onGitHubAction={handleGitHubAction}
                 isDesktop={true}
@@ -418,7 +424,7 @@ export const GitHubPanel: React.FC<GitHubPanelProps> = ({ token, query, onClone,
                                         {detailsModal.contents.slice(0, 20).map(item => (
                                             <button
                                                 key={item.path}
-                                                onClick={() => item.type === 'dir' ? navigateToFolder(item.path) : window.open(item.html_url, '_blank')}
+                                                onClick={() => item.type === 'dir' ? navigateToFolder(item.path) : openUrl(item.html_url)}
                                                 className="flex items-center gap-2 p-1.5 text-xs hover:bg-[var(--app-surface)] rounded text-left"
                                             >
                                                 {item.type === 'dir' ? <Folder size={14} className="text-amber-400" /> : <File size={14} className="text-[var(--app-text-muted)]" />}
@@ -452,15 +458,15 @@ export const GitHubPanel: React.FC<GitHubPanelProps> = ({ token, query, onClone,
 
                                 {/* Action Buttons */}
                                 <div className="flex gap-2 pt-2">
-                                    <a href={`https://github.com/${detailsModal.repoId}`} target="_blank" rel="noopener noreferrer" className="flex-1 py-2 bg-[var(--app-primary)] text-white rounded-lg text-center font-medium hover:opacity-90">
+                                    <button onClick={() => openUrl(`https://github.com/${detailsModal.repoId}`)} className="flex-1 py-2 bg-[var(--app-primary)] text-white rounded-lg text-center font-medium hover:opacity-90">
                                         View on GitHub
-                                    </a>
-                                    <a href={`https://github.com/${detailsModal.repoId}/issues`} target="_blank" rel="noopener noreferrer" className="flex-1 py-2 bg-[var(--app-bg)] border border-[var(--app-border)] rounded-lg text-center font-medium hover:bg-[var(--app-surface)]">
+                                    </button>
+                                    <button onClick={() => openUrl(`https://github.com/${detailsModal.repoId}/issues`)} className="flex-1 py-2 bg-[var(--app-bg)] border border-[var(--app-border)] rounded-lg text-center font-medium hover:bg-[var(--app-surface)]">
                                         Issues
-                                    </a>
-                                    <a href={`https://github.com/${detailsModal.repoId}/pulls`} target="_blank" rel="noopener noreferrer" className="flex-1 py-2 bg-[var(--app-bg)] border border-[var(--app-border)] rounded-lg text-center font-medium hover:bg-[var(--app-surface)]">
+                                    </button>
+                                    <button onClick={() => openUrl(`https://github.com/${detailsModal.repoId}/pulls`)} className="flex-1 py-2 bg-[var(--app-bg)] border border-[var(--app-border)] rounded-lg text-center font-medium hover:bg-[var(--app-surface)]">
                                         PRs
-                                    </a>
+                                    </button>
                                 </div>
                             </div>
                         )}

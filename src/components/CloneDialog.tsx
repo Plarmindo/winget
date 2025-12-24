@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { X, Folder, GitBranch, HardDrive, Clock } from 'lucide-react';
-import { isTauri } from '../services/tauriBridge';
+import { isTauri, getDocumentDir } from '../services/tauriBridge';
 
 interface CloneDialogProps {
     isOpen: boolean;
@@ -15,13 +15,32 @@ export const CloneDialog: React.FC<CloneDialogProps> = ({ isOpen, onClose, onCon
     const [rememberLocation, setRememberLocation] = useState(false);
 
     useEffect(() => {
-        if (isOpen) {
-            // Try to load last used location or generate default
-            const lastLocation = localStorage.getItem('lastCloneLocation');
-            const username = process.env.USERNAME || 'user';
-            const defaultPath = lastLocation || `C:\\Users\\${username}\\Documents\\GitHub\\${repoName}`;
-            setDestination(defaultPath);
-        }
+        const initPath = async () => {
+            if (isOpen) {
+                // Try to load last used location
+                const lastLocation = localStorage.getItem('lastCloneLocation');
+                if (lastLocation) {
+                    setDestination(`${lastLocation}\\${repoName}`);
+                    return;
+                }
+
+                // Generate default using Tauri API if available
+                if (isTauri()) {
+                    const docDir = await getDocumentDir();
+                    if (docDir) {
+                        // Ensure no trailing slash on docDir before joining
+                        const sanitizedDocDir = docDir.replace(/[\\/]+$/, '');
+                        setDestination(`${sanitizedDocDir}\\GitHub\\${repoName}`);
+                        return;
+                    }
+                }
+
+                // Fallback for web or if API fails
+                setDestination(`C:\\Users\\user\\Documents\\GitHub\\${repoName}`);
+            }
+        };
+
+        initPath();
     }, [isOpen, repoName]);
 
     const handleBrowse = async () => {
@@ -53,8 +72,11 @@ export const CloneDialog: React.FC<CloneDialogProps> = ({ isOpen, onClose, onCon
 
         if (rememberLocation) {
             // Save the parent directory for future use
-            const parentDir = destination.substring(0, destination.lastIndexOf('\\'));
-            localStorage.setItem('lastCloneLocation', parentDir);
+            const lastSlash = destination.lastIndexOf('\\');
+            if (lastSlash !== -1) {
+                const parentDir = destination.substring(0, lastSlash);
+                localStorage.setItem('lastCloneLocation', parentDir);
+            }
         }
 
         onConfirm(destination);
@@ -159,8 +181,8 @@ export const CloneDialog: React.FC<CloneDialogProps> = ({ isOpen, onClose, onCon
                         onClick={handleConfirm}
                         disabled={!destination.trim()}
                         className={`px-6 py-2 rounded-lg font-medium transition-all ${destination.trim()
-                                ? 'bg-[var(--app-primary)] text-white hover:opacity-90 shadow-lg'
-                                : 'bg-[var(--app-border)] text-[var(--app-text-muted)] cursor-not-allowed'
+                            ? 'bg-[var(--app-primary)] text-white hover:opacity-90 shadow-lg'
+                            : 'bg-[var(--app-border)] text-[var(--app-text-muted)] cursor-not-allowed'
                             }`}
                     >
                         Clone Repository
