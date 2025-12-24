@@ -93,6 +93,42 @@
     width: 100%;
     min-height: 100vh;
   }
+
+  /* Accessibility: Skip to main content link */
+  .skip-to-content {
+    position: absolute;
+    left: -9999px;
+    z-index: 9999;
+    padding: 1rem;
+    background: var(--app-primary);
+    color: white;
+    text-decoration: none;
+    font-weight: 600;
+  }
+
+  .skip-to-content:focus {
+    left: 50%;
+    transform: translateX(-50%);
+    top: 0;
+  }
+
+  /* Accessibility: Enhanced focus visible styles */
+  :focus-visible {
+    outline: 2px solid var(--app-primary);
+    outline-offset: 2px;
+  }
+
+  /* Reduce motion for users who prefer it */
+  @media (prefers-reduced-motion: reduce) {
+
+    *,
+    *::before,
+    *::after {
+      animation-duration: 0.01ms !important;
+      animation-iteration-count: 1 !important;
+      transition-duration: 0.01ms !important;
+    }
+  }
 }
 
 /* Custom Scrollbar */
