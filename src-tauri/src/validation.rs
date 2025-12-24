@@ -5,7 +5,7 @@ use regex::Regex;
 lazy_static! {
     // Allow backslashes for MSIX packages like "MSIX\Microsoft.Something"
     // Allow forward slashes for GitHub repos like "owner/repo"
-    static ref PACKAGE_ID_REGEX: Regex = Regex::new(r"^[A-Za-z0-9][A-Za-z0-9._\-\\/]{0,255}$").unwrap();
+    static ref PACKAGE_ID_REGEX: Regex = Regex::new(r"^[@A-Za-z0-9][A-Za-z0-9._\-\\/]{0,255}$").unwrap();
 }
 
 pub fn validate_package_id(id: &str) -> Result<(), WingetError> {

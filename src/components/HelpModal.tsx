@@ -4,7 +4,7 @@ import {
   X, Search, Download, Terminal, PlayCircle,
   ChevronRight, HelpCircle, Image, AlertTriangle,
   ChevronDown, Check, ExternalLink, Github, Star,
-  Cpu, FileText, Scale, Settings, Layers, RefreshCw, Trash2, Box
+  Cpu, FileText, Scale, RefreshCw, Trash2, Box
 } from 'lucide-react';
 
 interface HelpAction {
@@ -497,8 +497,8 @@ export const HelpModal: React.FC<HelpModalProps> = ({ isOpen, onClose, onOpenSet
                         key={topic.id}
                         onClick={() => setActiveTopicId(topic.id)}
                         className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm transition-all duration-200 ${activeTopicId === topic.id
-                            ? 'bg-[var(--app-primary)] text-white shadow-md shadow-[var(--app-primary)]/20 translate-x-1'
-                            : 'text-[var(--app-text)] hover:bg-[var(--app-surface)] hover:translate-x-0.5'
+                          ? 'bg-[var(--app-primary)] text-white shadow-md shadow-[var(--app-primary)]/20 translate-x-1'
+                          : 'text-[var(--app-text)] hover:bg-[var(--app-surface)] hover:translate-x-0.5'
                           }`}
                       >
                         <span className={activeTopicId === topic.id ? 'text-white' : 'text-[var(--app-text-muted)]'}>{topic.icon}</span>
@@ -532,9 +532,9 @@ export const HelpModal: React.FC<HelpModalProps> = ({ isOpen, onClose, onOpenSet
             <div className="max-w-xl">
               <div className="flex items-center gap-2 mb-3">
                 <span className={`px-2 py-0.5 rounded text-[10px] uppercase font-bold tracking-wider border ${activeTopic.category === 'troubleshooting' ? 'bg-red-500/10 text-red-500 border-red-500/20' :
-                    activeTopic.category === 'advanced' ? 'bg-purple-500/10 text-purple-500 border-purple-500/20' :
-                      activeTopic.category === 'github' ? 'bg-gray-500/10 text-gray-500 border-gray-500/20' :
-                        'bg-blue-500/10 text-blue-500 border-blue-500/20'
+                  activeTopic.category === 'advanced' ? 'bg-purple-500/10 text-purple-500 border-purple-500/20' :
+                    activeTopic.category === 'github' ? 'bg-gray-500/10 text-gray-500 border-gray-500/20' :
+                      'bg-blue-500/10 text-blue-500 border-blue-500/20'
                   }`}>
                   {activeTopic.category}
                 </span>
