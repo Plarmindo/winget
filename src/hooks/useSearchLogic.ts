@@ -1,31 +1,27 @@
-import { useState, useRef, useEffect } from 'react';
+import { useState, useRef, useEffect, useCallback } from 'react';
 import { searchPackages } from '../services/wingetService';
 import { useAppStore } from '../stores/store';
 
 export const useSearchLogic = () => {
-    const {
-        settings,
-        setPackages,
-        setLoading,
-        setError,
-        setQuery,
-        mode
-    } = useAppStore();
+    const settings = useAppStore(s => s.settings);
+    const setPackages = useAppStore(s => s.setPackages);
+    const setLoading = useAppStore(s => s.setLoading);
+    const setError = useAppStore(s => s.setError);
+    const setQuery = useAppStore(s => s.setQuery);
+    const mode = useAppStore(s => s.mode);
 
     const [searched, setSearched] = useState(false);
     const [hasMore, setHasMore] = useState(true);
     const [allPackages, setAllPackages] = useState<any[]>([]); // Store all loaded packages for filtering
     const abortControllerRef = useRef<AbortController | null>(null);
 
-    const handleStopSearch = () => {
+    const handleStopSearch = useCallback(() => {
         abortControllerRef.current?.abort();
         setLoading(false);
-    };
+    }, [setLoading]);
 
-    const handleSearch = async (searchQuery: string) => {
+    const handleSearch = useCallback(async (searchQuery: string) => {
         if (!searchQuery.trim() && searchQuery !== "POPULAR_ESSENTIALS") return;
-
-
 
         // For upgrade/uninstall modes, just filter the already-loaded packages
         if (mode === 'upgrade' || mode === 'uninstall') {
@@ -80,7 +76,7 @@ export const useSearchLogic = () => {
                 setLoading(false);
             }
         }
-    };
+    }, [mode, allPackages, setPackages, setQuery, setLoading, setError, settings]);
 
     // Cleanup on unmount
     useEffect(() => {
@@ -90,9 +86,9 @@ export const useSearchLogic = () => {
     }, []);
 
     // Store packages when they're loaded for upgrade/uninstall filtering
-    const storePackagesForFiltering = (pkgs: any[]) => {
+    const storePackagesForFiltering = useCallback((pkgs: any[]) => {
         setAllPackages(pkgs);
-    };
+    }, []);
 
     return {
         handleSearch,

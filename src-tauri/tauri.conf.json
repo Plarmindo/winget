@@ -1,79 +1,17 @@
 {
+  "productName": "winget-web-interface",
+  "version": "1.5.0",
+  "identifier": "com.winget.web",
   "build": {
     "beforeDevCommand": "npm run dev",
     "beforeBuildCommand": "npm run build",
-    "devPath": "http://localhost:1420",
-    "distDir": "../dist",
-    "withGlobalTauri": true
+    "devUrl": "http://localhost:1420",
+    "frontendDist": "../dist"
   },
-  "package": {
-    "productName": "winget-web-interface",
-    "version": "1.5.0"
-  },
-  "tauri": {
-    "allowlist": {
-      "all": false,
-      "shell": {
-        "all": false,
-        "execute": true,
-        "open": true,
-        "scope": [
-          {
-            "name": "winget",
-            "cmd": "winget",
-            "args": true
-          },
-          {
-            "name": "choco",
-            "cmd": "choco",
-            "args": true
-          },
-          {
-            "name": "scoop",
-            "cmd": "scoop",
-            "args": true
-          },
-          {
-            "name": "brew",
-            "cmd": "brew",
-            "args": true
-          },
-          {
-            "name": "apt",
-            "cmd": "apt",
-            "args": true
-          },
-          {
-            "name": "git",
-            "cmd": "git",
-            "args": true
-          },
-          {
-            "name": "powershell",
-            "cmd": "powershell",
-            "args": true
-          },
-          {
-            "name": "osascript",
-            "cmd": "osascript",
-            "args": true
-          },
-          {
-            "name": "x-terminal-emulator",
-            "cmd": "x-terminal-emulator",
-            "args": true
-          }
-        ]
-      },
-      "path": {
-        "all": true
-      },
-      "dialog": {
-        "all": true
-      }
-    },
+  "app": {
     "windows": [
       {
+        "label": "main",
         "title": "WinGet Web Interface",
         "width": 1600,
         "height": 900,
@@ -83,18 +21,35 @@
     ],
     "security": {
       "csp": "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; connect-src 'self' http://localhost:11434 https://api.github.com https://generativelanguage.googleapis.com; img-src 'self' asset: https://asset.localhost https://avatars.githubusercontent.com data: blob:"
-    },
-    "bundle": {
-      "active": true,
-      "targets": "all",
-      "identifier": "com.winget.web",
-      "icon": [
-        "icons/32x32.png",
-        "icons/128x128.png",
-        "icons/128x128@2x.png",
-        "icons/icon.icns",
-        "icons/icon.ico"
-      ]
+    }
+  },
+  "bundle": {
+    "active": true,
+    "targets": "all",
+    "icon": [
+      "icons/32x32.png",
+      "icons/128x128.png",
+      "icons/128x128@2x.png",
+      "icons/icon.icns",
+      "icons/icon.ico"
+    ],
+    "windows": {
+      "wix": {
+        "fragmentPaths": [
+          "./wix/cleanup.wxs"
+        ],
+        "componentGroupRefs": [
+          "CleanupComponents"
+        ]
+      },
+      "nsis": {
+        "installMode": "perMachine"
+      }
+    }
+  },
+  "plugins": {
+    "shell": {
+      "open": "^https?://.*"
     }
   }
 }

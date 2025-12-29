@@ -3,7 +3,7 @@
   windows_subsystem = "windows"
 )]
 
-use tauri::{Manager, State};
+use tauri::{Manager, State, Emitter};
 use tokio::sync::Mutex;
 use winget_commands::{run_winget_search, run_winget_install, run_winget_upgrade, run_winget_uninstall, run_winget_list, run_winget_upgrade_list, WingetOperationRequest, SearchRequest};
 use secure_storage::{save_api_config, load_api_config, delete_api_config};
@@ -101,9 +101,9 @@ async fn list_upgradable_packages_command(winget_lock: State<'_, WingetLock>) ->
 }
 
 #[tauri::command]
-async fn save_script_to_desktop(filename: String, content: String) -> Result<String, String> {
-    let desktop_path = tauri::api::path::desktop_dir()
-        .ok_or("Could not resolve Desktop directory")?;
+async fn save_script_to_desktop(app: tauri::AppHandle, filename: String, content: String) -> Result<String, String> {
+    let desktop_path = app.path().desktop_dir()
+        .map_err(|_| "Could not resolve Desktop directory")?;
     
     let file_path = desktop_path.join(&filename);
     
@@ -130,9 +130,13 @@ async fn git_repo_status(repo_path: String) -> Result<String, String> {
 
 fn main() {
   tauri::Builder::default()
+    .plugin(tauri_plugin_shell::init())
+    .plugin(tauri_plugin_dialog::init())
+    .plugin(tauri_plugin_fs::init())
+    .plugin(tauri_plugin_process::init())
     .plugin(tauri_plugin_single_instance::init(|app, argv, cwd| {
       println!("{}, {argv:?}, {cwd}", app.package_info().name);
-      app.emit_all("single-instance", Payload { args: argv, cwd }).unwrap();
+      let _ = app.emit("single-instance", Payload { args: argv, cwd });
     }))
     .plugin(tauri_plugin_window_state::Builder::default().build())
     .manage(WingetLock(Mutex::new(()))) // -- Initialize Global Lock --

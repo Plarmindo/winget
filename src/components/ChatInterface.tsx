@@ -153,7 +153,11 @@ interface ChatInterfaceProps {
 }
 
 export const ChatInterface: React.FC<ChatInterfaceProps> = ({ onShowResults, pendingMessage, onClearPendingMessage }) => {
-    const { settings, updateSettings, chatMessages, addChatMessage, clearChatMessages } = useAppStore();
+    const settings = useAppStore(s => s.settings);
+    const updateSettings = useAppStore(s => s.updateSettings);
+    const chatMessages = useAppStore(s => s.chatMessages);
+    const addChatMessage = useAppStore(s => s.addChatMessage);
+    const clearChatMessages = useAppStore(s => s.clearChatMessages);
     const [isOpen, setIsOpen] = useState(false);
     const [inputHistory, setInputHistory] = useState<string[]>([]);
     const [historyIndex, setHistoryIndex] = useState(-1);

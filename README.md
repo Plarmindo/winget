@@ -19,7 +19,7 @@ A modern, AI-powered system package manager interface. This application allows y
 ## 🛠 Tech Stack
 
 * **Frontend:** React 19, TypeScript, Tailwind CSS, Lucide Icons.
-* **Backend:** Rust (Tauri 1.x) for native system bridges.
+* **Backend:** Rust (Tauri 2.0) for native system bridges.
 * **AI:** Google Gemini API, OpenAI compatibility layer (for Ollama/LM Studio).
 * **Build System:** Vite.
 
