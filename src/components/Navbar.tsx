@@ -15,13 +15,24 @@ interface NavbarProps {
   openSettings: () => void;
   openHelp: () => void;
   resetState: () => void;
+  onRefresh: () => void;
   isDesktop?: boolean;
 }
 
 export const Navbar: React.FC<NavbarProps> = ({
-  handleSearch, stopSearch, openDrawer, openSettings, openHelp, resetState, isDesktop
+  handleSearch, stopSearch, openDrawer, openSettings, openHelp, resetState, onRefresh, isDesktop
 }) => {
-  const { settings, updateSettings, mode, setMode, query, setQuery, loading, cart, clearCart, statusMessage, statusType } = useAppStore();
+  const settings = useAppStore(s => s.settings);
+  const updateSettings = useAppStore(s => s.updateSettings);
+  const mode = useAppStore(s => s.mode);
+  const setMode = useAppStore(s => s.setMode);
+  const query = useAppStore(s => s.query);
+  const setQuery = useAppStore(s => s.setQuery);
+  const loading = useAppStore(s => s.loading);
+  const cart = useAppStore(s => s.cart);
+  const clearCart = useAppStore(s => s.clearCart);
+  const statusMessage = useAppStore(s => s.statusMessage);
+  const statusType = useAppStore(s => s.statusType);
   const [isPaletteOpen, setIsPaletteOpen] = useState(false);
   const [paletteSearch, setPaletteSearch] = useState('');
   const paletteInputRef = useRef<HTMLInputElement>(null);
@@ -138,6 +149,16 @@ export const Navbar: React.FC<NavbarProps> = ({
                 <div className="absolute right-2 top-2 pointer-events-none text-[var(--app-text-muted)]"><Box size={12} /></div>
               </div>
 
+
+              <Tooltip content="Refresh Packages">
+                <button
+                  onClick={onRefresh}
+                  className="hidden md:flex items-center justify-center p-2 text-[var(--app-text-muted)] hover:text-[var(--app-text)] hover:bg-[var(--app-surface)] rounded-full transition-colors"
+                >
+                  <RefreshCw size={20} />
+                </button>
+              </Tooltip>
+
               <Tooltip content="Help & Walkthrough (F1)">
                 <button
                   onClick={openHelp}
@@ -184,7 +205,7 @@ export const Navbar: React.FC<NavbarProps> = ({
       <CommandPalette
         isOpen={isPaletteOpen}
         onClose={() => setIsPaletteOpen(false)}
-        inputRef={paletteInputRef}
+        inputRef={paletteInputRef as React.RefObject<HTMLInputElement>}
         searchTerm={paletteSearch}
         setSearchTerm={setPaletteSearch}
         commands={commands.filter(c => c.label.toLowerCase().includes(paletteSearch.toLowerCase()))}

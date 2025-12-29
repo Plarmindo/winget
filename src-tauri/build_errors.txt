@@ -1,0 +1,11 @@
+   Compiling winget-interface v0.0.0 (D:\Users\paulo\Documents\GitHub\WingetInterfaceAndMore\winget\src-tauri)
+warning: unused import: `Emitter`
+ --> src\main.rs:6:29
+  |
+6 | use tauri::{Manager, State, Emitter};
+  |                             ^^^^^^^
+  |
+  = note: `#[warn(unused_imports)]` (part of `#[warn(unused)]`) on by default
+
+warning: `winget-interface` (bin "winget-interface") generated 1 warning
+    Finished `dev` profile [unoptimized + debuginfo] target(s) in 3.94s

@@ -14,22 +14,19 @@ export const StatusBar: React.FC = () => {
 
         const setupListener = async () => {
             try {
-                // @ts-ignore
-                if (window.__TAURI__ && window.__TAURI__.event) {
-                    // @ts-ignore
-                    const unlisten = await window.__TAURI__.event.listen('operation-progress', (event: any) => {
-                        const payload = event.payload as ProgressEvent;
-                        setCurrentEvent(payload);
-                        setLogs(prev => [...prev, payload]);
-                        setIsVisible(true);
+                const { listen } = await import('@tauri-apps/api/event');
+                const unlisten = await listen('operation-progress', (event: any) => {
+                    const payload = event.payload as ProgressEvent;
+                    setCurrentEvent(payload);
+                    setLogs(prev => [...prev, payload]);
+                    setIsVisible(true);
 
-                        // Auto-scroll if open
-                        if (isOpen) {
-                            setTimeout(() => logsEndRef.current?.scrollIntoView({ behavior: 'smooth' }), 100);
-                        }
-                    });
-                    return unlisten;
-                }
+                    // Auto-scroll if open
+                    if (isOpen) {
+                        setTimeout(() => logsEndRef.current?.scrollIntoView({ behavior: 'smooth' }), 100);
+                    }
+                });
+                return unlisten;
             } catch (e) {
                 console.error("Failed to setup status bar listener", e);
             }

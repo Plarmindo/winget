@@ -1,0 +1,72 @@
+   Compiling winget-interface v0.0.0 (D:\Users\paulo\Documents\GitHub\WingetInterfaceAndMore\winget\src-tauri)
+warning: unused import: `Emitter`
+ --> src\main.rs:6:29
+  |
+6 | use tauri::{Manager, State, Emitter};
+  |                             ^^^^^^^
+  |
+  = note: `#[warn(unused_imports)]` (part of `#[warn(unused)]`) on by default
+
+warning: `winget-interface` (bin "winget-interface" test) generated 1 warning
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 4.19s
+     Running unittests src\main.rs (target\debug\deps\winget_interface-6d0d8affcff71830.exe)
+
+running 26 tests
+test errors::tests::test_all_error_codes ... ok
+test errors::tests::test_parse_insufficient_privileges ... ok
+test errors::tests::test_command_failed_message ... ok
+test errors::tests::test_error_code ... ok
+test errors::tests::test_parse_package_not_found ... ok
+test errors::tests::test_user_cancelled_message ... ok
+test errors::tests::test_parse_unknown_error ... ok
+test errors::tests::test_parse_network_error ... FAILED
+test errors::tests::test_user_message ... ok
+test git_commands::tests::test_invalid_url ... ok
+test validation::tests::test_validate_package_id_error_messages ... ok
+test validation::tests::test_validate_search_query_error_messages ... ok
+test validation::tests::test_validate_search_query_invalid ... ok
+test validation::tests::test_validate_search_query_valid ... ok
+test validation::tests::test_validate_search_query_max_length ... ok
+test winget_commands::tests::test_parse_winget_table_no_header ... ok
+test validation::tests::test_validate_package_id_command_injection ... ok
+test validation::tests::test_validate_package_id_invalid ... ok
+test winget_commands::tests::test_parse_winget_table_empty ... ok
+test validation::tests::test_validate_package_id_valid ... ok
+test winget_commands::tests::test_parse_winget_fixed_width ... FAILED
+test winget_commands::tests::test_parse_winget_table_no_source_column ... ok
+test winget_commands::tests::test_parse_winget_table_single_word_name ... ok
+test validation::tests::test_validate_package_id_edge_cases ... ok
+test winget_commands::tests::test_parse_winget_table_special_characters ... ok
+test winget_commands::tests::test_parse_winget_table_truncated_id_skipped ... FAILED
+
+failures:
+
+---- errors::tests::test_parse_network_error stdout ----
+
+thread 'errors::tests::test_parse_network_error' (8320) panicked at src\errors.rs:294:17:
+assertion failed: message.contains("connection")
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+
+---- winget_commands::tests::test_parse_winget_fixed_width stdout ----
+
+thread 'winget_commands::tests::test_parse_winget_fixed_width' (40196) panicked at src\winget_commands.rs:617:9:
+assertion `left == right` failed
+  left: "Microsoft Visual Studio Code IΓÇª Microsoft.VisualStudioCode.InsiΓÇª 1.107.20251119008"
+ right: "Microsoft Visual Studio Code IΓÇª"
+
+---- winget_commands::tests::test_parse_winget_table_truncated_id_skipped stdout ----
+
+thread 'winget_commands::tests::test_parse_winget_table_truncated_id_skipped' (23324) panicked at src\winget_commands.rs:697:9:
+assertion `left == right` failed
+  left: 2
+ right: 1
+
+
+failures:
+    errors::tests::test_parse_network_error
+    winget_commands::tests::test_parse_winget_fixed_width
+    winget_commands::tests::test_parse_winget_table_truncated_id_skipped
+
+test result: FAILED. 23 passed; 3 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.01s
+
+error: test failed, to rerun pass `--bin winget-interface`

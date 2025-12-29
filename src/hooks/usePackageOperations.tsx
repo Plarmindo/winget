@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useCallback } from 'react';
 import { AppMode } from '../types';
 import { executeRealCommand } from '../services/wingetService';
 import { useAppStore } from '../stores/store';
@@ -8,12 +8,18 @@ import { downloadAndInstall } from '../services/tauriBridge';
 import { logger } from '../utils/logger';
 
 export const usePackageOperations = () => {
-    const { setLoading, setError, settings, setStatusMessage, addHistoryEntry } = useAppStore();
+    const setLoading = useAppStore(s => s.setLoading);
+    const setError = useAppStore(s => s.setError);
+    const settings = useAppStore(s => s.settings);
+    const setStatusMessage = useAppStore(s => s.setStatusMessage);
+    const addHistoryEntry = useAppStore(s => s.addHistoryEntry);
+    const packages = useAppStore(s => s.packages);
+    const setPackages = useAppStore(s => s.setPackages);
     const [operationResult, setOperationResult] = useState<string | null>(null);
     const [showCloneDialog, setShowCloneDialog] = useState(false);
     const [pendingClone, setPendingClone] = useState<{ id: string; url: string } | null>(null);
 
-    const executeOperation = async (id: string, mode: AppMode) => {
+    const executeOperation = useCallback(async (id: string, mode: AppMode) => {
         setLoading(true);
         setOperationResult(null);
         setError(null);
@@ -72,6 +78,9 @@ export const usePackageOperations = () => {
                 status: 'success',
             });
 
+            // Remove the package from the UI grid after successful operation
+            setPackages(packages.filter(pkg => pkg.id !== id));
+
             // Clear status after 3 seconds
             setTimeout(() => setStatusMessage('', 'success'), 3000);
         } catch (error: any) {
@@ -97,9 +106,9 @@ export const usePackageOperations = () => {
         } finally {
             setLoading(false);
         }
-    };
+    }, [setLoading, setError, setStatusMessage, settings.activePackageManager, addHistoryEntry, packages, setPackages]);
 
-    const handleDirectInstall = async (id: string) => {
+    const handleDirectInstall = useCallback(async (id: string) => {
         const [owner, repo] = id.split('/');
         setLoading(true);
         setStatusMessage(`Checking releases for ${id}...`, 'info');
@@ -157,9 +166,9 @@ export const usePackageOperations = () => {
         } finally {
             setLoading(false);
         }
-    };
+    }, [setLoading, setStatusMessage, settings.githubToken, setError, addHistoryEntry]);
 
-    const handleCloneConfirm = async (destination: string) => {
+    const handleCloneConfirm = useCallback(async (destination: string) => {
         if (!pendingClone) return;
 
         setLoading(true);
@@ -200,7 +209,7 @@ export const usePackageOperations = () => {
             setLoading(false);
             setPendingClone(null);
         }
-    };
+    }, [pendingClone, setLoading, setStatusMessage, addHistoryEntry, setError]);
 
     const CloneDialogComponent = pendingClone ? (
         <CloneDialog

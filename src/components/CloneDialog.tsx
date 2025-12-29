@@ -50,9 +50,7 @@ export const CloneDialog: React.FC<CloneDialogProps> = ({ isOpen, onClose, onCon
         }
 
         try {
-            // Dynamic import of Tauri dialog
-            // @ts-ignore
-            const { open } = await window.__TAURI__.dialog;
+            const { open } = await import('@tauri-apps/plugin-dialog');
             const selected = await open({
                 directory: true,
                 multiple: false,

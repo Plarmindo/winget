@@ -341,7 +341,34 @@ export const searchGitHubRepos = async (query: string, token?: string): Promise<
 
     const data = await res.json();
 
-    return data.items.map((repo: any) => ({
+    // Fetch release info for each repo to detect releaseType (limit to first 15 to avoid rate limits)
+    const reposWithReleases = await Promise.all(
+      data.items.slice(0, 15).map(async (repo: any) => {
+        let releaseType: ReleaseType = 'none';
+        try {
+          const release = await getLatestRelease(repo.owner.login, repo.name, token);
+          releaseType = detectReleaseType(release);
+        } catch {
+          // Ignore release fetch errors
+        }
+        return {
+          id: repo.full_name,
+          name: repo.name,
+          description: repo.description || "No description provided.",
+          publisher: repo.owner.login,
+          category: 'Repository',
+          version: 'HEAD',
+          isFree: !repo.private,
+          stars: repo.stargazers_count,
+          forks: repo.forks_count,
+          source: 'github',
+          releaseType
+        };
+      })
+    );
+
+    // For remaining repos (beyond first 15), don't fetch releases to save API calls
+    const remainingRepos = data.items.slice(15).map((repo: any) => ({
       id: repo.full_name,
       name: repo.name,
       description: repo.description || "No description provided.",
@@ -350,8 +377,12 @@ export const searchGitHubRepos = async (query: string, token?: string): Promise<
       version: 'HEAD',
       isFree: !repo.private,
       stars: repo.stargazers_count,
-      forks: repo.forks_count
+      forks: repo.forks_count,
+      source: 'github',
+      releaseType: 'none' as ReleaseType
     }));
+
+    return [...reposWithReleases, ...remainingRepos];
   } catch (e: any) {
     console.error("GitHub Search Failed", e);
     throw new Error(e.message || "Failed to search GitHub");

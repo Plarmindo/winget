@@ -109,6 +109,7 @@ export const GitHubPanel: React.FC<GitHubPanelProps> = ({ token, query, onClone,
     };
 
     const handleGitHubAction = async (id: string, action: GitHubAction) => {
+        console.log('[GitHubPanel] handleGitHubAction CALLED with:', { id, action });
         logger.debug('[GitHubPanel] handleGitHubAction called with:', { id, action });
         const [owner, repo] = id.split('/');
         try {
@@ -159,11 +160,15 @@ export const GitHubPanel: React.FC<GitHubPanelProps> = ({ token, query, onClone,
                     }
                     break;
                 case 'open':
-                    logger.debug('[GitHubPanel] Opening URL:', `https://github.com/${id}`);
-                    openUrl(`https://github.com/${id}`);
+                    const openUrlTarget = `https://github.com/${id}`;
+                    console.log('[GitHubPanel] Opening URL:', openUrlTarget);
+                    logger.debug('[GitHubPanel] Opening URL:', openUrlTarget);
+                    await openUrl(openUrlTarget);
+                    console.log('[GitHubPanel] openUrl completed');
                     break;
             }
         } catch (e: any) {
+            console.error('[GitHubPanel] Action failed:', e);
             alert(`Action failed: ${e.message}`);
         }
     };

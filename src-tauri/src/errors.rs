@@ -142,7 +142,7 @@ pub fn parse_winget_error(stderr: &[u8], operation: &str) -> WingetError {
         || stderr_str.contains("timeout")
     {
         return WingetError::NetworkError {
-            message: "Unable to connect to package repository".to_string(),
+            message: "Unable to establish a repository connection".to_string(),
         };
     }
 
