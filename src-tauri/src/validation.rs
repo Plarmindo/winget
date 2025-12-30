@@ -10,6 +10,7 @@ lazy_static! {
 
 pub fn validate_package_id(id: &str) -> Result<(), WingetError> {
     if id.is_empty() {
+        eprintln!("[VALIDATION] Package ID is empty");
         return Err(WingetError::InvalidInput {
             field: "package_id".to_string(),
             reason: "Package ID cannot be empty".to_string(),
@@ -17,6 +18,7 @@ pub fn validate_package_id(id: &str) -> Result<(), WingetError> {
     }
 
     if id.len() > 256 {
+        eprintln!("[VALIDATION] Package ID too long: {} chars", id.len());
         return Err(WingetError::InvalidInput {
             field: "package_id".to_string(),
             reason: "Package ID too long (max 256 characters)".to_string(),
@@ -24,12 +26,15 @@ pub fn validate_package_id(id: &str) -> Result<(), WingetError> {
     }
 
     if !PACKAGE_ID_REGEX.is_match(id) {
+        eprintln!("[VALIDATION] Package ID '{}' failed regex validation", id);
+        eprintln!("[VALIDATION] Regex pattern: ^[@A-Za-z0-9][A-Za-z0-9._\\-\\\\/]{{0,255}}$");
         return Err(WingetError::InvalidInput {
             field: "package_id".to_string(),
             reason: "Invalid format. Expected: Publisher.AppName (alphanumeric, dots, underscores, hyphens)".to_string(),
         });
     }
 
+    eprintln!("[VALIDATION] Package ID '{}' validated successfully", id);
     Ok(())
 }
 

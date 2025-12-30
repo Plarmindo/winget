@@ -183,7 +183,7 @@ export const PackageCard: React.FC<PackageCardProps> = ({ pkg, onExecute, handle
         </div>
       )}
       {/* Badges and Header */}
-      <div className="flex justify-between items-start mb-3">
+      <div className="flex justify-between items-start mb-3 mt-2">
         <div className="flex items-center space-x-3 w-full pr-6">
           <div className={`w-10 h-10 rounded-lg bg-gradient-to-br ${config.gradientClass} flex items-center justify-center text-white font-bold shadow-inner shrink-0`}>
             {displayChar}
