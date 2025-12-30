@@ -37,12 +37,22 @@ export const useAppController = (
                     const currentSettings = useAppStore.getState().settings;
                     const newProvider = (config.provider && config.provider.trim() !== '') ? config.provider : currentSettings.aiConfig.provider;
 
+                    // Provider-specific model defaults (only used if no model_id is saved)
+                    const getDefaultModel = (provider: string) => {
+                        switch (provider) {
+                            case 'ollama': return 'llama3';
+                            case 'anthropic': return 'claude-3-5-sonnet-20241022';
+                            case 'openai': return 'gpt-4o';
+                            default: return 'gemini-2.5-flash';
+                        }
+                    };
+
                     updateSettings({
                         aiConfig: {
                             provider: newProvider as any,
                             apiKey: config.api_key,
                             baseUrl: config.base_url || (newProvider === 'ollama' ? 'http://localhost:11434/v1' : ''),
-                            modelId: config.model_id || 'gemini-2.5-flash'
+                            modelId: config.model_id || getDefaultModel(newProvider)
                         }
                     });
                     setStatusMessage("AI Configuration Loaded & Secure", "success");

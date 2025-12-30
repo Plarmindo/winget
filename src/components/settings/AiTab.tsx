@@ -8,10 +8,7 @@ interface AiTabProps {
 }
 
 export const AiTab: React.FC<AiTabProps> = ({ settings, onUpdateSettings }) => {
-  const defaultAiConfig: AiConfig = {
-    provider: 'gemini', apiKey: '', baseUrl: '', modelId: 'gemini-2.5-flash'
-  };
-  const [localAiConfig, setLocalAiConfig] = useState<AiConfig>(settings.aiConfig || defaultAiConfig);
+  const [localAiConfig, setLocalAiConfig] = useState<AiConfig>(settings.aiConfig);
   const [validationErrors, setValidationErrors] = useState<{ baseUrl?: string; modelId?: string }>({});
   const [testStatus, setTestStatus] = useState<'idle' | 'loading' | 'success' | 'error'>(
     settings.aiConfig?.apiKey ? 'success' : 'idle'
@@ -44,26 +41,53 @@ export const AiTab: React.FC<AiTabProps> = ({ settings, onUpdateSettings }) => {
   }, [localAiConfig.provider, localAiConfig.baseUrl]);
 
   const fetchOllamaModels = async (baseUrl: string) => {
+    console.log('[AiTab] Fetching Ollama models, baseUrl:', baseUrl);
     try {
       // Use Tauri Bridge to fetch models (supports CLI and API)
       import('../../services/tauriBridge').then(async ({ listOllamaModels }) => {
-        const models = await listOllamaModels();
-        if (models && models.length > 0) {
-          setOllamaModels(models);
-        } else if (baseUrl) {
-          // Fallback to direct fetch if CLI returns nothing but URL is provided
-          const url = baseUrl.replace(/\/v1\/?$/, '') + '/api/tags';
-          const res = await fetch(url);
-          if (res.ok) {
-            const data = await res.json();
-            if (data.models) {
-              setOllamaModels(data.models.map((m: any) => m.name));
+        try {
+          const models = await listOllamaModels();
+          console.log('[AiTab] Ollama models from Tauri:', models);
+          if (models && models.length > 0) {
+            setOllamaModels(models);
+          } else {
+            console.log('[AiTab] No models from Tauri, trying HTTP fallback');
+            // Fallback to direct fetch if CLI returns nothing but URL is provided
+            if (baseUrl) {
+              const url = baseUrl.replace(/\/v1\/?$/, '') + '/api/tags';
+              console.log('[AiTab] Fetching from:', url);
+              const res = await fetch(url);
+              if (res.ok) {
+                const data = await res.json();
+                console.log('[AiTab] HTTP response:', data);
+                if (data.models) {
+                  const modelNames = data.models.map((m: any) => m.name);
+                  console.log('[AiTab] Extracted model names:', modelNames);
+                  setOllamaModels(modelNames);
+                }
+              } else {
+                console.error('[AiTab] HTTP fetch failed with status:', res.status);
+              }
+            }
+          }
+        } catch (tauriError) {
+          console.error('[AiTab] Tauri listOllamaModels failed:', tauriError);
+          // Try HTTP fallback
+          if (baseUrl) {
+            const url = baseUrl.replace(/\/v1\/?$/, '') + '/api/tags';
+            console.log('[AiTab] Fallback fetch from:', url);
+            const res = await fetch(url);
+            if (res.ok) {
+              const data = await res.json();
+              if (data.models) {
+                setOllamaModels(data.models.map((m: any) => m.name));
+              }
             }
           }
         }
       });
     } catch (e) {
-      console.warn("Failed to fetch Ollama models:", e);
+      console.error("[AiTab] Failed to fetch Ollama models:", e);
     }
   };
 
