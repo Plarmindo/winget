@@ -135,65 +135,69 @@ export const PackageCard: React.FC<PackageCardProps> = ({ pkg, onExecute, handle
       aria-label={`Package: ${displayName}`}
       className={`group relative bg-[var(--app-surface)] border ${isInCompare ? 'border-[var(--app-primary)] ring-2 ring-[var(--app-primary)]/30' : 'border-[var(--app-border)] hover:border-[var(--app-primary)]/50'} rounded-xl p-4 transition-all duration-300 flex flex-col shadow-lg overflow-hidden h-full`}
     >
-      {/* License Status Badge */}
-      {pkg.isFree !== undefined && (
-        <div className={`absolute top-3 right-3 p-1.5 rounded-full z-10 ${pkg.isFree ? 'bg-emerald-500/10 text-emerald-500 border border-emerald-500/20' : 'bg-amber-500/10 text-amber-500 border border-amber-500/20'}`} title={pkg.isFree ? "Free / Open Source" : "Paid / Freemium / Trial"}>
-          {pkg.isFree ? <Gift size={12} /> : <CircleDollarSign size={12} />}
-        </div>
-      )}
+      {/* Top Badge Bar - properly positioned without overlap */}
+      <div className="flex items-center justify-between mb-3 gap-2">
+        <div className="flex items-center gap-2 flex-1 min-w-0">
+          {/* Favorite Star */}
+          <button
+            onClick={(e) => {
+              e.stopPropagation();
+              toggleFavorite(pkg.id);
+            }}
+            aria-label={isFavorite(pkg.id) ? `Remove ${displayName} from favorites` : `Add ${displayName} to favorites`}
+            aria-pressed={isFavorite(pkg.id)}
+            className={`p-1.5 rounded-full shrink-0 transition-all ${isFavorite(pkg.id)
+              ? 'bg-amber-500/20 text-amber-500 border border-amber-500/30'
+              : 'bg-[var(--app-bg)]/80 text-[var(--app-text-muted)] border border-[var(--app-border)] hover:bg-amber-500/10 hover:text-amber-500'
+              }`}
+            title={isFavorite(pkg.id) ? "Remove from favorites" : "Add to favorites"}
+          >
+            <Star size={12} className={isFavorite(pkg.id) ? 'fill-current' : ''} />
+          </button>
 
-      {/* Favorite Star */}
-      <button
-        onClick={(e) => {
-          e.stopPropagation();
-          toggleFavorite(pkg.id);
-        }}
-        aria-label={isFavorite(pkg.id) ? `Remove ${displayName} from favorites` : `Add ${displayName} to favorites`}
-        aria-pressed={isFavorite(pkg.id)}
-        className={`absolute top-3 left-3 p-1.5 rounded-full z-10 transition-all ${isFavorite(pkg.id)
-          ? 'bg-amber-500/20 text-amber-500 border border-amber-500/30'
-          : 'bg-[var(--app-bg)]/80 text-[var(--app-text-muted)] border border-[var(--app-border)] hover:bg-amber-500/10 hover:text-amber-500'
-          }`}
-        title={isFavorite(pkg.id) ? "Remove from favorites" : "Add to favorites"}
-      >
-        <Star size={12} className={isFavorite(pkg.id) ? 'fill-current' : ''} />
-      </button>
-
-      {/* GitHub Release Type Badge */}
-      {isGitHub && pkg.releaseType && (
-        <div
-          className={`absolute top-3 left-14 px-2 py-1 rounded-full text-[10px] font-bold z-10 flex items-center gap-1 ${pkg.releaseType === 'binary'
-            ? 'bg-green-500/20 text-green-500 border border-green-500/30'
-            : pkg.releaseType === 'source'
-              ? 'bg-blue-500/20 text-blue-500 border border-blue-500/30'
-              : 'bg-gray-500/20 text-gray-400 border border-gray-500/30'
-            }`}
-          title={
-            pkg.releaseType === 'binary'
-              ? 'Has installable releases (.exe, .msi, .dmg)'
-              : pkg.releaseType === 'source'
-                ? 'Source only - requires compilation'
-                : 'No releases available'
-          }
-        >
-          {pkg.releaseType === 'binary' && '⚡'}
-          {pkg.releaseType === 'source' && '📦'}
-          {pkg.releaseType === 'none' && '🔨'}
-          {pkg.releaseType === 'binary' ? 'Direct Install' : pkg.releaseType === 'source' ? 'Source' : 'Dev Only'}
+          {/* GitHub Release Type Badge */}
+          {isGitHub && pkg.releaseType && (
+            <div
+              className={`px-2 py-0.5 rounded-full text-[10px] font-bold shrink-0 flex items-center gap-1 ${pkg.releaseType === 'binary'
+                ? 'bg-green-500/20 text-green-500 border border-green-500/30'
+                : pkg.releaseType === 'source'
+                  ? 'bg-blue-500/20 text-blue-500 border border-blue-500/30'
+                  : 'bg-gray-500/20 text-gray-400 border border-gray-500/30'
+                }`}
+              title={
+                pkg.releaseType === 'binary'
+                  ? 'Has installable releases (.exe, .msi, .dmg)'
+                  : pkg.releaseType === 'source'
+                    ? 'Source only - requires compilation'
+                    : 'No releases available'
+              }
+            >
+              {pkg.releaseType === 'binary' && '⚡'}
+              {pkg.releaseType === 'source' && '📦'}
+              {pkg.releaseType === 'none' && '🔨'}
+              {pkg.releaseType === 'binary' ? 'Install' : pkg.releaseType === 'source' ? 'Source' : 'Dev'}
+            </div>
+          )}
         </div>
-      )}
-      {/* Badges and Header */}
-      <div className="flex justify-between items-start mb-3 mt-2">
-        <div className="flex items-center space-x-3 w-full pr-6">
-          <div className={`w-10 h-10 rounded-lg bg-gradient-to-br ${config.gradientClass} flex items-center justify-center text-white font-bold shadow-inner shrink-0`}>
-            {displayChar}
+
+        {/* License Status Badge */}
+        {pkg.isFree !== undefined && (
+          <div className={`p-1.5 rounded-full shrink-0 ${pkg.isFree ? 'bg-emerald-500/10 text-emerald-500 border border-emerald-500/20' : 'bg-amber-500/10 text-amber-500 border border-amber-500/20'}`} title={pkg.isFree ? "Free / Open Source" : "Paid / Freemium / Trial"}>
+            {pkg.isFree ? <Gift size={12} /> : <CircleDollarSign size={12} />}
           </div>
-          <div className="min-w-0 flex-1">
-            <h3 className="font-semibold text-[var(--app-text)] leading-tight truncate" title={displayName}>{displayName}</h3>
-            <p className="text-xs text-[var(--app-text-muted)] truncate flex items-center gap-1">
-              <Globe size={10} /> {pkg.publisher || 'Unknown'}
-            </p>
-          </div>
+        )}
+      </div>
+
+      {/* Header with Icon and Name */}
+      <div className="flex items-center space-x-3 mb-3">
+        <div className={`w-10 h-10 rounded-lg bg-gradient-to-br ${config.gradientClass} flex items-center justify-center text-white font-bold shadow-inner shrink-0`}>
+          {displayChar}
+        </div>
+        <div className="min-w-0 flex-1">
+          <h3 className="font-semibold text-[var(--app-text)] leading-tight truncate" title={displayName}>{displayName}</h3>
+          <p className="text-xs text-[var(--app-text-muted)] truncate flex items-center gap-1">
+            <Globe size={10} /> {pkg.publisher || 'Unknown'}
+          </p>
         </div>
       </div>
 

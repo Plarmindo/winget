@@ -43,7 +43,8 @@
         ]
       },
       "nsis": {
-        "installMode": "perMachine"
+        "installMode": "perMachine",
+        "template": "./nsis/uninstaller.nsh"
       }
     }
   },
