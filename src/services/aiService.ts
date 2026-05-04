@@ -1,7 +1,7 @@
-import { GoogleGenAI, Modality } from "@google/genai";
 import { AppSettings, ChatModelType, AiConfig, PackageManagerType } from '../types';
 import { logger } from '../utils/logger';
 import { getChatSystemInstruction } from './promptService';
+import { invoke } from '@tauri-apps/api/core';
 
 // --- Helpers ---
 
@@ -10,12 +10,9 @@ import { getChatSystemInstruction } from './promptService';
  */
 export const normalizeAiConfig = (aiConfig: AiConfig): AiConfig => {
     const normalized = { ...aiConfig };
-
-    // Apply default baseUrl for Ollama if not set
     if (aiConfig.provider === 'ollama' && !aiConfig.baseUrl) {
         normalized.baseUrl = 'http://localhost:11434/v1';
     }
-
     return normalized;
 };
 
@@ -43,246 +40,172 @@ export const getManagerContext = (pm: PackageManagerType) => {
     }
 };
 
+// --- Tauri Command Wrappers for Local LLMs ---
+
+export const initializeLocalModel = async (modelPath: string, backend: 'llama.cpp' | 'ollama' = 'llama.cpp'): Promise<boolean> => {
+    try {
+        const result = await invoke<boolean>('initialize_local_model', { model_path: modelPath, backend });
+        return result;
+    } catch (error) {
+        logger.error('Failed to initialize local model:', error);
+        return false;
+    }
+};
+
+export const isLocalModelLoaded = async (): Promise<boolean> => {
+    try {
+        const result = await invoke<boolean>('is_local_model_loaded', {});
+        return result;
+    } catch (error) {
+        logger.error('Failed to check local model status:', error);
+        return false;
+    }
+};
+
+export const generateLocalText = async (prompt: string, maxTokens: number = 128, temperature: number = 0.7): Promise<string> => {
+    try {
+        const result = await invoke<string>('generate_local_text', { prompt, max_tokens: maxTokens, temperature });
+        return result;
+    } catch (error) {
+        logger.error('Failed to generate local text:', error);
+        throw error;
+    }
+};
+
+export const unloadLocalModel = async (): Promise<boolean> => {
+    try {
+        const result = await invoke<boolean>('unload_local_model', {});
+        return result;
+    } catch (error) {
+        logger.error('Failed to unload local model:', error);
+        return false;
+    }
+};
+
+export const getLocalModelInfo = async (): Promise<{ loaded: boolean; modelPath?: string; backend?: string } | null> => {
+    try {
+        const result = await invoke<{ loaded: boolean; modelPath?: string; backend?: string } | null>('get_local_model_info', {});
+        return result;
+    } catch (error) {
+        logger.error('Failed to get local model info:', error);
+        return null;
+    }
+};
+
+export const listLocalModels = async (): Promise<Array<{ name: string; path: string; size: string }>> => {
+    try {
+        const result = await invoke<Array<{ name: string; path: string; size: string }>>('list_local_models', {});
+        return result;
+    } catch (error) {
+        logger.error('Failed to list local models:', error);
+        return [];
+    }
+};
+
 // --- OpenAI Compatible API ---
 
-/**
- * Call OpenAI-compatible API (works with Ollama, LMStudio, etc.)
- */
-export const callOpenAICompatible = async (
-    aiConfig: AiConfig,
-    messages: any[],
-    systemInstruction: string,
-    signal?: AbortSignal
-): Promise<string> => {
+export const callOpenAICompatible = async (aiConfig: AiConfig, messages: any[], systemInstruction: string, signal?: AbortSignal): Promise<string> => {
     const normalizedConfig = normalizeAiConfig(aiConfig);
-
     if (!normalizedConfig.baseUrl || !normalizedConfig.modelId) {
-        throw new Error("Invalid AI Configuration for Custom Provider");
+        throw new Error('Invalid AI Configuration for Custom Provider');
     }
-
-    const finalMessages = [
-        { role: 'system', content: systemInstruction },
-        ...messages
-    ];
-
-    const headers: Record<string, string> = {
-        'Content-Type': 'application/json'
-    };
+    const finalMessages = [{ role: 'system', content: systemInstruction }, ...messages];
+    const headers: Record<string, string> = { 'Content-Type': 'application/json' };
     if (normalizedConfig.apiKey) {
-        headers['Authorization'] = `Bearer ${normalizedConfig.apiKey}`;
+        headers['Authorization'] = 'Bearer ' + normalizedConfig.apiKey;
     }
-
     let response;
     try {
-        response = await fetch(`${normalizedConfig.baseUrl}/chat/completions`, {
+        response = await fetch(normalizedConfig.baseUrl + '/chat/completions', {
             method: 'POST',
             headers,
-            body: JSON.stringify({
-                model: normalizedConfig.modelId,
-                messages: finalMessages,
-            }),
+            body: JSON.stringify({ model: normalizedConfig.modelId, messages: finalMessages }),
             signal
         });
     } catch (networkError) {
-        throw new Error("Unable to connect to AI Provider. Please check your internet connection and Base URL.");
+        throw new Error('Unable to connect to AI Provider. Please check your internet connection and Base URL.');
     }
-
     if (!response.ok) {
-        throw new Error(`AI Request Failed: ${response.statusText}`);
+        throw new Error('AI Request Failed: ' + response.statusText);
     }
-
     const data = await response.json();
-    return data.choices?.[0]?.message?.content || "";
+    return data.choices?.[0]?.message?.content || '';
 };
 
-// --- Gemini-specific functions ---
+// --- Main AI Functions ---
 
-/**
- * Generate a simple AI response
- */
-export const generateAIResponse = async (
-    settings: AppSettings,
-    prompt: string,
-    systemInstruction: string,
-    jsonMode: boolean = false
-): Promise<string> => {
-    if (settings.aiConfig.provider === 'gemini') {
-        const apiKey = settings.aiConfig.apiKey || import.meta.env.VITE_API_KEY;
-        if (!apiKey) throw new Error("No API Key configured.");
-
-        const ai = new GoogleGenAI({ apiKey });
-        const config: any = { systemInstruction };
-        if (jsonMode) config.responseMimeType = 'application/json';
-
-        const response = await ai.models.generateContent({
-            model: settings.aiConfig.modelId || 'gemini-2.5-flash',
-            contents: prompt,
-            config
-        });
-        return response.text || '';
-    }
-
-    return callOpenAICompatible(settings.aiConfig, [{ role: 'user', content: prompt }], systemInstruction);
-};
-
-/**
- * Transcribe audio using Gemini
- */
-export const transcribeAudio = async (
-    base64Audio: string,
-    mimeType: string,
-    settings: AppSettings
-): Promise<string> => {
-    if (settings.aiConfig.provider !== 'gemini') return "";
-    const apiKey = settings.aiConfig.apiKey || import.meta.env.VITE_API_KEY;
-    if (!apiKey) return "";
-
-    try {
-        const ai = new GoogleGenAI({ apiKey });
-        const response = await ai.models.generateContent({
-            model: 'gemini-2.5-flash',
-            contents: {
-                parts: [
-                    { inlineData: { mimeType, data: base64Audio } },
-                    { text: "Transcribe this audio exactly." }
-                ]
+export const generateAIResponse = async (settings: AppSettings, prompt: string, systemInstruction: string, _jsonMode: boolean = false): Promise<string> => {
+    const { aiConfig } = settings;
+    if (aiConfig.provider === 'local-llama' || aiConfig.provider === 'local-ollama') {
+        try {
+            const isLoaded = await isLocalModelLoaded();
+            if (!isLoaded) {
+                // For local model, use the full path if available, otherwise construct from modelId
+                const modelPath = aiConfig.localModelPath || './models/' + aiConfig.modelId;
+                const backend = aiConfig.provider === 'local-llama' ? 'llama.cpp' : 'ollama';
+                console.log('[AI Service] Initializing local model with path:', modelPath);
+                const initialized = await initializeLocalModel(modelPath, backend);
+                if (!initialized) throw new Error('Failed to initialize local model');
             }
-        });
-        return response.text || "";
-    } catch (e) {
-        console.error("Transcription error:", e);
-        return "";
+            const fullPrompt = systemInstruction + '\\n\\n' + prompt;
+            const result = await generateLocalText(fullPrompt, 512, 0.7);
+            return result;
+        } catch (error) {
+            logger.error('Local LLM error, falling back to OpenAI-compatible:', error);
+            return callOpenAICompatible(aiConfig, [{ role: 'user', content: prompt }], systemInstruction);
+        }
     }
+    return callOpenAICompatible(aiConfig, [{ role: 'user', content: prompt }], systemInstruction);
 };
 
-/**
- * Generate speech using Gemini TTS
- */
-export const generateSpeech = async (
-    text: string,
-    settings: AppSettings
-): Promise<string> => {
-    if (settings.aiConfig.provider !== 'gemini') return "";
-    const apiKey = settings.aiConfig.apiKey || import.meta.env.VITE_API_KEY;
-    if (!apiKey) return "";
-
-    try {
-        const ai = new GoogleGenAI({ apiKey });
-        const response = await ai.models.generateContent({
-            model: 'gemini-2.5-flash-preview-tts',
-            contents: { parts: [{ text }] },
-            config: {
-                responseModalities: [Modality.AUDIO],
-                speechConfig: {
-                    voiceConfig: { prebuiltVoiceConfig: { voiceName: 'Kore' } }
-                }
-            }
-        });
-        return response.candidates?.[0]?.content?.parts?.[0]?.inlineData?.data || "";
-    } catch (e) {
-        console.error("TTS error:", e);
-        return "";
-    }
+export const transcribeAudio = async (_base64Audio: string, _mimeType: string, _settings: AppSettings): Promise<string> => {
+    logger.warn('Audio transcription not implemented for local LLMs');
+    return '';
 };
 
-/**
- * Chat with AI - handles both Gemini and OpenAI-compatible providers
- */
-export const chatWithAI = async (
-    message: string,
-    history: { role: string, parts: { text: string }[] }[],
-    modelType: ChatModelType,
-    settings: AppSettings,
-    signal?: AbortSignal
-) => {
+export const generateSpeech = async (_text: string, _settings: AppSettings): Promise<string> => {
+    logger.warn('Speech generation not implemented for local LLMs');
+    return '';
+};
+
+export const chatWithAI = async (message: string, history: { role: string, parts: { text: string }[] }[], _modelType: ChatModelType, settings: AppSettings, signal?: AbortSignal) => {
     const { activePackageManager, aiConfig } = settings;
     const managerInfo = getManagerContext(activePackageManager);
     const CHAT_SYSTEM_INSTRUCTION = getChatSystemInstruction(managerInfo.name, managerInfo.cmd);
-
-    // If Provider is Gemini
-    if (aiConfig.provider === 'gemini') {
-        const apiKey = aiConfig.apiKey || import.meta.env.VITE_API_KEY;
-        if (!apiKey) throw new Error("No API Key. Check Settings.");
-
-        const ai = new GoogleGenAI({ apiKey });
-
-        let modelName = aiConfig.modelId || 'gemini-2.5-flash';
-        let thinkingConfig = undefined;
-
-        const isDefaultModelConfig = ['gemini-2.5-flash', 'gemini-2.5-flash-lite', 'gemini-3-pro-preview', 'gemini-2.0-flash-exp'].some(m => aiConfig.modelId?.includes(m));
-
-        if (isDefaultModelConfig || !aiConfig.modelId) {
-            if (modelType === 'fast') modelName = 'gemini-2.5-flash-lite';
-            else if (modelType === 'balanced') modelName = 'gemini-2.5-flash';
-            else if (modelType === 'smart') modelName = 'gemini-2.0-flash-exp';
-            else if (modelType === 'thinking') {
-                modelName = 'gemini-2.0-flash-thinking-exp-1219';
-                thinkingConfig = { thinkingBudget: 16384 };
-            }
-        }
-
-        const complexity = detectTaskComplexity(message);
-        if (complexity === 'complex' && modelType === 'balanced' && ['gemini-2.5-flash'].includes(modelName)) {
-            logger.debug('Auto-upgrading Chat model to Pro for complex task');
-            modelName = 'gemini-2.0-flash-exp';
-        }
-
-        const createChatAndSend = async (useSearch: boolean) => {
-            const config: any = {
-                systemInstruction: CHAT_SYSTEM_INSTRUCTION,
-                thinkingConfig
-            };
-
-            if (useSearch) {
-                config.tools = [{ googleSearch: {} }];
-            }
-
-            const chat = ai.chats.create({
-                model: modelName,
-                history: history,
-                config
-            });
-
-            return await chat.sendMessage({ message });
-        };
-
+    if (aiConfig.provider === 'local-llama' || aiConfig.provider === 'local-ollama') {
         try {
-            const result = await createChatAndSend(true);
-
-            const sources = result.candidates?.[0]?.groundingMetadata?.groundingChunks
-                ?.map((chunk: any) => ({
-                    uri: chunk.web?.uri,
-                    title: chunk.web?.title || 'Source Link'
-                }))
-                .filter((s: any) => s.uri) || [];
-
-            return { text: result.text || "No response text.", sources };
-
-        } catch (error: any) {
-            const errStr = error.message || JSON.stringify(error);
-            const isSearchQuotaError = errStr.includes('search_grounding_request_per_project_per_day_per_user') ||
-                errStr.includes('RESOURCE_EXHAUSTED');
-
-            if (isSearchQuotaError) {
-                console.warn("Chat Search Quota Exceeded. Retrying without search.");
-                try {
-                    const retryResult = await createChatAndSend(false);
-                    return { text: retryResult.text || "No response text. (Search disabled due to quota)", sources: [] };
-                } catch (retryError: any) {
-                    throw new Error("Chat failed even after disabling search: " + (retryError.message || 'Unknown error'));
-                }
+            const isLoaded = await isLocalModelLoaded();
+            if (!isLoaded) {
+                // For local model, use the full path if available, otherwise construct from modelId
+                const modelPath = aiConfig.localModelPath || './models/' + aiConfig.modelId;
+                const backend = aiConfig.provider === 'local-llama' ? 'llama.cpp' : 'ollama';
+                console.log('[AI Service Chat] Initializing local model with path:', modelPath);
+                const initialized = await initializeLocalModel(modelPath, backend);
+                if (!initialized) throw new Error('Failed to initialize local model');
             }
+            const formattedHistory = history.map(h => ({
+                role: h.role === 'model' ? 'assistant' : 'user',
+                content: h.parts[0].text
+            }));
+            formattedHistory.push({ role: 'user', content: message });
+            const chatPrompt = [{ role: 'system', content: CHAT_SYSTEM_INSTRUCTION }, ...formattedHistory]
+                .map(m => m.role + ': ' + m.content).join('\\n\\n') + '\nassistant:';
+            const result = await generateLocalText(chatPrompt, 1024, 0.7);
+            return { text: result || 'No response text.', sources: [] };
+        } catch (error) {
+            logger.error('Local LLM chat error:', error);
             throw error;
         }
     }
-
-    // Generic Provider (OpenAI/Ollama)
     const messages = history.map(h => ({
         role: h.role === 'model' ? 'assistant' : 'user',
         content: h.parts[0].text
     }));
     messages.push({ role: 'user', content: message });
-
     const text = await callOpenAICompatible(aiConfig, messages, CHAT_SYSTEM_INSTRUCTION, signal);
     return { text, sources: [] };
 };
+
+
+
+

@@ -18,7 +18,7 @@ export const DEFAULT_SETTINGS: AppSettings = {
     customSubjects: ['Browsers', 'Communication', 'Dev Tools'],
     itemsPerPage: 6,
     activePackageManager: 'winget',
-    aiConfig: { provider: 'gemini', apiKey: '', baseUrl: '', modelId: 'gemini-2.5-flash' },
+    aiConfig: { provider: 'local-llama', apiKey: '', baseUrl: '', modelId: 'llama3.gguf', localModelPath: './models/llama3.gguf' },
     githubToken: ''
 };
 

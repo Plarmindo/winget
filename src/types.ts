@@ -46,13 +46,15 @@ export type GitHubAction = 'star' | 'unstar' | 'fork' | 'open' | 'watch' | 'unwa
 
 export type PackageManagerType = 'winget' | 'chocolatey' | 'scoop' | 'brew' | 'apt' | 'github';
 
-export type AiProviderType = 'gemini' | 'openai' | 'ollama' | 'lmstudio' | 'custom';
+
+export type AiProviderType = 'gemini' | 'openai' | 'ollama' | 'lmstudio' | 'llama.cpp' | 'custom' | 'local-llama' | 'local-ollama';
 
 export interface AiConfig {
   provider: AiProviderType;
   apiKey: string;
   baseUrl: string;
   modelId: string;
+  localModelPath?: string; // Full path for local models
 }
 
 export interface AppTheme {

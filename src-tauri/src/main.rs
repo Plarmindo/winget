@@ -14,7 +14,7 @@ mod secure_storage;
 mod errors;
 mod validation;
 mod progress;
-mod ollama_commands;
+mod llama_cpp_commands;
 mod git_commands;
 mod installer_commands;
 
@@ -149,7 +149,15 @@ fn main() {
       load_api_config,
       delete_api_config,
       save_script_to_desktop,
-      ollama_commands::list_ollama_models,
+      llama_cpp_commands::list_llama_models,
+      llama_cpp_commands::initialize_llama_model,
+      llama_cpp_commands::initialize_local_model,
+      llama_cpp_commands::generate_text,
+      llama_cpp_commands::generate_local_text,
+      llama_cpp_commands::unload_llama_model,
+      llama_cpp_commands::unload_local_model,
+      llama_cpp_commands::is_local_model_loaded,
+      llama_cpp_commands::get_local_model_info,
       git_clone_repo,
       git_pull_repo,
       git_repo_status,
