@@ -8,12 +8,7 @@ interface AiTabProps {
 }
 
 export const AiTab: React.FC<AiTabProps> = ({ settings, onUpdateSettings }) => {
-  const [localAiConfig, setLocalAiConfig] = useState<AiConfig>(settings.aiConfig || {
-    provider: 'gemini',
-    apiKey: '',
-    baseUrl: '',
-    modelId: 'gemini-2.5-flash'
-  });
+  const [localAiConfig, setLocalAiConfig] = useState<AiConfig>(settings.aiConfig);
   const [validationErrors, setValidationErrors] = useState<{ baseUrl?: string; modelId?: string }>({});
   const [testStatus, setTestStatus] = useState<'idle' | 'loading' | 'success' | 'error'>(
     settings.aiConfig?.apiKey ? 'success' : 'idle'
@@ -21,8 +16,6 @@ export const AiTab: React.FC<AiTabProps> = ({ settings, onUpdateSettings }) => {
   const [testMessage, setTestMessage] = useState('');
   const [saveStatus, setSaveStatus] = useState<'idle' | 'saving' | 'success'>('idle');
   const [ollamaModels, setOllamaModels] = useState<string[]>([]);
-  const [localModelPath, setLocalModelPath] = useState<string>('');
-  const [localModelLoaded, setLocalModelLoaded] = useState<boolean>(false);
 
   // Cache for API keys per provider to prevent sharing keys
   const [keyCache, setKeyCache] = useState<Record<string, string>>({
@@ -44,9 +37,6 @@ export const AiTab: React.FC<AiTabProps> = ({ settings, onUpdateSettings }) => {
   useEffect(() => {
     if (localAiConfig.provider === 'ollama') {
       fetchOllamaModels(localAiConfig.baseUrl || '');
-    }
-    if (localAiConfig.provider === 'local-llama' || localAiConfig.provider === 'local-ollama') {
-      checkLocalModelStatus();
     }
   }, [localAiConfig.provider, localAiConfig.baseUrl]);
 
@@ -101,41 +91,6 @@ export const AiTab: React.FC<AiTabProps> = ({ settings, onUpdateSettings }) => {
     }
   };
 
-  const checkLocalModelStatus = async () => {
-    try {
-      const { isLocalModelLoaded, getLocalModelInfo } = await import('../../services/tauriBridge');
-      const loaded = await isLocalModelLoaded();
-      console.log('[AiTab] Model status check - loaded:', loaded);
-      setLocalModelLoaded(loaded);
-      
-      if (loaded) {
-        const info = await getLocalModelInfo();
-        console.log('[AiTab] Model info:', info);
-        if (info?.model_path) {
-          setLocalModelPath(info.model_path);
-        }
-      }
-    } catch (e) {
-      console.error("[AiTab] Failed to check local model status:", e);
-      setLocalModelLoaded(false);
-    }
-  };
-
-  const handleBrowseLocalModel = async () => {
-    try {
-      const { selectModelFile } = await import('../../services/tauriBridge');
-      const selectedPath = await selectModelFile();
-      if (selectedPath) {
-        setLocalModelPath(selectedPath);
-        // Also update the modelId to reflect the file name
-        const fileName = selectedPath.split(/[\\/]/).pop() || selectedPath;
-        setLocalAiConfig(prev => ({ ...prev, modelId: fileName }));
-      }
-    } catch (e) {
-      console.error("Failed to open file dialog:", e);
-    }
-  };
-
   const validateInput = (field: 'baseUrl' | 'modelId', value: string) => {
     let error = undefined;
     if (field === 'baseUrl' && value && !/^https?:\/\//i.test(value) && !value.includes('localhost')) error = "URL must start with http:// or https://";
@@ -150,7 +105,7 @@ export const AiTab: React.FC<AiTabProps> = ({ settings, onUpdateSettings }) => {
     return error;
   };
 
-  const saveAiConfig = async () => {
+  const saveAiConfig = () => {
     const baseUrlError = localAiConfig.provider !== 'gemini' ? validateInput('baseUrl', localAiConfig.baseUrl) : undefined;
     const modelIdError = validateInput('modelId', localAiConfig.modelId);
 
@@ -163,60 +118,30 @@ export const AiTab: React.FC<AiTabProps> = ({ settings, onUpdateSettings }) => {
     // Use default URL for Ollama if empty
     const finalBaseUrl = localAiConfig.baseUrl || (localAiConfig.provider === 'ollama' ? 'http://localhost:11434/v1' : '');
 
-    try {
-      // Save to Secure Storage (Tauri)
-      const { saveApiConfig } = await import('../../services/tauriBridge');
-      await saveApiConfig({
+    // Save to Secure Storage (Tauri)
+    import('../../services/tauriBridge').then(({ saveApiConfig }) => {
+      saveApiConfig({
         api_key: localAiConfig.apiKey,
         provider: localAiConfig.provider,
         base_url: finalBaseUrl,
         model_id: localAiConfig.modelId
-      });
-
-      // Use store directly since we are inside a component but outside the hook in this callback
-      import('../../stores/store').then(({ useAppStore }) => {
+      }).then(() => {
+        // Use store directly since we are inside a component but outside the hook in this callback
+        const { useAppStore } = require('../../stores/store');
         useAppStore.getState().setStatusMessage("AI Settings Saved & Secure", "success");
-      });
 
-      setSaveStatus('success');
-      setTimeout(async () => {
+        setSaveStatus('success');
+        setTimeout(() => {
+          setSaveStatus('idle');
+          useAppStore.getState().setStatusMessage(null);
+        }, 2000);
+      }).catch(e => {
+        console.error("Failed to save secure config:", e);
         setSaveStatus('idle');
-        const { useAppStore } = await import('../../stores/store');
-        useAppStore.getState().setStatusMessage(null);
-      }, 2000);
-    } catch (e) {
-      console.error("Failed to save secure config:", e);
-      setSaveStatus('idle');
-    }
+      });
+    });
 
-    // Update settings with local model path if set
-    const updatedConfig = { ...localAiConfig, baseUrl: finalBaseUrl };
-    if (localModelPath && (localAiConfig.provider === 'local-llama' || localAiConfig.provider === 'local-ollama')) {
-      updatedConfig.localModelPath = localModelPath;
-    }
-
-    onUpdateSettings({ ...settings, aiConfig: updatedConfig });
-
-    // If local model provider, initialize the model
-    if ((localAiConfig.provider === 'local-llama' || localAiConfig.provider === 'local-ollama') && localModelPath) {
-      try {
-        const { initializeLocalModel } = await import('../../services/tauriBridge');
-        console.log('[AiTab] Initializing model:', localModelPath);
-        const initialized = await initializeLocalModel(localModelPath, localAiConfig.provider === 'local-llama' ? 'llama.cpp' : 'ollama');
-        if (initialized) {
-          console.log('[AiTab] Model initialized successfully');
-          // Update the local state immediately
-          setLocalModelLoaded(true);
-          // Also verify the backend status
-          checkLocalModelStatus();
-        } else {
-          console.error('[AiTab] Model initialization returned false');
-        }
-      } catch (e) {
-        console.error("[AiTab] Failed to initialize local model:", e);
-        setLocalModelLoaded(false);
-      }
-    }
+    onUpdateSettings({ ...settings, aiConfig: { ...localAiConfig, baseUrl: finalBaseUrl } });
   };
 
   const getBaseUrlPlaceholder = (provider: string) => {
@@ -277,11 +202,8 @@ export const AiTab: React.FC<AiTabProps> = ({ settings, onUpdateSettings }) => {
     }
   };
 
-  // Allow empty Base URL for Ollama and local models
-  const hasErrors = Object.keys(validationErrors).length > 0 || 
-    !localAiConfig.modelId || 
-    ((localAiConfig.provider !== 'gemini' && localAiConfig.provider !== 'ollama' && localAiConfig.provider !== 'local-llama' && localAiConfig.provider !== 'local-ollama') && !localAiConfig.baseUrl) ||
-    ((localAiConfig.provider === 'local-llama' || localAiConfig.provider === 'local-ollama') && !localModelPath);
+  // Allow empty Base URL for Ollama (will use default)
+  const hasErrors = Object.keys(validationErrors).length > 0 || !localAiConfig.modelId || (localAiConfig.provider !== 'gemini' && localAiConfig.provider !== 'ollama' && localAiConfig.provider !== 'local-llama' && localAiConfig.provider !== 'local-ollama' && !localAiConfig.baseUrl);
 
   return (
     <div className="space-y-6 animate-in slide-in-from-right-4 duration-300">
@@ -325,41 +247,16 @@ export const AiTab: React.FC<AiTabProps> = ({ settings, onUpdateSettings }) => {
             </select>
           </div>
           <div>
-            <label className="text-xs font-bold text-[var(--app-text-muted)] block mb-1.5 uppercase tracking-wider">
-              {localAiConfig.provider === 'gemini' ? 'Model Name' : 
-               localAiConfig.provider === 'local-llama' ? 'Model File' : 'Model ID'}
-            </label>
+            <label className="text-xs font-bold text-[var(--app-text-muted)] block mb-1.5 uppercase tracking-wider">{localAiConfig.provider === 'gemini' ? 'Model Name' : 'Model ID'}</label>
             <div className="relative">
-              {(localAiConfig.provider === 'local-llama' || localAiConfig.provider === 'local-ollama') ? (
-                <div className="flex gap-2">
-                  <input
-                    type="text"
-                    value={localModelPath || localAiConfig.modelId}
-                    onChange={(e) => {
-                      setLocalModelPath(e.target.value);
-                      handleConfigChange('modelId', e.target.value);
-                    }}
-                    placeholder="Select a GGUF model file..."
-                    className={`flex-1 bg-[var(--app-surface)] border ${validationErrors.modelId ? 'border-red-500 focus:ring-red-500' : 'border-[var(--app-border)] focus:ring-[var(--app-primary)]'} rounded-lg px-3 py-2.5 text-sm text-[var(--app-text)] focus:ring-2 outline-none transition-all`}
-                    readOnly
-                  />
-                  <button
-                    onClick={handleBrowseLocalModel}
-                    className="px-4 py-2.5 bg-[var(--app-primary)] hover:opacity-90 text-white rounded-lg font-bold text-sm transition-all flex items-center gap-2 whitespace-nowrap"
-                  >
-                    Browse...
-                  </button>
-                </div>
-              ) : (
-                <input
-                  type="text"
-                  list="model-options"
-                  value={localAiConfig.modelId}
-                  onChange={(e) => handleConfigChange('modelId', e.target.value)}
-                  placeholder={getModelIdPlaceholder(localAiConfig.provider)}
-                  className={`w-full bg-[var(--app-surface)] border ${validationErrors.modelId ? 'border-red-500 focus:ring-red-500' : 'border-[var(--app-border)] focus:ring-[var(--app-primary)]'} rounded-lg px-3 py-2.5 text-sm text-[var(--app-text)] focus:ring-2 outline-none transition-all`}
-                />
-              )}
+              <input
+                type="text"
+                list="model-options"
+                value={localAiConfig.modelId}
+                onChange={(e) => handleConfigChange('modelId', e.target.value)}
+                placeholder={getModelIdPlaceholder(localAiConfig.provider)}
+                className={`w-full bg-[var(--app-surface)] border ${validationErrors.modelId ? 'border-red-500 focus:ring-red-500' : 'border-[var(--app-border)] focus:ring-[var(--app-primary)]'} rounded-lg px-3 py-2.5 text-sm text-[var(--app-text)] focus:ring-2 outline-none transition-all`}
+              />
               <datalist id="model-options">
                 {localAiConfig.provider === 'gemini' && (
                   <>
@@ -401,16 +298,14 @@ export const AiTab: React.FC<AiTabProps> = ({ settings, onUpdateSettings }) => {
           </div>
         </div>
 
-        {(localAiConfig.provider === 'local-ollama' || (localAiConfig.provider !== 'gemini' && localAiConfig.provider !== 'local-llama' && localAiConfig.provider !== 'local-ollama')) && (
+        {localAiConfig.provider !== 'gemini' && localAiConfig.provider !== 'local-llama' && localAiConfig.provider !== 'local-ollama' && (
           <div>
-            <label className="text-xs font-bold text-[var(--app-text-muted)] block mb-1.5 uppercase tracking-wider">
-              {localAiConfig.provider === 'local-ollama' ? 'Ollama URL (Optional)' : 'Base URL'}
-            </label>
+            <label className="text-xs font-bold text-[var(--app-text-muted)] block mb-1.5 uppercase tracking-wider">Base URL</label>
             <input
               type="text"
               value={localAiConfig.baseUrl}
               onChange={(e) => handleConfigChange('baseUrl', e.target.value)}
-              placeholder={localAiConfig.provider === 'local-ollama' ? 'http://localhost:11434' : getBaseUrlPlaceholder(localAiConfig.provider)}
+              placeholder={getBaseUrlPlaceholder(localAiConfig.provider)}
               className={`w-full bg-[var(--app-surface)] border ${validationErrors.baseUrl ? 'border-red-500 focus:ring-red-500' : 'border-[var(--app-border)] focus:ring-[var(--app-primary)]'} rounded-lg px-3 py-2.5 text-sm text-[var(--app-text)] focus:ring-2 outline-none transition-all font-mono`}
             />
           </div>
@@ -470,38 +365,6 @@ export const AiTab: React.FC<AiTabProps> = ({ settings, onUpdateSettings }) => {
           </button>
         </div>
         {testMessage && <div className={`p-3 rounded-lg text-xs flex items-center gap-2 animate-in fade-in slide-in-from-top-2 ${testStatus === 'success' ? 'bg-green-500/10 text-green-500 border border-green-500/20' : testStatus === 'error' ? 'bg-red-500/10 text-red-500 border border-red-500/20' : 'bg-[var(--app-bg)]'}`}>{testStatus === 'success' ? <Check size={14} /> : testStatus === 'error' ? <X size={14} /> : null}<span>{testMessage}</span></div>}
-
-        {/* Local Model Status */}
-        {(localAiConfig.provider === 'local-llama' || localAiConfig.provider === 'local-ollama') && (
-          <div className="mt-4 p-4 bg-[var(--app-surface)] rounded-lg">
-            <h4 className="text-sm font-bold text-[var(--app-text)] mb-2">Local Model Status</h4>
-            {localModelLoaded ? (
-              <div className="flex items-center gap-2 text-green-500 text-xs">
-                <Check size={14} />
-                <span>Model loaded: {localModelPath}</span>
-                <button 
-                  onClick={async () => {
-                    try {
-                      const { unloadLlamaModel } = await import('../../services/tauriBridge');
-                      await unloadLlamaModel();
-                      checkLocalModelStatus();
-                    } catch (e) {
-                      console.error("Failed to unload model:", e);
-                    }
-                  }}
-                  className="ml-auto text-red-500 hover:text-red-600 underline"
-                >
-                  Unload
-                </button>
-              </div>
-            ) : (
-              <div className="flex items-center gap-2 text-[var(--app-text-muted)] text-xs">
-                <X size={14} />
-                <span>No model loaded. Select a model file to get started.</span>
-              </div>
-            )}
-          </div>
-        )}
       </div>
     </div>
   );

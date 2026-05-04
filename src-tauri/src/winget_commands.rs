@@ -82,9 +82,24 @@ fn stream_command_output(
     if status.success() {
         Ok(())
     } else {
+        let code = status.code();
+        let friendly = match code {
+            Some(-1978335189) => " — Another installation is already in progress. Wait for it to finish and try again.".to_string(),
+            Some(-1978335212) => " — Installation is blocked by system policy.".to_string(),
+            Some(-1978335215) => " — The package is currently in use. Close the application and try again.".to_string(),
+            Some(-1978335231) => " — An internal WinGet error occurred.".to_string(),
+            Some(-1978335229) => " — Administrator privileges required. Run as Administrator.".to_string(),
+            Some(-1978335226) => " — Network error: unable to reach the repository.".to_string(),
+            Some(-1978335225) => " — Package not found in the repository.".to_string(),
+            Some(-1978335224) => " — You must accept the package agreements before installing.".to_string(),
+            Some(-1978335222) => " — No applicable upgrade found.".to_string(),
+            Some(-1978335221) => " — Upgrade is not supported for this package.".to_string(),
+            Some(c) if c < 0 => format!(" (0x{:08X})", c as u32),
+            _ => String::new(),
+        };
         Err(format!(
-            "Command failed with exit code: {:?}",
-            status.code()
+            "Command failed with exit code: {:?}{}",
+            code, friendly
         ))
     }
 }
@@ -485,74 +500,106 @@ fn parse_winget_table(output: &str) -> Vec<WingetPackage> {
 
     eprintln!("=== PARSER: Separator at line {} ===", sep_idx);
 
-    // Data starts after separator
-    let data_start = sep_idx + 1;
+    if sep_idx == 0 {
+        return packages;
+    }
 
-    // Parse each data line using the separator line to determine column widths
-    let _sep_line = lines[sep_idx];
+    // Use the header line (before the separator) to determine exact column byte offsets.
+    // This is more robust than splitting by spaces, which fails when a name fills its column
+    // exactly and leaves only one space before the Id column.
+    //
+    // winget's progress spinner uses bare \r to overwrite itself, so when captured to a file
+    // all spinner frames land on the same \n-delimited line as the table header. We take the
+    // last \r-delimited segment to get just the actual header text.
+    let header_raw = lines[sep_idx - 1];
+    let header_line = header_raw.split('\r').last().unwrap_or(header_raw).trim_start();
+    let id_col = match header_line.find("Id") {
+        Some(pos) => pos,
+        None => {
+            eprintln!("=== PARSER: 'Id' column not found in header ===");
+            return packages;
+        }
+    };
+    let name_col = header_line.find("Name").unwrap_or(0);
+    let version_col = header_line.find("Version");
+    let available_col = header_line.find("Available");
+    let source_col = header_line.find("Source");
 
-    // For winget's table format, we'll use a simpler approach:
-    // Split by 2+ spaces to find column boundaries
-    for line in lines.iter().skip(data_start) {
+    eprintln!(
+        "=== PARSER: Columns — name:{} id:{} version:{:?} available:{:?} source:{:?} ===",
+        name_col, id_col, version_col, available_col, source_col
+    );
+
+    // Extract the text between two byte positions (walking to valid char boundaries).
+    fn extract_col(line: &str, start: usize, end: Option<usize>) -> String {
+        let len = line.len();
+        if start >= len {
+            return String::new();
+        }
+        let start = (start..=len)
+            .find(|&i| line.is_char_boundary(i))
+            .unwrap_or(len);
+        let end = match end {
+            Some(e) => (e..=len)
+                .find(|&i| line.is_char_boundary(i))
+                .unwrap_or(len),
+            None => len,
+        };
+        if start >= end {
+            return String::new();
+        }
+        line[start..end].trim().to_string()
+    }
+
+    for line in lines.iter().skip(sep_idx + 1) {
         let trimmed = line.trim();
 
-        // Skip empty lines and footer
+        // Skip empty lines and footer messages
         if trimmed.is_empty()
             || trimmed.contains("upgrades available")
             || trimmed.contains("packages found")
+            || trimmed.contains("package(s) have version numbers")
         {
             continue;
         }
 
         eprintln!("=== PARSER: Processing line: '{}' ===", trimmed);
 
-        // Split by 2 or more spaces to get columns
-        let parts: Vec<&str> = trimmed
-            .split("  ")
-            .filter(|s| !s.is_empty())
-            .map(|s| s.trim())
-            .collect();
+        let name = extract_col(line, name_col, Some(id_col));
+        let id = extract_col(line, id_col, version_col.or(source_col));
+        let version = version_col
+            .map(|v| extract_col(line, v, available_col.or(source_col)))
+            .unwrap_or_default();
+        let available_version = available_col.and_then(|a| {
+            let v = extract_col(line, a, source_col);
+            if v.is_empty() { None } else { Some(v) }
+        });
+        let source = source_col.and_then(|s| {
+            let v = extract_col(line, s, None);
+            if v.is_empty() { None } else { Some(v) }
+        });
 
-        eprintln!(
-            "=== PARSER: Split into {} parts: {:?} ===",
-            parts.len(),
-            parts
-        );
+        // Skip truncated IDs — they cannot be installed as-is and would fail validation.
+        // resolve_full_id() in the caller will attempt to match them from the export map.
+        if id.ends_with("...") || id.ends_with('…') {
+            eprintln!("=== PARSER: Skipping truncated ID: '{}' ===", id);
+            continue;
+        }
 
-        if parts.len() >= 2 {
-            // Format: Name, ID, Version, [Available], [Source]
-            let name = parts[0].to_string();
-            let id = parts[1].to_string();
-            let version = if parts.len() > 2 {
-                parts[2].to_string()
-            } else {
-                String::new()
-            };
-            let available_version = if parts.len() > 3 {
-                Some(parts[3].to_string())
-            } else {
-                None
-            };
-            let source = if parts.len() > 4 {
-                Some(parts[4].to_string())
-            } else {
-                None
-            };
+        eprintln!("=== PARSER: name='{}' id='{}' version='{}' ===", name, id, version);
 
-            // Skip if ID is empty
-            if !id.is_empty() && !name.is_empty() {
-                packages.push(WingetPackage {
-                    id,
-                    name,
-                    version,
-                    available_version,
-                    source,
-                    description: None,
-                    publisher: None,
-                    category: None,
-                    is_free: None,
-                });
-            }
+        if !id.is_empty() && !name.is_empty() {
+            packages.push(WingetPackage {
+                id,
+                name,
+                version,
+                available_version,
+                source,
+                description: None,
+                publisher: None,
+                category: None,
+                is_free: None,
+            });
         }
     }
 

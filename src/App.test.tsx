@@ -16,8 +16,8 @@ vi.mock('./services/tauriBridge', () => ({
 }));
 
 vi.mock('./services/githubService', () => ({
-    searchGitHubRepos: vi.fn().mockResolvedValue([]),
-    validateGitHubToken: vi.fn().mockResolvedValue(true),
+    searchGithubRepos: vi.fn().mockResolvedValue([]),
+    validateGithubToken: vi.fn().mockResolvedValue(true),
     getCurrentUser: vi.fn().mockResolvedValue(null),
     getUserRepos: vi.fn().mockResolvedValue([]),
     getLatestRelease: vi.fn().mockResolvedValue(null),
@@ -59,10 +59,10 @@ describe('App Component', () => {
 
         it('renders mode navigation buttons', () => {
             render(<App />);
-            expect(screen.getByText('Install')).toBeInTheDocument();
-            expect(screen.getByText('Upgrade')).toBeInTheDocument();
-            expect(screen.getByText('Uninstall')).toBeInTheDocument();
-            expect(screen.getByText('GitHub')).toBeInTheDocument();
+            expect(screen.getByRole('tab', { name: /switch to install/i })).toBeInTheDocument();
+            expect(screen.getByRole('tab', { name: /switch to upgrade/i })).toBeInTheDocument();
+            expect(screen.getByRole('tab', { name: /switch to uninstall/i })).toBeInTheDocument();
+            expect(screen.getByRole('tab', { name: /switch to github/i })).toBeInTheDocument();
         });
     });
 
@@ -70,7 +70,7 @@ describe('App Component', () => {
         it('switches to upgrade mode when upgrade button is clicked', async () => {
             render(<App />);
 
-            const upgradeBtn = screen.getByText('Upgrade');
+            const upgradeBtn = screen.getByRole('tab', { name: /switch to upgrade/i });
             fireEvent.click(upgradeBtn);
 
             await waitFor(() => {
@@ -82,7 +82,7 @@ describe('App Component', () => {
         it('switches to uninstall mode when uninstall button is clicked', async () => {
             render(<App />);
 
-            const uninstallBtn = screen.getByText('Uninstall');
+            const uninstallBtn = screen.getByRole('tab', { name: /switch to uninstall/i });
             fireEvent.click(uninstallBtn);
 
             await waitFor(() => {
@@ -91,11 +91,11 @@ describe('App Component', () => {
             });
         });
 
-        it('switches to github mode when github button is clicked', async () => {
+        it('switches to Github mode when Github button is clicked', async () => {
             render(<App />);
 
-            const githubBtn = screen.getByText('GitHub');
-            fireEvent.click(githubBtn);
+            const GithubBtn = screen.getByRole('tab', { name: /switch to github/i });
+            fireEvent.click(GithubBtn);
 
             await waitFor(() => {
                 const state = useAppStore.getState();
@@ -139,7 +139,7 @@ describe('App Component', () => {
             });
         });
 
-        it('switches to github mode on Ctrl+4', async () => {
+        it('switches to Github mode on Ctrl+4', async () => {
             render(<App />);
 
             fireEvent.keyDown(document, { key: '4', ctrlKey: true });
@@ -160,7 +160,7 @@ describe('App Component', () => {
 
             render(<App />);
 
-            const upgradeBtn = screen.getByText('Upgrade');
+            const upgradeBtn = screen.getByRole('tab', { name: /switch to upgrade/i });
             fireEvent.click(upgradeBtn);
 
             await waitFor(() => {
@@ -174,7 +174,7 @@ describe('App Component', () => {
 
             render(<App />);
 
-            const upgradeBtn = screen.getByText('Upgrade');
+            const upgradeBtn = screen.getByRole('tab', { name: /switch to upgrade/i });
             fireEvent.click(upgradeBtn);
 
             await waitFor(() => {

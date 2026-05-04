@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useMemo } from 'react';
 import { X, Star, Search as SearchIcon } from 'lucide-react';
 import { AppMode, WingetPackage } from '../types';
 import { PRESET_CATEGORIES } from '../constants';
@@ -68,6 +68,24 @@ export const ContentArea: React.FC<ContentAreaProps> = ({
 }) => {
     const { settings, sortBy } = useAppStore();
 
+    // Must be declared before any conditional returns (Rules of Hooks).
+    // Stable reference prevents PackageGrid from resetting to page 1 on unrelated re-renders.
+    const sortedPackages = useMemo(() => [...packages].sort((a, b) => {
+        if (sortBy === 'name-asc') {
+            return (a.name || '').localeCompare(b.name || '');
+        } else if (sortBy === 'name-desc') {
+            return (b.name || '').localeCompare(a.name || '');
+        } else if (sortBy === 'manager') {
+            const managerA = a.source || '';
+            const managerB = b.source || '';
+            if (managerA !== managerB) {
+                return managerA.localeCompare(managerB);
+            }
+            return (a.name || '').localeCompare(b.name || '');
+        }
+        return 0;
+    }), [packages, sortBy]);
+
     // Error state
     if (error) {
         return (
@@ -134,23 +152,6 @@ export const ContentArea: React.FC<ContentAreaProps> = ({
             </ErrorBoundary>
         );
     }
-
-    // Package listing mode
-    const sortedPackages = [...packages].sort((a, b) => {
-        if (sortBy === 'name-asc') {
-            return (a.name || '').localeCompare(b.name || '');
-        } else if (sortBy === 'name-desc') {
-            return (b.name || '').localeCompare(a.name || '');
-        } else if (sortBy === 'manager') {
-            const managerA = a.source || '';
-            const managerB = b.source || '';
-            if (managerA !== managerB) {
-                return managerA.localeCompare(managerB);
-            }
-            return (a.name || '').localeCompare(b.name || '');
-        }
-        return 0;
-    });
 
     return (
         <>

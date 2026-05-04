@@ -97,20 +97,51 @@ export const saveScriptToDesktop = async (filename: string, content: string): Pr
 };
 
 export const listOllamaModels = async (): Promise<string[]> => {
-  if (!isTauri()) {
-    // Web Mode fallback: try localhost API
-    try {
-      const res = await fetch('http://localhost:11434/api/tags');
-      if (res.ok) {
-        const data = await res.json();
-        return data.models?.map((m: any) => m.name) || [];
-      }
-    } catch (e) {
-      console.warn("Web Mode Ollama fetch failed:", e);
+  // Ollama is a local HTTP service — call it directly without routing through Tauri
+  try {
+    const res = await fetch('http://localhost:11434/api/tags');
+    if (res.ok) {
+      const data = await res.json();
+      return data.models?.map((m: any) => m.name) || [];
     }
-    return [];
+  } catch (e) {
+    console.warn("Ollama fetch failed:", e);
   }
-  return await invokeTauri<string[]>('list_ollama_models');
+  return [];
+};
+
+// Updated to use llama.cpp instead of Ollama
+export const listLlamaModels = async (): Promise<any[]> => {
+  if (!isTauri()) {
+    // Web Mode fallback: return some placeholder models
+    return [
+      { name: 'llama3:latest', path: './models/llama3.gguf', size: '4.7GB' },
+      { name: 'mistral:latest', path: './models/mistral.gguf', size: '4.1GB' }
+    ];
+  }
+  return await invokeTauri<any[]>('list_llama_models');
+};
+
+export const initializeLlamaModel = async (modelPath: string): Promise<string> => {
+  if (!isTauri()) {
+    return "Model initialized successfully (simulated)";
+  }
+  return await invokeTauri<string>('initialize_llama_model', { modelPath });
+};
+
+export const generateText = async (prompt: string, maxTokens?: number): Promise<string> => {
+  if (!isTauri()) {
+    // Simulate text generation for web mode
+    return `Simulated response to prompt: ${prompt}`;
+  }
+  return await invokeTauri<string>('generate_text', { prompt, maxTokens });
+};
+
+export const unloadLlamaModel = async (): Promise<string> => {
+  if (!isTauri()) {
+    return "Model unloaded successfully (simulated)";
+  }
+  return await invokeTauri<string>('unload_llama_model');
 };
 
 // Git Operations
@@ -171,4 +202,56 @@ export const openUrl = async (url: string): Promise<void> => {
     console.log('[openUrl] Web mode - using window.open');
     window.open(url, '_blank');
   }
+};
+
+
+
+// Local LLM Model File Selection
+export const selectModelFile = async (): Promise<string | null> => {
+  if (!isTauri()) {
+    // Web mode: return null or show a message
+    console.warn("File dialog not available in web mode");
+    return null;
+  }
+  try {
+    const { open } = await import('@tauri-apps/plugin-dialog');
+    const selected = await open({
+      multiple: false,
+      directory: false,
+      filters: [{
+        name: "GGUF Models",
+        extensions: ["gguf"]
+      }]
+    });
+    return selected as string || null;
+  } catch (e) {
+    console.error("Failed to open file dialog:", e);
+    return null;
+  }
+};
+
+// Check if local model is loaded
+export const isLocalModelLoaded = async (): Promise<boolean> => {
+  if (!isTauri()) return false;
+  return await invokeTauri<boolean>('is_local_model_loaded');
+};
+
+// Get local model info
+export const getLocalModelInfo = async (): Promise<{ loaded: boolean; model_path?: string; backend?: string } | null> => {
+  if (!isTauri()) return null;
+  return await invokeTauri<{ loaded: boolean; model_path?: string; backend?: string } | null>('get_local_model_info');
+};
+
+// Initialize local model with backend selection
+export const initializeLocalModel = async (modelPath: string, backend: string): Promise<boolean> => {
+  if (!isTauri()) return true;
+  return await invokeTauri<boolean>('initialize_local_model', { model_path: modelPath, backend });
+};
+
+// Generate text with local model
+export const generateLocalText = async (prompt: string, maxTokens?: number, temperature?: number): Promise<string> => {
+  if (!isTauri()) {
+    return `Simulated response to: ${prompt}`;
+  }
+  return await invokeTauri<string>('generate_local_text', { prompt, max_tokens: maxTokens, temperature });
 };
