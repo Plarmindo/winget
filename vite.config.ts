@@ -49,5 +49,26 @@ export default defineConfig({
     globals: true,
     environment: 'jsdom',
     setupFiles: './src/setupTests.ts',
+    // Unit tests live under src/; the Playwright E2E specs in tests/ must not be collected here
+    include: ['src/**/*.{test,spec}.{ts,tsx}'],
+    coverage: {
+      provider: 'v8',
+      reporter: ['text', 'json', 'html'],
+      // Baseline floors set to current coverage so the gate blocks regressions.
+      // Raise these as tests are added — see docs/PRODUCTION_READINESS_TASKS.md.
+      thresholds: {
+        lines: 40,
+        branches: 60,
+        functions: 20,
+        statements: 40,
+      },
+      include: ['src/**/*.{ts,tsx}'],
+      exclude: [
+        'src/**/*.test.{ts,tsx}',
+        'src/**/*.d.ts',
+        'src/setupTests.ts',
+        'src/vite-env.d.ts',
+      ],
+    },
   },
 })
