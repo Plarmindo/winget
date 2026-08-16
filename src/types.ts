@@ -1,4 +1,3 @@
-
 export interface WingetPackage {
   id: string;
   name: string;
@@ -25,7 +24,7 @@ export type CartItem = WingetPackage;
 
 export enum ViewMode {
   GRID = 'GRID',
-  LIST = 'LIST'
+  LIST = 'LIST',
 }
 
 export interface ChatMessage {
@@ -46,8 +45,15 @@ export type GitHubAction = 'star' | 'unstar' | 'fork' | 'open' | 'watch' | 'unwa
 
 export type PackageManagerType = 'winget' | 'chocolatey' | 'scoop' | 'brew' | 'apt' | 'github';
 
-
-export type AiProviderType = 'gemini' | 'openai' | 'ollama' | 'lmstudio' | 'llama.cpp' | 'custom' | 'local-llama' | 'local-ollama';
+export type AiProviderType =
+  | 'gemini'
+  | 'openai'
+  | 'ollama'
+  | 'lmstudio'
+  | 'llama.cpp'
+  | 'custom'
+  | 'local-llama'
+  | 'local-ollama';
 
 export interface AiConfig {
   provider: AiProviderType;
@@ -61,13 +67,13 @@ export interface AppTheme {
   id: string;
   name: string;
   colors: {
-    bg: string;          // Main background
-    surface: string;     // Card/Modal background
-    border: string;      // Borders
-    text: string;        // Primary text
-    textMuted: string;   // Secondary text
-    primary: string;     // Primary action color
-    primaryHover: string;// Primary hover
+    bg: string; // Main background
+    surface: string; // Card/Modal background
+    border: string; // Borders
+    text: string; // Primary text
+    textMuted: string; // Secondary text
+    primary: string; // Primary action color
+    primaryHover: string; // Primary hover
   };
   isCustom?: boolean;
 }
@@ -83,7 +89,7 @@ export interface AppSettings {
   itemsPerPage: number;
   activePackageManager: PackageManagerType;
   aiConfig: AiConfig;
-  githubToken: string;
+  githubToken?: string; // Optional: token now stored securely in OS keychain (S1)
 }
 
 export type WingetErrorCode =
@@ -98,7 +104,7 @@ export type WingetErrorCode =
 
 export interface WingetError {
   type: WingetErrorCode;
-  details: any;
+  details: unknown;
   message?: string; // Helper for simple display
 }
 
