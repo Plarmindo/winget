@@ -46,6 +46,16 @@ tsc_*.txt
 build_error.txt
 *.bat
 
+# Stale build / tooling artifacts
+build_errors.txt
+build_log.txt
+cargo_check_error.txt
+cargo_output.txt
+check_error.txt
+debug_tests*.out
+*_error.txt
+*_output.txt
+
 # IDE and editor files
 .vscode/settings.json
 .idea/
