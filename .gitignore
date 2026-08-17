@@ -29,6 +29,10 @@ tsc_output.txt
 tsc_errors.txt
 build_error.txt
 
+# Playwright test artifacts
+test-results/e2e-results.json
+test-results/flaky-tests.txt
+
 # Debug and temp files
 error_*
 upgrade*.txt

@@ -42,6 +42,8 @@ jobs:
     name: E2E Tests
     runs-on: ubuntu-latest
     needs: [frontend, backend]
+    permissions:
+      pull-requests: write
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -52,6 +54,47 @@ jobs:
       - run: npm ci
       - run: npx playwright install --with-deps chromium
       - run: npm run test:e2e:ci
+      # Only reached when the gate above failed. Posts a PR comment listing the
+      # flaky tests (check-e2e-flaky.mjs writes test-results/flaky-tests.txt before
+      # exiting non-zero); skips silently when the failure was something else.
+      - name: Comment flaky tests on the PR
+        if: failure()
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const fs = require('node:fs');
+            const reportPath = 'test-results/flaky-tests.txt';
+            if (!fs.existsSync(reportPath)) {
+              console.log('No flaky-tests report found; e2e failed for another reason. Skipping PR comment.');
+              return;
+            }
+            const pr = context.payload.pull_request;
+            if (!pr) {
+              console.log('Not a pull_request event; nothing to comment on.');
+              return;
+            }
+            const tests = fs
+              .readFileSync(reportPath, 'utf8')
+              .trim()
+              .split('\n')
+              .map((line) => `- \`${line}\``)
+              .join('\n');
+            const body = [
+              '## ⚠️ Flaky e2e tests detected',
+              '',
+              `The e2e flake gate found **${tests.length} test(s)** that passed only after a retry (run: ${context.runId}):`,
+              '',
+              tests,
+              '',
+              'Flakiness is surfaced on purpose — please root-cause these instead of relying on retries.',
+            ].join('\n');
+            await github.rest.issues.createComment({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: pr.number,
+              body,
+            });
+            console.log(`Posted flaky-test comment on PR #${pr.number}.`);
       - uses: actions/upload-artifact@v4
         if: always()
         with:
