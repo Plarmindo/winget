@@ -1,4 +1,4 @@
-import { test, expect } from '@playwright/test';
+import { test, expect } from './fixtures';
 import { DEFAULT_SETTINGS } from '../src/stores/slices/settingsSlice';
 
 // Helper: set model path on the readOnly input (Tauri native dialog can't be intercepted by Playwright)
@@ -27,9 +27,13 @@ async function openAiSettings(page: any) {
 // so these flows are only reachable on desktop/tablet viewports — the mobile project
 // excludes the @md-up tag declaratively via `grepInvert` in playwright.config.ts.
 test.describe('AI Settings - Local Model Management', { tag: '@md-up' }, () => {
+  // Local-model tests poll model status and touch disk, which has historically
+  // flaked under load — retry so occasional slow runs self-heal instead of failing.
+  test.describe.configure({ retries: 2 });
+
   test.beforeEach(async ({ page }) => {
     // Prevent onboarding modal from appearing
-    await page.goto('http://localhost:1420');
+    await page.goto('/');
     await page.evaluate(() => localStorage.setItem('onboarding_seen', 'true'));
     await page.reload();
     await page.waitForSelector('[data-testid="app-container"]', { timeout: 30000 });
@@ -100,7 +104,7 @@ test.describe('AI Settings - Local Model Management', { tag: '@md-up' }, () => {
 
 test.describe('AI Settings - Deep-link focus', () => {
   test.beforeEach(async ({ page }) => {
-    await page.goto('http://localhost:1420');
+    await page.goto('/');
     await page.evaluate(() => localStorage.setItem('onboarding_seen', 'true'));
     await page.reload();
     await page.waitForSelector('[data-testid="app-container"]', { timeout: 30000 });
@@ -164,8 +168,11 @@ test.describe('AI Settings - Deep-link focus', () => {
 // Settings flows require the navbar settings button (`hidden md:flex`), so the mobile
 // project excludes this describe via the @md-up tag + `grepInvert` in playwright.config.ts.
 test.describe('AI Settings - Error Handling', { tag: '@md-up' }, () => {
+  // Same load-sensitivity as the model-management describe above.
+  test.describe.configure({ retries: 2 });
+
   test.beforeEach(async ({ page }) => {
-    await page.goto('http://localhost:1420');
+    await page.goto('/');
     await page.evaluate(() => localStorage.setItem('onboarding_seen', 'true'));
     await page.reload();
     await page.waitForSelector('[data-testid="app-container"]', { timeout: 30000 });

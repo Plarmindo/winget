@@ -5,12 +5,8 @@ export default defineConfig({
   fullyParallel: true,
   forbidOnly: !!process.env.CI,
   retries: process.env.CI ? 2 : 0,
-  // Single worker: the suite shares one Vite dev server (webServer block), and
-  // parallel workers cause load-related flakes against it. CI already ran at 1.
-  workers: 1,
   reporter: 'html',
   use: {
-    baseURL: 'http://localhost:1420',
     trace: 'on-first-retry',
     screenshot: 'only-on-failure',
     video: 'retain-on-failure',
@@ -34,11 +30,5 @@ export default defineConfig({
     },
   ],
 
-  webServer: {
-    command: 'npm run dev',
-    url: 'http://localhost:1420',
-    reuseExistingServer: !process.env.CI,
-    timeout: 30000,
-  },
   timeout: 60000,
 });
