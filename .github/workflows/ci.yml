@@ -57,6 +57,8 @@ jobs:
       # Only reached when the gate above failed. Posts a PR comment listing the
       # flaky tests (check-e2e-flaky.mjs writes test-results/flaky-tests.txt before
       # exiting non-zero); skips silently when the failure was something else.
+      # Sticky: finds the previous comment via a hidden marker and updates it in
+      # place, so repeated flaky runs pile up one comment instead of many.
       - name: Comment flaky tests on the PR
         if: failure()
         uses: actions/github-script@v7
@@ -79,6 +81,8 @@ jobs:
               .split('\n')
               .map((line) => `- \`${line}\``)
               .join('\n');
+            // Hidden marker lets us find and update this comment on later runs.
+            const marker = '<!-- flaky-e2e-gate -->';
             const body = [
               '## ⚠️ Flaky e2e tests detected',
               '',
@@ -87,14 +91,34 @@ jobs:
               tests,
               '',
               'Flakiness is surfaced on purpose — please root-cause these instead of relying on retries.',
+              marker,
             ].join('\n');
-            await github.rest.issues.createComment({
-              owner: context.repo.owner,
-              repo: context.repo.repo,
+            const owner = context.repo.owner;
+            const repo = context.repo.repo;
+            const { data: comments } = await github.rest.issues.listComments({
+              owner,
+              repo,
               issue_number: pr.number,
-              body,
+              per_page: 100,
             });
-            console.log(`Posted flaky-test comment on PR #${pr.number}.`);
+            const previous = comments.find((c) => c.body.includes(marker));
+            if (previous) {
+              await github.rest.issues.updateComment({
+                owner,
+                repo,
+                comment_id: previous.id,
+                body,
+              });
+              console.log(`Updated sticky flaky-test comment (id ${previous.id}) on PR #${pr.number}.`);
+            } else {
+              await github.rest.issues.createComment({
+                owner,
+                repo,
+                issue_number: pr.number,
+                body,
+              });
+              console.log(`Posted sticky flaky-test comment on PR #${pr.number}.`);
+            }
       - uses: actions/upload-artifact@v4
         if: always()
         with:
