@@ -1,5 +1,14 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
-import { invokeTauri, isTauri, saveApiConfig, loadApiConfig } from './tauriBridge';
+import {
+  invokeTauri,
+  isTauri,
+  saveApiConfig,
+  loadApiConfig,
+  isLocalModelLoaded,
+  getLocalModelInfo,
+  initializeLocalModel,
+  unloadLocalModel,
+} from './tauriBridge';
 
 // Mock @tauri-apps/api/core
 const mockInvoke = vi.fn();
@@ -71,6 +80,33 @@ describe('tauriBridge', () => {
 
       const loaded = await loadApiConfig();
       expect(loaded).toEqual(config);
+    });
+  });
+
+  describe('Local model web-mode simulation', () => {
+    beforeEach(async () => {
+      // Force web mode (no Tauri APIs) and reset the simulated model state.
+      // @ts-expect-error -- Tauri internals are not typed on Window
+      delete window.__TAURI_INTERNALS__;
+      await unloadLocalModel();
+    });
+
+    it('reports no model loaded initially', async () => {
+      expect(await isLocalModelLoaded()).toBe(false);
+      expect(await getLocalModelInfo()).toBeNull();
+    });
+
+    it('tracks the loaded model after initialize', async () => {
+      await expect(initializeLocalModel('/models/test.gguf', 'llama.cpp')).resolves.toBe(true);
+      expect(await isLocalModelLoaded()).toBe(true);
+      expect(await getLocalModelInfo()).toEqual({ loaded: true, model_path: '/models/test.gguf' });
+    });
+
+    it('clears the loaded model after unload', async () => {
+      await initializeLocalModel('/models/test.gguf', 'llama.cpp');
+      await expect(unloadLocalModel()).resolves.toBe(true);
+      expect(await isLocalModelLoaded()).toBe(false);
+      expect(await getLocalModelInfo()).toBeNull();
     });
   });
 });
