@@ -26,7 +26,7 @@ async function openAiSettings(page: any) {
 // The settings button is hidden below the md breakpoint (Navbar uses `hidden md:flex`),
 // so these flows are only reachable on desktop/tablet viewports — the mobile project
 // excludes the @md-up tag declaratively via `grepInvert` in playwright.config.ts.
-test.describe('AI Settings - Local Model Management', { tag: '@md-up' }, () => {
+test.describe('AI Settings - Local Model Management', { tag: ['@md-up', '@flaky'] }, () => {
   // Local-model tests poll model status and touch disk, which has historically
   // flaked under load — retry so occasional slow runs self-heal instead of failing.
   test.describe.configure({ retries: 2 });
@@ -68,11 +68,11 @@ test.describe('AI Settings - Local Model Management', { tag: '@md-up' }, () => {
     await setModelPath(page, 'C:\\models\\unload-test-model.gguf');
     await page.click('[data-testid="save-ai-settings-button"]', { force: true });
     await expect(page.locator('[data-testid="local-model-status"]')).toBeVisible({ timeout: 10000 });
+    // The model initializes on save; the Unload button only renders while loaded.
     const unloadBtn = page.locator('[data-testid="unload-model-button"]');
-    if (await unloadBtn.isVisible({ timeout: 5000 }).catch(() => false)) {
-      await unloadBtn.click({ force: true });
-      await expect(page.locator('[data-testid="local-model-status"]')).toBeVisible({ timeout: 10000 });
-    }
+    await expect(unloadBtn).toBeVisible({ timeout: 10000 });
+    await unloadBtn.click({ force: true });
+    await expect(unloadBtn).not.toBeVisible({ timeout: 10000 });
   });
 
   test('should initialize model on chat if not loaded', async ({ page }) => {
@@ -167,7 +167,7 @@ test.describe('AI Settings - Deep-link focus', () => {
 
 // Settings flows require the navbar settings button (`hidden md:flex`), so the mobile
 // project excludes this describe via the @md-up tag + `grepInvert` in playwright.config.ts.
-test.describe('AI Settings - Error Handling', { tag: '@md-up' }, () => {
+test.describe('AI Settings - Error Handling', { tag: ['@md-up', '@flaky'] }, () => {
   // Same load-sensitivity as the model-management describe above.
   test.describe.configure({ retries: 2 });
 

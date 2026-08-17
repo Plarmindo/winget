@@ -5,7 +5,9 @@ export default defineConfig({
   fullyParallel: true,
   forbidOnly: !!process.env.CI,
   retries: process.env.CI ? 2 : 0,
-  reporter: 'html',
+  // JSON output feeds scripts/check-e2e-flaky.mjs (the CI flake gate); HTML is
+  // the human-readable report for local runs and CI artifacts.
+  reporter: [['html'], ['json', { outputFile: 'test-results/e2e-results.json' }]],
   use: {
     trace: 'on-first-retry',
     screenshot: 'only-on-failure',
