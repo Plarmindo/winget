@@ -3,26 +3,20 @@
     windows_subsystem = "windows"
 )]
 
+// All backend modules live in the lib target (see lib.rs) so the fuzz crate
+// and tests can import them; main.rs only wires up Tauri.
+use tauri::{Emitter, State};
+use tokio::sync::Mutex;
+use winget_interface::*;
+
 use secure_storage::{
     delete_api_config, delete_github_token, load_api_config, load_github_token, save_api_config,
     save_github_token,
 };
-use tauri::{Emitter, State};
-use tokio::sync::Mutex;
 use winget_commands::{
     run_winget_install, run_winget_list, run_winget_search, run_winget_uninstall,
     run_winget_upgrade, run_winget_upgrade_list, SearchRequest, WingetOperationRequest,
 };
-
-mod errors;
-mod git_commands;
-mod installer_commands;
-mod llama_cpp_commands;
-mod package_managers;
-mod progress;
-mod secure_storage;
-mod validation;
-mod winget_commands;
 
 use tracing_subscriber::{fmt, EnvFilter};
 

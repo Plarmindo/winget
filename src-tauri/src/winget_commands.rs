@@ -157,9 +157,10 @@ pub struct SearchRequest {
     pub query: String,
 }
 
-// Structs for parsing winget export JSON
+// Structs for parsing winget export JSON (pub so the fuzz targets can
+// exercise the serde parser directly).
 #[derive(Debug, Deserialize)]
-struct WingetExport {
+pub struct WingetExport {
     #[serde(rename = "Sources")]
     sources: Option<Vec<WingetExportSource>>,
 }
@@ -283,7 +284,8 @@ fn get_installed_package_ids() -> Result<HashMap<String, String>, String> {
 
 /// Try to find full package ID from a potentially truncated ID.
 /// Searches by exact match first, then by prefix match across all entries.
-fn resolve_full_id(truncated_id: &str, id_map: &HashMap<String, String>) -> Option<String> {
+/// (pub for the fuzz targets)
+pub fn resolve_full_id(truncated_id: &str, id_map: &HashMap<String, String>) -> Option<String> {
     let clean_id = truncated_id
         .trim()
         .trim_end_matches('…')
@@ -552,7 +554,8 @@ pub fn run_winget_upgrade_list() -> Result<String, String> {
     serde_json::to_string(&packages).map_err(|e| e.to_string())
 }
 
-fn parse_winget_table(output: &str) -> Vec<WingetPackage> {
+/// Parses winget's table output into packages. (pub for the fuzz targets)
+pub fn parse_winget_table(output: &str) -> Vec<WingetPackage> {
     let mut packages = Vec::new();
     let lines: Vec<&str> = output.lines().collect();
 

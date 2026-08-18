@@ -1,0 +1,42 @@
+[package]
+name = "winget-interface-fuzz"
+version = "0.0.0"
+publish = false
+edition = "2021"
+
+[package.metadata]
+cargo-fuzz = true
+
+[dependencies]
+libfuzzer-sys = "0.4"
+serde_json = "1"
+
+[dependencies.winget-interface]
+path = ".."
+
+# Prevent fuzz targets from being built as test/bench/doc targets.
+[[bin]]
+name = "parse_winget_table"
+path = "fuzz_targets/parse_winget_table.rs"
+test = false
+doc = false
+bench = false
+
+[[bin]]
+name = "validation"
+path = "fuzz_targets/validation.rs"
+test = false
+doc = false
+bench = false
+
+[[bin]]
+name = "parse_export_json"
+path = "fuzz_targets/parse_export_json.rs"
+test = false
+doc = false
+bench = false
+
+# cargo-fuzz builds targets with --cfg fuzzing; declare it so stable builds
+# don't warn about the unexpected cfg name.
+[lints.rust]
+unexpected_cfgs = { level = "warn", check-cfg = ['cfg(fuzzing)'] }
