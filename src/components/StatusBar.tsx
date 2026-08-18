@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { Terminal, ChevronUp, ChevronDown, X, Loader2 } from 'lucide-react';
 import { ProgressEvent } from '../types';
+import { isTauri } from '../services/tauriBridge';
 
 export const StatusBar: React.FC = () => {
   const [currentEvent, setCurrentEvent] = useState<ProgressEvent | null>(null);
@@ -13,6 +14,11 @@ export const StatusBar: React.FC = () => {
     let unlistenFn: (() => void) | undefined;
 
     const setupListener = async () => {
+      // Progress events are only emitted by the Tauri desktop runtime. In web
+      // mode there is no backend, so skip the listener instead of logging a
+      // setup error on every mount.
+      if (!isTauri()) return;
+
       try {
         const { listen } = await import('@tauri-apps/api/event');
         const unlisten = await listen('operation-progress', (event: { payload: ProgressEvent }) => {

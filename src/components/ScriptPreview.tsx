@@ -1,9 +1,8 @@
-
 import React, { useState } from 'react';
 import { Copy, CheckCircle, AlertTriangle, Download, RotateCcw } from 'lucide-react';
 import { AppMode, PackageManagerType } from '../types';
 import { saveScriptToDesktop, isTauri } from '../services/tauriBridge';
-
+import { showToast } from '../stores/toastStore';
 
 interface ScriptPreviewProps {
   scriptContent: string;
@@ -14,7 +13,14 @@ interface ScriptPreviewProps {
   onClose: () => void;
 }
 
-export const ScriptPreview: React.FC<ScriptPreviewProps> = ({ scriptContent, mode, packageManager, analysis, excludedCount, onClose }) => {
+export const ScriptPreview: React.FC<ScriptPreviewProps> = ({
+  scriptContent,
+  mode,
+  packageManager,
+  analysis,
+  excludedCount,
+  onClose,
+}) => {
   const [copied, setCopied] = useState(false);
   const [downloaded, setDownloaded] = useState(false);
 
@@ -40,8 +46,8 @@ export const ScriptPreview: React.FC<ScriptPreviewProps> = ({ scriptContent, mod
         setDownloaded(true);
         setTimeout(() => setDownloaded(false), 2000);
       } catch (e) {
-        console.error("Failed to save to desktop:", e);
-        alert("Failed to save script to Desktop.");
+        console.error('Failed to save to desktop:', e);
+        showToast('Failed to save script to Desktop.', 'error');
       }
       return;
     }
@@ -75,19 +81,32 @@ export const ScriptPreview: React.FC<ScriptPreviewProps> = ({ scriptContent, mod
         </div>
         <div className="flex flex-col items-center">
           <span className="text-xs text-[var(--app-text-muted)] mb-1">Installs</span>
-          <span className={`text-sm font-bold ${analysis.installs > 0 ? 'text-[var(--app-primary)]' : 'text-[var(--app-text-muted)]'}`}>{analysis.installs}</span>
+          <span
+            className={`text-sm font-bold ${analysis.installs > 0 ? 'text-[var(--app-primary)]' : 'text-[var(--app-text-muted)]'}`}
+          >
+            {analysis.installs}
+          </span>
         </div>
         <div className="flex flex-col items-center">
           <span className="text-xs text-[var(--app-text-muted)] mb-1">Upgrades</span>
-          <span className={`text-sm font-bold ${analysis.upgrades > 0 ? 'text-emerald-400' : 'text-[var(--app-text-muted)]'}`}>{analysis.upgrades}</span>
+          <span
+            className={`text-sm font-bold ${analysis.upgrades > 0 ? 'text-emerald-400' : 'text-[var(--app-text-muted)]'}`}
+          >
+            {analysis.upgrades}
+          </span>
         </div>
       </div>
 
       <div className="relative group flex-1 overflow-hidden flex flex-col min-h-[200px]">
-        <pre className={`p-4 rounded-lg text-xs font-mono overflow-auto whitespace-pre border bg-black/50 shadow-inner flex-1 ${mode === 'upgrade' ? 'text-emerald-300 border-emerald-900/30' :
-          mode === 'uninstall' ? 'text-red-300 border-red-900/30' :
-            'text-blue-300 border-blue-900/30'
-          }`}>
+        <pre
+          className={`p-4 rounded-lg text-xs font-mono overflow-auto whitespace-pre border bg-black/50 shadow-inner flex-1 ${
+            mode === 'upgrade'
+              ? 'text-emerald-300 border-emerald-900/30'
+              : mode === 'uninstall'
+                ? 'text-red-300 border-red-900/30'
+                : 'text-blue-300 border-blue-900/30'
+          }`}
+        >
           {scriptContent}
         </pre>
         <div className="absolute top-2 right-2 flex space-x-1 opacity-0 group-hover:opacity-100 transition-opacity">
@@ -111,10 +130,11 @@ export const ScriptPreview: React.FC<ScriptPreviewProps> = ({ scriptContent, mod
       <div className="flex gap-3 pt-4 border-t border-[var(--app-border)] mt-auto shrink-0">
         <button
           onClick={handleDownload}
-          className={`flex-1 py-3 rounded-lg font-semibold flex items-center justify-center space-x-2 transition-all ${downloaded
-            ? 'bg-green-600 text-white shadow-lg shadow-green-900/20'
-            : 'bg-[var(--app-surface)] text-[var(--app-text)] hover:bg-[var(--app-border)] border border-[var(--app-border)]'
-            }`}
+          className={`flex-1 py-3 rounded-lg font-semibold flex items-center justify-center space-x-2 transition-all ${
+            downloaded
+              ? 'bg-green-600 text-white shadow-lg shadow-green-900/20'
+              : 'bg-[var(--app-surface)] text-[var(--app-text)] hover:bg-[var(--app-border)] border border-[var(--app-border)]'
+          }`}
           title="Download file"
         >
           {downloaded ? (
@@ -132,10 +152,11 @@ export const ScriptPreview: React.FC<ScriptPreviewProps> = ({ scriptContent, mod
 
         <button
           onClick={handleCopy}
-          className={`flex-1 py-3 rounded-lg font-semibold flex items-center justify-center space-x-2 transition-all ${copied
-            ? 'bg-green-600 text-white shadow-lg shadow-green-900/20'
-            : 'bg-[var(--app-primary)] hover:opacity-90 text-white shadow-lg shadow-blue-900/20'
-            }`}
+          className={`flex-1 py-3 rounded-lg font-semibold flex items-center justify-center space-x-2 transition-all ${
+            copied
+              ? 'bg-green-600 text-white shadow-lg shadow-green-900/20'
+              : 'bg-[var(--app-primary)] hover:opacity-90 text-white shadow-lg shadow-blue-900/20'
+          }`}
         >
           {copied ? (
             <>

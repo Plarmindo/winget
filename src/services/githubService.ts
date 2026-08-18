@@ -1,17 +1,22 @@
-
 import { WingetPackage } from '../types';
 import { logger } from '../utils/logger';
+import { loadGitHubToken } from './tauriBridge';
 
 // Helper function to get auth headers
 const getAuthHeaders = (token?: string): HeadersInit => {
   const headers: HeadersInit = {
-    'Accept': 'application/vnd.github.v3+json'
+    Accept: 'application/vnd.github.v3+json',
   };
   if (token) {
     const authScheme = token.startsWith('github_pat_') ? 'Bearer' : 'token';
     headers['Authorization'] = `${authScheme} ${token}`;
   }
   return headers;
+};
+
+// Load GitHub token from secure storage
+const getGitHubToken = async (): Promise<string | null> => {
+  return await loadGitHubToken();
 };
 
 export const validateGitHubToken = async (token: string): Promise<boolean> => {
@@ -26,9 +31,9 @@ export const validateGitHubToken = async (token: string): Promise<boolean> => {
   try {
     let res = await fetch('https://api.github.com/user', {
       headers: {
-        'Authorization': `Bearer ${token}`,
-        'Accept': 'application/vnd.github.v3+json'
-      }
+        Authorization: `Bearer ${token}`,
+        Accept: 'application/vnd.github.v3+json',
+      },
     });
     logger.debug('GitHub Bearer auth result:', res.status, res.statusText);
 
@@ -38,9 +43,9 @@ export const validateGitHubToken = async (token: string): Promise<boolean> => {
     if (res.status === 401) {
       res = await fetch('https://api.github.com/user', {
         headers: {
-          'Authorization': `token ${token}`,
-          'Accept': 'application/vnd.github.v3+json'
-        }
+          Authorization: `token ${token}`,
+          Accept: 'application/vnd.github.v3+json',
+        },
       });
       logger.debug('GitHub token auth result:', res.status, res.statusText);
 
@@ -57,12 +62,21 @@ export const validateGitHubToken = async (token: string): Promise<boolean> => {
   }
 };
 
+// Get GitHub token from secure storage and validate
+export const validateStoredGitHubToken = async (): Promise<boolean> => {
+  const token = await getGitHubToken();
+  if (!token) return false;
+  return await validateGitHubToken(token);
+};
 
-// Get current authenticated user info
-export const getCurrentUser = async (token: string): Promise<GitHubUser | null> => {
+// Get current authenticated user info (uses secure storage if no token provided)
+export const getCurrentUser = async (token?: string): Promise<GitHubUser | null> => {
   try {
+    const authToken = token || (await getGitHubToken());
+    if (!authToken) return null;
+
     const res = await fetch('https://api.github.com/user', {
-      headers: getAuthHeaders(token)
+      headers: getAuthHeaders(authToken),
     });
     if (!res.ok) return null;
     return await res.json();
@@ -71,10 +85,16 @@ export const getCurrentUser = async (token: string): Promise<GitHubUser | null> 
   }
 };
 
-// Get user's repositories
-export const getUserRepos = async (token: string, sort: 'updated' | 'created' | 'pushed' | 'full_name' = 'updated'): Promise<GitHubRepo[]> => {
+// Get user's repositories (uses secure storage if no token provided)
+export const getUserRepos = async (
+  sort: 'updated' | 'created' | 'pushed' | 'full_name' = 'updated',
+  token?: string
+): Promise<GitHubRepo[]> => {
+  const authToken = token || (await getGitHubToken());
+  if (!authToken) throw new Error('GitHub token not configured. Please add your PAT in settings.');
+
   const res = await fetch(`https://api.github.com/user/repos?sort=${sort}&per_page=100`, {
-    headers: getAuthHeaders(token)
+    headers: getAuthHeaders(authToken),
   });
   if (!res.ok) {
     if (res.status === 401) throw new Error('Invalid GitHub token. Please check your PAT.');
@@ -83,20 +103,24 @@ export const getUserRepos = async (token: string, sort: 'updated' | 'created' | 
   return await res.json();
 };
 
-// Get repository details
+// Get repository details (uses secure storage if no token provided)
 export const getRepoDetails = async (owner: string, repo: string, token?: string): Promise<GitHubRepo> => {
+  const authToken = token || (await getGitHubToken());
   const res = await fetch(`https://api.github.com/repos/${owner}/${repo}`, {
-    headers: getAuthHeaders(token)
+    headers: getAuthHeaders(authToken || undefined),
   });
   if (!res.ok) throw new Error(`Repo not found: ${owner}/${repo}`);
   return await res.json();
 };
 
-// Fork a repository
-export const forkRepo = async (owner: string, repo: string, token: string): Promise<GitHubRepo> => {
+// Fork a repository (uses secure storage if no token provided)
+export const forkRepo = async (owner: string, repo: string, token?: string): Promise<GitHubRepo> => {
+  const authToken = token || (await getGitHubToken());
+  if (!authToken) throw new Error('GitHub token not configured. Please add your PAT in settings.');
+
   const res = await fetch(`https://api.github.com/repos/${owner}/${repo}/forks`, {
     method: 'POST',
-    headers: getAuthHeaders(token)
+    headers: getAuthHeaders(authToken),
   });
   if (!res.ok) throw new Error(`Failed to fork: ${res.statusText}`);
   return await res.json();
@@ -106,7 +130,7 @@ export const forkRepo = async (owner: string, repo: string, token: string): Prom
 export const starRepo = async (owner: string, repo: string, token: string): Promise<void> => {
   const res = await fetch(`https://api.github.com/user/starred/${owner}/${repo}`, {
     method: 'PUT',
-    headers: getAuthHeaders(token)
+    headers: getAuthHeaders(token),
   });
   if (!res.ok && res.status !== 204) throw new Error(`Failed to star: ${res.statusText}`);
 };
@@ -115,7 +139,7 @@ export const starRepo = async (owner: string, repo: string, token: string): Prom
 export const unstarRepo = async (owner: string, repo: string, token: string): Promise<void> => {
   const res = await fetch(`https://api.github.com/user/starred/${owner}/${repo}`, {
     method: 'DELETE',
-    headers: getAuthHeaders(token)
+    headers: getAuthHeaders(token),
   });
   if (!res.ok && res.status !== 204) throw new Error(`Failed to unstar: ${res.statusText}`);
 };
@@ -123,7 +147,7 @@ export const unstarRepo = async (owner: string, repo: string, token: string): Pr
 // Check if repo is starred
 export const isRepoStarred = async (owner: string, repo: string, token: string): Promise<boolean> => {
   const res = await fetch(`https://api.github.com/user/starred/${owner}/${repo}`, {
-    headers: getAuthHeaders(token)
+    headers: getAuthHeaders(token),
   });
   return res.status === 204;
 };
@@ -131,17 +155,22 @@ export const isRepoStarred = async (owner: string, repo: string, token: string):
 // Get repo branches
 export const getRepoBranches = async (owner: string, repo: string, token?: string): Promise<GitHubBranch[]> => {
   const res = await fetch(`https://api.github.com/repos/${owner}/${repo}/branches?per_page=100`, {
-    headers: getAuthHeaders(token)
+    headers: getAuthHeaders(token),
   });
   if (!res.ok) throw new Error(`Failed to fetch branches: ${res.statusText}`);
   return await res.json();
 };
 
 // Get repo commits
-export const getRepoCommits = async (owner: string, repo: string, branch?: string, token?: string): Promise<GitHubCommit[]> => {
+export const getRepoCommits = async (
+  owner: string,
+  repo: string,
+  branch?: string,
+  token?: string
+): Promise<GitHubCommit[]> => {
   const branchParam = branch ? `&sha=${branch}` : '';
   const res = await fetch(`https://api.github.com/repos/${owner}/${repo}/commits?per_page=20${branchParam}`, {
-    headers: getAuthHeaders(token)
+    headers: getAuthHeaders(token),
   });
   if (!res.ok) throw new Error(`Failed to fetch commits: ${res.statusText}`);
   return await res.json();
@@ -150,7 +179,7 @@ export const getRepoCommits = async (owner: string, repo: string, branch?: strin
 // Get user's starred repos
 export const getStarredRepos = async (token: string): Promise<GitHubRepo[]> => {
   const res = await fetch('https://api.github.com/user/starred?per_page=100', {
-    headers: getAuthHeaders(token)
+    headers: getAuthHeaders(token),
   });
   if (!res.ok) throw new Error(`Failed to fetch starred repos: ${res.statusText}`);
   return await res.json();
@@ -161,7 +190,7 @@ export const watchRepo = async (owner: string, repo: string, token: string): Pro
   const res = await fetch(`https://api.github.com/repos/${owner}/${repo}/subscription`, {
     method: 'PUT',
     headers: { ...getAuthHeaders(token), 'Content-Type': 'application/json' },
-    body: JSON.stringify({ subscribed: true })
+    body: JSON.stringify({ subscribed: true }),
   });
   if (!res.ok) throw new Error(`Failed to watch: ${res.statusText}`);
 };
@@ -170,7 +199,7 @@ export const watchRepo = async (owner: string, repo: string, token: string): Pro
 export const unwatchRepo = async (owner: string, repo: string, token: string): Promise<void> => {
   const res = await fetch(`https://api.github.com/repos/${owner}/${repo}/subscription`, {
     method: 'DELETE',
-    headers: getAuthHeaders(token)
+    headers: getAuthHeaders(token),
   });
   if (!res.ok && res.status !== 204) throw new Error(`Failed to unwatch: ${res.statusText}`);
 };
@@ -178,7 +207,7 @@ export const unwatchRepo = async (owner: string, repo: string, token: string): P
 // Check if repo is watched
 export const isRepoWatched = async (owner: string, repo: string, token: string): Promise<boolean> => {
   const res = await fetch(`https://api.github.com/repos/${owner}/${repo}/subscription`, {
-    headers: getAuthHeaders(token)
+    headers: getAuthHeaders(token),
   });
   return res.ok;
 };
@@ -186,7 +215,7 @@ export const isRepoWatched = async (owner: string, repo: string, token: string):
 // Get repo issues count
 export const getRepoIssues = async (owner: string, repo: string, token?: string): Promise<GitHubIssue[]> => {
   const res = await fetch(`https://api.github.com/repos/${owner}/${repo}/issues?state=open&per_page=10`, {
-    headers: getAuthHeaders(token)
+    headers: getAuthHeaders(token),
   });
   if (!res.ok) throw new Error(`Failed to fetch issues: ${res.statusText}`);
   return await res.json();
@@ -195,7 +224,7 @@ export const getRepoIssues = async (owner: string, repo: string, token?: string)
 // Get repo pull requests
 export const getRepoPRs = async (owner: string, repo: string, token?: string): Promise<GitHubPR[]> => {
   const res = await fetch(`https://api.github.com/repos/${owner}/${repo}/pulls?state=open&per_page=10`, {
-    headers: getAuthHeaders(token)
+    headers: getAuthHeaders(token),
   });
   if (!res.ok) throw new Error(`Failed to fetch PRs: ${res.statusText}`);
   return await res.json();
@@ -205,7 +234,7 @@ export const getRepoPRs = async (owner: string, repo: string, token?: string): P
 export const getLatestRelease = async (owner: string, repo: string, token?: string): Promise<GitHubRelease | null> => {
   try {
     const res = await fetch(`https://api.github.com/repos/${owner}/${repo}/releases/latest`, {
-      headers: getAuthHeaders(token)
+      headers: getAuthHeaders(token),
     });
     if (!res.ok) return null;
     return await res.json();
@@ -218,7 +247,7 @@ export const getLatestRelease = async (owner: string, repo: string, token?: stri
 const isInstallableAsset = (filename: string): boolean => {
   const lowerName = filename.toLowerCase();
   const installableExtensions = ['.exe', '.msi', '.dmg', '.pkg', '.deb', '.rpm', '.appimage'];
-  return installableExtensions.some(ext => lowerName.endsWith(ext));
+  return installableExtensions.some((ext) => lowerName.endsWith(ext));
 };
 
 // Helper: Detect release type from assets
@@ -228,23 +257,21 @@ export const detectReleaseType = (release: GitHubRelease | null): ReleaseType =>
     return 'none';
   }
 
-  const hasInstallableAssets = release.assets.some(asset => isInstallableAsset(asset.name));
+  const hasInstallableAssets = release.assets.some((asset) => isInstallableAsset(asset.name));
   return hasInstallableAssets ? 'binary' : 'source';
 };
 
 // Helper: Get installable asset names from release
 export const getInstallableAssets = (release: GitHubRelease | null): string[] => {
   if (!release || !release.assets) return [];
-  return release.assets
-    .filter(asset => isInstallableAsset(asset.name))
-    .map(asset => asset.name);
+  return release.assets.filter((asset) => isInstallableAsset(asset.name)).map((asset) => asset.name);
 };
 
 // Get repo README
 export const getRepoReadme = async (owner: string, repo: string, token?: string): Promise<string | null> => {
   try {
     const res = await fetch(`https://api.github.com/repos/${owner}/${repo}/readme`, {
-      headers: { ...getAuthHeaders(token), 'Accept': 'application/vnd.github.v3.raw' }
+      headers: { ...getAuthHeaders(token), Accept: 'application/vnd.github.v3.raw' },
     });
     if (!res.ok) return null;
     return await res.text();
@@ -267,7 +294,7 @@ export const createRepo = async (options: CreateRepoOptions, token: string): Pro
   const res = await fetch('https://api.github.com/user/repos', {
     method: 'POST',
     headers: { ...getAuthHeaders(token), 'Content-Type': 'application/json' },
-    body: JSON.stringify(options)
+    body: JSON.stringify(options),
   });
   if (!res.ok) {
     const err = await res.json();
@@ -280,7 +307,7 @@ export const createRepo = async (options: CreateRepoOptions, token: string): Pro
 export const deleteRepo = async (owner: string, repo: string, token: string): Promise<void> => {
   const res = await fetch(`https://api.github.com/repos/${owner}/${repo}`, {
     method: 'DELETE',
-    headers: getAuthHeaders(token)
+    headers: getAuthHeaders(token),
   });
   if (!res.ok && res.status !== 204) {
     throw new Error(`Failed to delete repo: ${res.statusText}`);
@@ -288,9 +315,14 @@ export const deleteRepo = async (owner: string, repo: string, token: string): Pr
 };
 
 // Get repository contents (files/folders)
-export const getRepoContents = async (owner: string, repo: string, path: string = '', token?: string): Promise<GitHubContent[]> => {
+export const getRepoContents = async (
+  owner: string,
+  repo: string,
+  path: string = '',
+  token?: string
+): Promise<GitHubContent[]> => {
   const res = await fetch(`https://api.github.com/repos/${owner}/${repo}/contents/${path}`, {
-    headers: getAuthHeaders(token)
+    headers: getAuthHeaders(token),
   });
   if (!res.ok) throw new Error(`Failed to fetch contents: ${res.statusText}`);
   const data = await res.json();
@@ -298,9 +330,13 @@ export const getRepoContents = async (owner: string, repo: string, path: string 
 };
 
 // Get repository languages
-export const getRepoLanguages = async (owner: string, repo: string, token?: string): Promise<Record<string, number>> => {
+export const getRepoLanguages = async (
+  owner: string,
+  repo: string,
+  token?: string
+): Promise<Record<string, number>> => {
   const res = await fetch(`https://api.github.com/repos/${owner}/${repo}/languages`, {
-    headers: getAuthHeaders(token)
+    headers: getAuthHeaders(token),
   });
   if (!res.ok) return {};
   return await res.json();
@@ -325,17 +361,20 @@ export const searchGitHubRepos = async (query: string, token?: string): Promise<
 
   try {
     // If "POPULAR_ESSENTIALS" is passed, we search for highly starred repos
-    const q = query === "POPULAR_ESSENTIALS" ? "stars:>20000" : query;
+    const q = query === 'POPULAR_ESSENTIALS' ? 'stars:>20000' : query;
 
     let res;
     try {
-      res = await fetch(`https://api.github.com/search/repositories?q=${encodeURIComponent(q)}&sort=stars&per_page=30`, { headers });
+      res = await fetch(
+        `https://api.github.com/search/repositories?q=${encodeURIComponent(q)}&sort=stars&per_page=30`,
+        { headers }
+      );
     } catch (networkError) {
-      throw new Error("Unable to connect to GitHub. Please check your internet connection.");
+      throw new Error('Unable to connect to GitHub. Please check your internet connection.');
     }
 
     if (!res.ok) {
-      if (res.status === 403) throw new Error("GitHub API Rate Limit Exceeded. Please add a Token in Settings.");
+      if (res.status === 403) throw new Error('GitHub API Rate Limit Exceeded. Please add a Token in Settings.');
       throw new Error(`GitHub API Error: ${res.statusText}`);
     }
 
@@ -343,7 +382,7 @@ export const searchGitHubRepos = async (query: string, token?: string): Promise<
 
     // Fetch release info for each repo to detect releaseType (limit to first 15 to avoid rate limits)
     const reposWithReleases = await Promise.all(
-      data.items.slice(0, 15).map(async (repo: any) => {
+      data.items.slice(0, 15).map(async (repo: GitHubRepo) => {
         let releaseType: ReleaseType = 'none';
         try {
           const release = await getLatestRelease(repo.owner.login, repo.name, token);
@@ -354,7 +393,7 @@ export const searchGitHubRepos = async (query: string, token?: string): Promise<
         return {
           id: repo.full_name,
           name: repo.name,
-          description: repo.description || "No description provided.",
+          description: repo.description || 'No description provided.',
           publisher: repo.owner.login,
           category: 'Repository',
           version: 'HEAD',
@@ -362,16 +401,16 @@ export const searchGitHubRepos = async (query: string, token?: string): Promise<
           stars: repo.stargazers_count,
           forks: repo.forks_count,
           source: 'github',
-          releaseType
+          releaseType,
         };
       })
     );
 
     // For remaining repos (beyond first 15), don't fetch releases to save API calls
-    const remainingRepos = data.items.slice(15).map((repo: any) => ({
+    const remainingRepos = data.items.slice(15).map((repo: GitHubRepo) => ({
       id: repo.full_name,
       name: repo.name,
-      description: repo.description || "No description provided.",
+      description: repo.description || 'No description provided.',
       publisher: repo.owner.login,
       category: 'Repository',
       version: 'HEAD',
@@ -379,13 +418,13 @@ export const searchGitHubRepos = async (query: string, token?: string): Promise<
       stars: repo.stargazers_count,
       forks: repo.forks_count,
       source: 'github',
-      releaseType: 'none' as ReleaseType
+      releaseType: 'none' as ReleaseType,
     }));
 
     return [...reposWithReleases, ...remainingRepos];
-  } catch (e: any) {
-    console.error("GitHub Search Failed", e);
-    throw new Error(e.message || "Failed to search GitHub");
+  } catch (e: unknown) {
+    console.error('GitHub Search Failed', e);
+    throw new Error(e instanceof Error ? e.message : 'Failed to search GitHub');
   }
 };
 

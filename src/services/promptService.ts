@@ -3,16 +3,15 @@ import { WingetPackage } from '../types';
 // Prompt generators for AI interactions
 
 export const generateAppDetailsPrompt = (name: string, id: string) =>
-    `Briefly explain what ${name} (${id}) is and its main features.`;
+  `Briefly explain what ${name} (${id}) is and its main features.`;
 
-export const generateAlternativesPrompt = (name: string) =>
-    `List 5 best alternatives to ${name}.`;
+export const generateAlternativesPrompt = (name: string) => `List 5 best alternatives to ${name}.`;
 
 export const generateEvaluationPrompt = (name: string) =>
-    `Evaluate ${name} based on performance, security, and user ratings.`;
+  `Evaluate ${name} based on performance, security, and user ratings.`;
 
 export const generateComparisonPrompt = (packages: WingetPackage[]) =>
-    `Compare these packages: ${packages.map(p => p.name).join(', ')}. Return a JSON object with keys: apps (array of names), features (array of objects {name, values[]}), pros (array of objects {app, items[]}), cons (array of objects {app, items[]}), verdict (string).`;
+  `Compare these packages: ${packages.map((p) => p.name).join(', ')}. Return a JSON object with keys: apps (array of names), features (array of objects {name, values[]}), pros (array of objects {app, items[]}), cons (array of objects {app, items[]}), verdict (string).`;
 
 // System instruction generator for chat
 export const getChatSystemInstruction = (managerName: string, managerCmd: string) => `

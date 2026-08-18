@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Palette, BrainCircuit, Database, Info as InfoIcon, Link } from 'lucide-react';
 import AppLogo from './AppLogo';
 import { useAppStore } from '../stores/store';
@@ -8,19 +8,47 @@ import { DataTab } from './settings/DataTab';
 import { AboutTab } from './settings/AboutTab';
 import { ConnectionsTab } from './settings/ConnectionsTab';
 
+export type SettingsTab = 'general' | 'ai' | 'connections' | 'data' | 'about';
+
+export const DEFAULT_SETTINGS_TAB: SettingsTab = 'general';
+
 interface SettingsModalProps {
   isOpen: boolean;
   onClose: () => void;
   onClearData: (type: 'cart' | 'chat' | 'all') => void;
+  /** Tab to land on when the modal opens. Resets on each open. */
+  initialTab?: SettingsTab;
+  /** Called when the user clicks a tab (persistence hook). Not called for initialTab. */
+  onTabChange?: (tab: SettingsTab) => void;
+  /** True when Settings was opened via a deep link, so the AI tab may focus its primary field. */
+  focusOnOpen?: boolean;
 }
 
-export const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose, onClearData }) => {
+export const SettingsModal: React.FC<SettingsModalProps> = ({
+  isOpen,
+  onClose,
+  onClearData,
+  initialTab = DEFAULT_SETTINGS_TAB,
+  onTabChange,
+  focusOnOpen = false,
+}) => {
   const { settings, updateSettings } = useAppStore();
-  const [activeTab, setActiveTab] = useState<'general' | 'ai' | 'connections' | 'data' | 'about'>('general');
+  const [activeTab, setActiveTab] = useState<SettingsTab>(initialTab);
+  // Whether the AI tab should focus its primary field when it mounts. Only deep
+  // links (focusOnOpen) that land on the AI tab request this; manual tab clicks
+  // reset it so browsing settings never yanks focus.
+  const [focusAiOnMount, setFocusAiOnMount] = useState(false);
+
+  // Re-apply the requested initial tab whenever the modal opens, so callers
+  // like the "Open Settings" empty-state button can land on a specific tab.
+  useEffect(() => {
+    if (isOpen) {
+      setActiveTab(initialTab);
+      setFocusAiOnMount(focusOnOpen && initialTab === 'ai');
+    }
+  }, [isOpen, initialTab, focusOnOpen]);
 
   if (!isOpen) return null;
-
-  type SettingsTab = 'general' | 'ai' | 'connections' | 'data' | 'about';
 
   const tabs: { id: SettingsTab; label: string; icon: React.ReactNode; desc: string }[] = [
     { id: 'general', label: 'Appearance', icon: <Palette size={18} />, desc: 'Themes & Layout' },
@@ -49,7 +77,11 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose, o
             {tabs.map((tab) => (
               <button
                 key={tab.id}
-                onClick={() => setActiveTab(tab.id)}
+                onClick={() => {
+                  setActiveTab(tab.id);
+                  setFocusAiOnMount(false);
+                  onTabChange?.(tab.id);
+                }}
                 data-testid={tab.id === 'ai' ? 'ai-settings-tab' : undefined}
                 className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl text-left transition-all ${
                   activeTab === tab.id
@@ -77,7 +109,9 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose, o
         </div>
         <div className="flex-1 flex flex-col bg-[var(--app-surface)] overflow-hidden relative p-6 md:p-8 overflow-y-auto">
           {activeTab === 'general' && <AppearanceTab settings={settings} onUpdateSettings={updateSettings} />}
-          {activeTab === 'ai' && <AiTab settings={settings} onUpdateSettings={updateSettings} />}
+          {activeTab === 'ai' && (
+            <AiTab settings={settings} onUpdateSettings={updateSettings} focusOnMount={focusAiOnMount} />
+          )}
           {activeTab === 'connections' && <ConnectionsTab settings={settings} onUpdateSettings={updateSettings} />}
           {activeTab === 'data' && <DataTab onClearData={onClearData} />}
           {activeTab === 'about' && <AboutTab />}
