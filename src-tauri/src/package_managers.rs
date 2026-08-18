@@ -1,3 +1,4 @@
+use crate::validation::validate_search_query;
 use crate::winget_commands::WingetPackage;
 use std::process::Command;
 
@@ -15,6 +16,9 @@ fn create_command(program: &str) -> Command {
 }
 
 pub fn run_choco_search(query: &str) -> Result<String, String> {
+    if let Err(e) = validate_search_query(query) {
+        return Err(e.user_message());
+    }
     if cfg!(not(target_os = "windows")) {
         return Err("Chocolatey is only supported on Windows".to_string());
     }
@@ -63,6 +67,9 @@ pub fn run_choco_search(query: &str) -> Result<String, String> {
 }
 
 pub fn run_scoop_search(query: &str) -> Result<String, String> {
+    if let Err(e) = validate_search_query(query) {
+        return Err(e.user_message());
+    }
     if cfg!(not(target_os = "windows")) {
         return Err("Scoop is only supported on Windows".to_string());
     }
@@ -173,6 +180,9 @@ pub fn run_scoop_search(query: &str) -> Result<String, String> {
 }
 
 pub fn run_brew_search(query: &str) -> Result<String, String> {
+    if let Err(e) = validate_search_query(query) {
+        return Err(e.user_message());
+    }
     let mut cmd = create_command("brew");
     cmd.arg("search");
     cmd.arg("--eval"); // Returns JSON-like or structured text? No, brew search is text.
@@ -210,6 +220,9 @@ pub fn run_brew_search(query: &str) -> Result<String, String> {
 }
 
 pub fn run_apt_search(query: &str) -> Result<String, String> {
+    if let Err(e) = validate_search_query(query) {
+        return Err(e.user_message());
+    }
     let mut cmd = create_command("apt-cache");
     cmd.arg("search");
     cmd.arg(query);
