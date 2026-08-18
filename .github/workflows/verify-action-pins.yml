@@ -1,0 +1,77 @@
+name: Action Pin Check
+
+on:
+  schedule:
+    - cron: '0 3 * * 1' # Mondays 03:00 UTC
+  workflow_dispatch:
+
+jobs:
+  verify:
+    name: Verify action pins are current
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      issues: write
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version: '20'
+      - run: node scripts/check-action-pins.mjs
+      # Runs only when a pin went stale or drifted from its claimed tag.
+      # Sticky: finds the previous alert issue via a hidden marker and updates
+      # it in place, so repeated checks pile up one issue instead of many.
+      - name: Alert on stale action pins
+        if: hashFiles('action-pins-stale.txt') != ''
+        uses: actions/github-script@f28e40c7f34bde8b3046d885e986cb6290c5673b # v7.1.0
+        with:
+          script: |
+            const fs = require('node:fs');
+            const reportPath = 'action-pins-stale.txt';
+            if (!fs.existsSync(reportPath)) {
+              console.log('No stale pins; nothing to alert on.');
+              return;
+            }
+            const lines = fs
+              .readFileSync(reportPath, 'utf8')
+              .trim()
+              .split('\n')
+              .map((line) => `- \`${line}\``);
+            const owner = context.repo.owner;
+            const repo = context.repo.repo;
+            // Hidden marker lets us find and update this issue on later runs.
+            const marker = '<!-- action-pin-check -->';
+            const body = [
+              '## ⚠️ Stale action pins detected',
+              '',
+              `${lines.length} pin(s) no longer track the latest release of their major version, or no longer match their claimed tag:`,
+              '',
+              ...lines,
+              '',
+              'Bump the SHA pins in `.github/workflows/` and update the version comments. Dependabot with the `github-actions` ecosystem automates this.',
+              marker,
+            ].join('\n');
+            const { data: issues } = await github.rest.issues.listForRepo({
+              owner,
+              repo,
+              state: 'open',
+              per_page: 100,
+            });
+            const previous = issues.find((i) => i.body && i.body.includes(marker));
+            if (previous) {
+              await github.rest.issues.update({
+                owner,
+                repo,
+                issue_number: previous.number,
+                body,
+              });
+              console.log(`Updated sticky alert issue #${previous.number}.`);
+            } else {
+              const { data: issue } = await github.rest.issues.create({
+                owner,
+                repo,
+                title: '⚠️ Stale action pins in CI workflows',
+                body,
+              });
+              console.log(`Created alert issue #${issue.number}.`);
+            }

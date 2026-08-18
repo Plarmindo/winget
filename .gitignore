@@ -34,6 +34,9 @@ test-results/e2e-results.json
 test-results/flaky-tests.txt
 playwright-report/
 
+# CI tooling reports
+action-pins-stale.txt
+
 # Debug and temp files
 error_*
 upgrade*.txt
