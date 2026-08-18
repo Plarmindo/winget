@@ -1,5 +1,11 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
-import { searchPackages, executeRealCommand, parseAIJsonArray } from './wingetService';
+import {
+  searchPackages,
+  executeRealCommand,
+  parseAIJsonArray,
+  parseWingetTableOutput,
+  parseWingetOutput,
+} from './wingetService';
 import * as tauriBridge from './tauriBridge';
 import * as aiService from './aiService';
 import { AppSettings } from '../types';
@@ -175,5 +181,117 @@ describe('wingetService', () => {
 
       expect(tauriBridge.executeCliOperation).toHaveBeenCalledWith('winget', 'uninstall', ['Test.App']);
     });
+  });
+});
+
+describe('parseWingetTableOutput', () => {
+  it('parses a standard winget list table', () => {
+    const output = [
+      'Name                           Id                          Version  Source',
+      '----------------------------------------------------------------------',
+      'Visual Studio Code             Microsoft.VisualStudioCode  1.95.0   winget',
+      'Google Chrome                  Google.Chrome               130.0    winget',
+      '',
+    ].join('\n');
+    const packages = parseWingetTableOutput(output);
+    expect(packages).toHaveLength(2);
+    expect(packages[0]).toMatchObject({
+      name: 'Visual Studio Code',
+      id: 'Microsoft.VisualStudioCode',
+      version: '1.95.0',
+      source: 'winget',
+    });
+    expect(packages[1].name).toBe('Google Chrome');
+    expect(packages[1].id).toBe('Google.Chrome');
+  });
+
+  it('parses the Available column when present', () => {
+    const output = [
+      'Name                Id                          Version    Available  Source',
+      '-------------------------------------------------------------------------------',
+      'Visual Studio Code  Microsoft.VisualStudioCode  1.94.0     1.95.0     winget',
+      '7-Zip               7zip.7zip                   24.09                           ',
+      '',
+    ].join('\n');
+    const packages = parseWingetTableOutput(output);
+    expect(packages).toHaveLength(2);
+    expect(packages[0].availableVersion).toBe('1.95.0');
+    expect(packages[1].availableVersion).toBeUndefined();
+    expect(packages[1].source).toBeUndefined();
+  });
+
+  it('returns empty for non-table text', () => {
+    expect(parseWingetTableOutput('Some random text')).toEqual([]);
+    expect(parseWingetTableOutput('')).toEqual([]);
+  });
+
+  it('returns empty when there is no separator line', () => {
+    const output = ['Name   Id', 'Some    Thing'].join('\n');
+    expect(parseWingetTableOutput(output)).toEqual([]);
+  });
+
+  it('handles spinner artifacts in the header', () => {
+    const output = [
+      '\r                                                                                \rName                           Id                          Version  Source',
+      '----------------------------------------------------------------------',
+      'Visual Studio Code             Microsoft.VisualStudioCode  1.95.0   winget',
+      '',
+    ].join('\n');
+    const packages = parseWingetTableOutput(output);
+    expect(packages).toHaveLength(1);
+    expect(packages[0].name).toBe('Visual Studio Code');
+  });
+
+  it('skips truncated IDs and footer lines', () => {
+    const output = [
+      'Name                  Id             Version  Source',
+      '----------------------------------------------------',
+      'Some Package          Some.Package...  1.0.0    winget',
+      'Valid Package         Valid.Package  2.0.0    winget',
+      '1 packages found',
+      '',
+    ].join('\n');
+    const packages = parseWingetTableOutput(output);
+    expect(packages).toHaveLength(1);
+    expect(packages[0].id).toBe('Valid.Package');
+  });
+
+  it('parses a table without a Source column', () => {
+    const output = [
+      'Name                Id                          Version',
+      '-------------------------------------------------------',
+      'Visual Studio Code  Microsoft.VisualStudioCode  1.95.0',
+      '',
+    ].join('\n');
+    const packages = parseWingetTableOutput(output);
+    expect(packages).toHaveLength(1);
+    expect(packages[0].source).toBeUndefined();
+  });
+});
+
+describe('parseWingetOutput', () => {
+  it('passes through JSON arrays (desktop backend responses)', () => {
+    const packages = parseWingetOutput(
+      JSON.stringify([{ id: 'Test.App', name: 'Test App', version: '1.0.0' }])
+    );
+    expect(packages).toHaveLength(1);
+    expect(packages[0].id).toBe('Test.App');
+  });
+
+  it('falls back to table parsing for pasted winget output', () => {
+    const output = [
+      'Name                           Id                          Version  Source',
+      '----------------------------------------------------------------------',
+      'Mozilla Firefox                Mozilla.Firefox             140.0     winget',
+      '',
+    ].join('\n');
+    const packages = parseWingetOutput(output);
+    expect(packages).toHaveLength(1);
+    expect(packages[0].id).toBe('Mozilla.Firefox');
+    expect(packages[0].name).toBe('Mozilla Firefox');
+  });
+
+  it('returns empty for JSON that is not an array', () => {
+    expect(parseWingetOutput('{}')).toEqual([]);
   });
 });

@@ -31,14 +31,94 @@ export {
 
 // --- Package Parsing ---
 
+/**
+ * Parses winget's ASCII table output (from `winget list` / `winget upgrade`)
+ * into packages, mirroring the Rust backend's parse_winget_table: column
+ * positions come from the header line and each row is sliced by those offsets.
+ * Returns an empty array when the text is not a winget table.
+ */
+export const parseWingetTableOutput = (output: string): WingetPackage[] => {
+  const lines = output.split('\n');
+  if (lines.length === 0) return [];
+
+  // Separator line: all dashes, longer than 10 chars (winget's default).
+  const separatorIdx = lines.findIndex((line) => {
+    const trimmed = line.trim();
+    return trimmed.length > 10 && /^-+$/.test(trimmed);
+  });
+  if (separatorIdx <= 0) return [];
+
+  // winget's progress spinner uses bare \r to overwrite itself, so captured
+  // output has all spinner frames on the header line; take the last segment.
+  const headerRaw = lines[separatorIdx - 1];
+  const header = (headerRaw.split('\r').pop() ?? headerRaw).trimStart();
+  const idCol = header.indexOf('Id');
+  if (idCol === -1) return [];
+  const nameCol = header.indexOf('Name') === -1 ? 0 : header.indexOf('Name');
+  const versionCol = header.indexOf('Version');
+  const availableCol = header.indexOf('Available');
+  const sourceCol = header.indexOf('Source');
+
+  const extractCol = (line: string, start: number, end?: number): string => {
+    if (start >= line.length) return '';
+    const slice = end !== undefined ? line.slice(start, end) : line.slice(start);
+    return slice.trim();
+  };
+
+  const packages: WingetPackage[] = [];
+  for (const line of lines.slice(separatorIdx + 1)) {
+    const trimmed = line.trim();
+    if (
+      trimmed === '' ||
+      trimmed.includes('upgrades available') ||
+      trimmed.includes('packages found') ||
+      trimmed.includes('package(s) have version numbers')
+    ) {
+      continue;
+    }
+
+    const name = extractCol(line, nameCol, idCol);
+    const idEnd = versionCol !== -1 ? versionCol : sourceCol !== -1 ? sourceCol : undefined;
+    const id = extractCol(line, idCol, idEnd);
+    const version =
+      versionCol !== -1
+        ? extractCol(line, versionCol, availableCol !== -1 ? availableCol : sourceCol !== -1 ? sourceCol : undefined)
+        : '';
+    const availableVersion =
+      availableCol !== -1
+        ? (() => {
+            const v = extractCol(line, availableCol, sourceCol !== -1 ? sourceCol : undefined);
+            return v === '' ? undefined : v;
+          })()
+        : undefined;
+    const source =
+      sourceCol !== -1
+        ? (() => {
+            const v = extractCol(line, sourceCol);
+            return v === '' ? undefined : v;
+          })()
+        : undefined;
+
+    // Skip truncated IDs — they cannot be installed as-is and would fail validation.
+    if (id.endsWith('...') || id.endsWith('…')) continue;
+
+    if (id !== '' && name !== '') {
+      packages.push({ id, name, version, availableVersion, source });
+    }
+  }
+  return packages;
+};
+
 export const parseWingetOutput = (output: string): WingetPackage[] => {
   try {
     const parsed = JSON.parse(output);
     if (Array.isArray(parsed)) return parsed;
     return [];
   } catch (e) {
-    logger.error('Failed to parse Winget output as JSON', e);
-    return [];
+    // Not JSON — likely pasted `winget list`/`winget upgrade` table output
+    // from the Upgrade / Bulk Uninstall flows.
+    logger.debug('Not JSON, falling back to winget table parsing');
+    return parseWingetTableOutput(output);
   }
 };
 
