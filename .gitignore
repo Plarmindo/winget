@@ -32,6 +32,7 @@ build_error.txt
 # Playwright test artifacts
 test-results/e2e-results.json
 test-results/flaky-tests.txt
+playwright-report/
 
 # Debug and temp files
 error_*
