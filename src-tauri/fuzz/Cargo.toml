@@ -11,8 +11,8 @@ cargo-fuzz = true
 libfuzzer-sys = "0.4"
 serde_json = "1"
 
-[dependencies.winget-interface]
-path = ".."
+[dependencies.winget-core]
+path = "../core"
 
 # Prevent fuzz targets from being built as test/bench/doc targets.
 [[bin]]

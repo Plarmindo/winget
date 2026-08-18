@@ -6271,6 +6271,17 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "d6bbff5f0aada427a1e5a6da5f1f98158182f26556f345ac9e04d36d0ebed650"
 
 [[package]]
+name = "winget-core"
+version = "1.5.0"
+dependencies = [
+ "once_cell",
+ "regex",
+ "serde",
+ "serde_json",
+ "tracing",
+]
+
+[[package]]
 name = "winget-interface"
 version = "1.5.0"
 dependencies = [
@@ -6296,6 +6307,7 @@ dependencies = [
  "tracing",
  "tracing-subscriber",
  "url",
+ "winget-core",
 ]
 
 [[package]]
@@ -6304,7 +6316,7 @@ version = "0.0.0"
 dependencies = [
  "libfuzzer-sys",
  "serde_json",
- "winget-interface",
+ "winget-core",
 ]
 
 [[package]]

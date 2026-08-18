@@ -1,7 +1,7 @@
 //! Fuzzes `parse_winget_table`, which slices table rows by byte offsets found
 //! in the header. Winget output is read with `String::from_utf8_lossy` in the
 //! real code path, so arbitrary bytes are fed the same way here.
-use winget_interface::winget_commands::parse_winget_table;
+use winget_core::parsing::parse_winget_table;
 
 fn run(data: &[u8]) {
     let input = String::from_utf8_lossy(data);
