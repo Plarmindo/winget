@@ -4,7 +4,7 @@ use std::sync::Mutex as StdMutex;
 
 use once_cell::sync::Lazy;
 use serde::{Deserialize, Serialize};
-use tracing::{debug, info, trace, warn};
+use tracing::{debug, error, info, trace, warn};
 
 #[cfg(target_os = "windows")]
 use std::os::windows::process::CommandExt;
@@ -124,10 +124,9 @@ fn stream_command_output(
             Some(c) if c < 0 => format!(" (0x{:08X})", c as u32),
             _ => String::new(),
         };
-        Err(format!(
-            "Command failed with exit code: {:?}{}",
-            code, friendly
-        ))
+        let message = format!("Command failed with exit code: {:?}{}", code, friendly);
+        error!(exit_code = code, error = %message, "winget command failed");
+        Err(message)
     }
 }
 
@@ -308,6 +307,7 @@ fn resolve_full_id(truncated_id: &str, id_map: &HashMap<String, String>) -> Opti
 
 use crate::validation::{validate_package_id, validate_search_query};
 
+#[tracing::instrument(fields(query = %query))]
 pub fn run_winget_search(query: &str) -> Result<String, String> {
     if let Err(e) = validate_search_query(query) {
         return Err(e.user_message());
@@ -330,9 +330,11 @@ pub fn run_winget_search(query: &str) -> Result<String, String> {
     #[cfg(target_os = "windows")]
     cmd.creation_flags(CREATE_NO_WINDOW);
 
-    let output = cmd
-        .output()
-        .map_err(|e| format!("Failed to run winget search: {}", e))?;
+    let output = cmd.output().map_err(|e| {
+        let message = format!("Failed to run winget search: {}", e);
+        error!(error = %message, "winget search command failed");
+        message
+    })?;
 
     let stdout = String::from_utf8_lossy(&output.stdout).to_string();
 
@@ -340,7 +342,7 @@ pub fn run_winget_search(query: &str) -> Result<String, String> {
 
     // Check if no packages found
     if stdout.contains("No package found") || stdout.trim().is_empty() {
-        debug!("No packages found for search query");
+        info!(count = 0, "Search complete");
         return Ok("[]".to_string());
     }
 
@@ -354,10 +356,11 @@ pub fn run_winget_search(query: &str) -> Result<String, String> {
         }
     }
 
-    debug!(count = packages.len(), "Parsed search packages");
+    info!(count = packages.len(), "Search complete");
     serde_json::to_string(&packages).map_err(|e| e.to_string())
 }
 
+#[tracing::instrument(skip(window), fields(package = %package_id))]
 pub fn run_winget_install(package_id: &str, window: &tauri::Window) -> Result<(), String> {
     if let Err(e) = validate_package_id(package_id) {
         return Err(e.user_message());
@@ -382,6 +385,7 @@ pub fn run_winget_install(package_id: &str, window: &tauri::Window) -> Result<()
     Ok(())
 }
 
+#[tracing::instrument(skip(window), fields(package = %package_id))]
 pub fn run_winget_upgrade(package_id: &str, window: &tauri::Window) -> Result<(), String> {
     if let Err(e) = validate_package_id(package_id) {
         return Err(e.user_message());
@@ -406,6 +410,7 @@ pub fn run_winget_upgrade(package_id: &str, window: &tauri::Window) -> Result<()
     Ok(())
 }
 
+#[tracing::instrument(skip(window), fields(package = %package_id))]
 pub fn run_winget_uninstall(package_id: &str, window: &tauri::Window) -> Result<(), String> {
     if let Err(e) = validate_package_id(package_id) {
         return Err(e.user_message());
@@ -429,6 +434,7 @@ pub fn run_winget_uninstall(package_id: &str, window: &tauri::Window) -> Result<
     Ok(())
 }
 
+#[tracing::instrument]
 pub fn run_winget_list() -> Result<String, String> {
     // Run winget list to get package names and versions (with wide columns to avoid truncation)
     let mut cmd = Command::new("winget");
@@ -442,9 +448,11 @@ pub fn run_winget_list() -> Result<String, String> {
     #[cfg(target_os = "windows")]
     cmd.creation_flags(CREATE_NO_WINDOW);
 
-    let output = cmd
-        .output()
-        .map_err(|e| format!("Failed to run winget list: {}", e))?;
+    let output = cmd.output().map_err(|e| {
+        let message = format!("Failed to run winget list: {}", e);
+        error!(error = %message, "winget list command failed");
+        message
+    })?;
 
     let stdout = String::from_utf8_lossy(&output.stdout).to_string();
 
@@ -453,10 +461,7 @@ pub fn run_winget_list() -> Result<String, String> {
     // Try parsing stdout first — this gives full name/version metadata
     let packages = parse_winget_table(&stdout);
     if !packages.is_empty() {
-        debug!(
-            count = packages.len(),
-            "Parsed installed packages from list"
-        );
+        info!(count = packages.len(), "List complete");
         return serde_json::to_string(&packages).map_err(|e| e.to_string());
     }
 
@@ -478,13 +483,11 @@ pub fn run_winget_list() -> Result<String, String> {
         })
         .collect();
 
-    debug!(
-        count = packages.len(),
-        "Parsed installed packages (export fallback)"
-    );
+    info!(count = packages.len(), "List complete (export fallback)");
     serde_json::to_string(&packages).map_err(|e| e.to_string())
 }
 
+#[tracing::instrument]
 pub fn run_winget_upgrade_list() -> Result<String, String> {
     // Step 1: Get full package IDs from winget export
     let id_map = get_installed_package_ids().unwrap_or_default();
@@ -503,9 +506,11 @@ pub fn run_winget_upgrade_list() -> Result<String, String> {
     #[cfg(target_os = "windows")]
     cmd.creation_flags(CREATE_NO_WINDOW);
 
-    let output = cmd
-        .output()
-        .map_err(|e| format!("Failed to run winget upgrade: {}", e))?;
+    let output = cmd.output().map_err(|e| {
+        let message = format!("Failed to run winget upgrade: {}", e);
+        error!(error = %message, "winget upgrade list command failed");
+        message
+    })?;
 
     let stdout = String::from_utf8_lossy(&output.stdout).to_string();
     let stderr = String::from_utf8_lossy(&output.stderr).to_string();
@@ -528,7 +533,7 @@ pub fn run_winget_upgrade_list() -> Result<String, String> {
     });
 
     if no_upgrades || combined.trim().is_empty() {
-        debug!("No upgrades available");
+        info!(count = 0, "Upgrade list complete");
         return Ok("[]".to_string());
     }
 
@@ -543,7 +548,7 @@ pub fn run_winget_upgrade_list() -> Result<String, String> {
         }
     }
 
-    debug!(count = packages.len(), "Parsed upgrade packages");
+    info!(count = packages.len(), "Upgrade list complete");
     serde_json::to_string(&packages).map_err(|e| e.to_string())
 }
 

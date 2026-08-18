@@ -1,16 +1,14 @@
 use crate::errors::WingetError;
-use lazy_static::lazy_static;
+use once_cell::sync::Lazy;
 use regex::Regex;
+use tracing::{debug, warn};
 
-lazy_static! {
-    // Allow backslashes for MSIX packages like "MSIX\Microsoft.Something"
-    // Allow forward slashes for GitHub repos like "owner/repo"
-    static ref PACKAGE_ID_REGEX: Regex = Regex::new(r"^[@A-Za-z0-9][A-Za-z0-9._\-\\/]{0,255}$").unwrap();
-}
+static PACKAGE_ID_REGEX: Lazy<Regex> =
+    Lazy::new(|| Regex::new(r"^[@A-Za-z0-9][A-Za-z0-9._\-\\/]{0,255}$").unwrap());
 
 pub fn validate_package_id(id: &str) -> Result<(), WingetError> {
     if id.is_empty() {
-        eprintln!("[VALIDATION] Package ID is empty");
+        warn!("Package ID validation failed: empty");
         return Err(WingetError::InvalidInput {
             field: "package_id".to_string(),
             reason: "Package ID cannot be empty".to_string(),
@@ -18,7 +16,7 @@ pub fn validate_package_id(id: &str) -> Result<(), WingetError> {
     }
 
     if id.len() > 256 {
-        eprintln!("[VALIDATION] Package ID too long: {} chars", id.len());
+        warn!(len = id.len(), "Package ID validation failed: too long");
         return Err(WingetError::InvalidInput {
             field: "package_id".to_string(),
             reason: "Package ID too long (max 256 characters)".to_string(),
@@ -26,15 +24,14 @@ pub fn validate_package_id(id: &str) -> Result<(), WingetError> {
     }
 
     if !PACKAGE_ID_REGEX.is_match(id) {
-        eprintln!("[VALIDATION] Package ID '{}' failed regex validation", id);
-        eprintln!("[VALIDATION] Regex pattern: ^[@A-Za-z0-9][A-Za-z0-9._\\-\\\\/]{{0,255}}$");
+        warn!(id = %id, "Package ID validation failed: regex mismatch");
         return Err(WingetError::InvalidInput {
             field: "package_id".to_string(),
             reason: "Invalid format. Expected: Publisher.AppName (alphanumeric, dots, underscores, hyphens)".to_string(),
         });
     }
 
-    eprintln!("[VALIDATION] Package ID '{}' validated successfully", id);
+    debug!(id = %id, "Package ID validated successfully");
     Ok(())
 }
 

@@ -35,7 +35,21 @@ struct Payload {
 // Global lock to prevent concurrent winget operations (exit code -1978335212)
 struct WingetLock(Mutex<()>);
 
+/// Forwards frontend WebView2 console output into the tracing log.
+/// Tauri 2.x exposes no Rust-side console hook, so the frontend captures
+/// console.* (and uncaught errors) and ships them over IPC.
 #[tauri::command]
+async fn log_frontend_message(level: String, message: String) {
+    match level.as_str() {
+        "debug" => tracing::debug!(target: "webview", "{}", message),
+        "warn" => tracing::warn!(target: "webview", "{}", message),
+        "error" => tracing::error!(target: "webview", "{}", message),
+        _ => tracing::info!(target: "webview", "{}", message),
+    }
+}
+
+#[tauri::command]
+#[tracing::instrument(skip_all, fields(manager = %request.manager, query = %request.query))]
 async fn search_packages_command(
     request: SearchRequest,
     winget_lock: State<'_, WingetLock>,
@@ -56,6 +70,10 @@ async fn search_packages_command(
 }
 
 #[tauri::command]
+#[tracing::instrument(
+    skip_all,
+    fields(manager = %request.manager, mode = %request.mode, packages = request.packages.len())
+)]
 async fn run_winget_operation(
     window: tauri::Window,
     request: WingetOperationRequest,
@@ -100,6 +118,7 @@ async fn run_winget_operation(
 }
 
 #[tauri::command]
+#[tracing::instrument(skip_all)]
 async fn list_installed_packages_command(
     winget_lock: State<'_, WingetLock>,
 ) -> Result<String, String> {
@@ -108,6 +127,7 @@ async fn list_installed_packages_command(
 }
 
 #[tauri::command]
+#[tracing::instrument(skip_all)]
 async fn list_upgradable_packages_command(
     winget_lock: State<'_, WingetLock>,
 ) -> Result<String, String> {
@@ -186,6 +206,8 @@ fn main() {
         .with_env_filter(
             EnvFilter::try_from_default_env().unwrap_or_else(|_| EnvFilter::new("info")),
         )
+        // Emit a close event for every span so the log records each command's elapsed time
+        .with_span_events(tracing_subscriber::fmt::format::FmtSpan::CLOSE)
         .init();
 
     tracing::info!(
@@ -216,6 +238,7 @@ fn main() {
             load_github_token,
             delete_github_token,
             save_script_to_desktop,
+            log_frontend_message,
             llama_cpp_commands::list_llama_models,
             llama_cpp_commands::initialize_llama_model,
             llama_cpp_commands::initialize_local_model,
