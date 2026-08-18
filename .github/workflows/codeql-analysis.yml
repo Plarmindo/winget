@@ -44,7 +44,16 @@ jobs:
       - name: Autobuild
         uses: github/codeql-action/autobuild@f3712979fa5f215279b101dd0a2e3bdfb4353324 # v3.37.7
 
+      # This repo is private, and GitHub code scanning (SARIF dashboard)
+      # requires the paid GitHub Code Security / Advanced Security product on
+      # private repos. The analysis itself is free and runs fine, but the
+      # upload API 403s with "Code scanning is not enabled for this
+      # repository". upload: none keeps the scan running (findings print in
+      # the job log) without failing every push. When the repo gains code
+      # scanning (enable it in Settings > Code security and analysis, or make
+      # the repo public), flip upload to 'always' to populate the dashboard.
       - name: Perform CodeQL Analysis
         uses: github/codeql-action/analyze@f3712979fa5f215279b101dd0a2e3bdfb4353324 # v3.37.7
         with:
           category: '/language:${{ matrix.language }}'
+          upload: none
