@@ -1,3 +1,4 @@
+#![cfg_attr(fuzzing, no_main)]
 //! Fuzzes the input validators that gate every winget operation. These run
 //! user input through regexes and character checks before it reaches the
 //! process boundary.

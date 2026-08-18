@@ -1,3 +1,4 @@
+#![cfg_attr(fuzzing, no_main)]
 //! Fuzzes `parse_winget_table`, which slices table rows by byte offsets found
 //! in the header. Winget output is read with `String::from_utf8_lossy` in the
 //! real code path, so arbitrary bytes are fed the same way here.
