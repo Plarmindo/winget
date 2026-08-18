@@ -10,6 +10,10 @@ export default defineConfig({
   server: {
     port: 1420,
     strictPort: false,
+    watch: {
+      // Release builds write into src-tauri/target; don't hot-reload the dev app for them
+      ignored: ['**/src-tauri/target/**'],
+    },
   },
   // to make use of `TAURI_PLATFORM`, `TAURI_ARCH`, `TAURI_FAMILY`,
   // `TAURI_PLATFORM_VERSION`, `TAURI_PLATFORM_TYPE` and `TAURI_DEBUG`
@@ -27,10 +31,50 @@ export default defineConfig({
     minify: !process.env.TAURI_DEBUG ? 'esbuild' : false,
     // produce sourcemaps for debug builds
     sourcemap: !!process.env.TAURI_DEBUG,
+    // Bundle splitting for smaller initial load
+    rollupOptions: {
+      output: {
+        manualChunks: {
+          // Core React libraries
+          'react-vendor': ['react', 'react-dom'],
+          // State management
+          'state': ['zustand'],
+          // Icons
+          'icons': ['lucide-react'],
+          // AI/API related
+          'ai': ['@google/genai'],
+        }
+      }
+    },
+    // Reduce chunk size warnings threshold
+    chunkSizeWarningLimit: 500,
   },
   test: {
     globals: true,
     environment: 'jsdom',
     setupFiles: './src/setupTests.ts',
+    // Unit tests live under src/; the Playwright E2E specs in tests/ must not be collected here
+    include: ['src/**/*.{test,spec}.{ts,tsx}'],
+    coverage: {
+      provider: 'v8',
+      reporter: ['text', 'json', 'html'],
+      // Coverage floors: branches holds a 70% bar; lines/functions/statements are
+      // set to current measured coverage so the gate blocks regressions. Raising
+      // these toward 70 requires UI/component tests for the untested component
+      // layer (AiTab, ChatInterface, GitHubPanel, settings tabs, etc.).
+      thresholds: {
+        lines: 50,
+        branches: 70,
+        functions: 40,
+        statements: 50,
+      },
+      include: ['src/**/*.{ts,tsx}'],
+      exclude: [
+        'src/**/*.test.{ts,tsx}',
+        'src/**/*.d.ts',
+        'src/setupTests.ts',
+        'src/vite-env.d.ts',
+      ],
+    },
   },
 })

@@ -1,282 +1,169 @@
-
-import { GoogleGenAI, Modality } from "@google/genai";
-import { WingetPackage, AppSettings, ChatModelType, PackageManagerType, AiConfig } from '../types';
-import { executeCliSearch, executeCliOperation } from './tauriBridge';
+import { WingetPackage, AppSettings, PackageManagerType } from '../types';
+import {
+  executeCliSearch,
+  executeCliOperation,
+  executeListInstalled,
+  executeListUpgradable,
+  isTauri,
+} from './tauriBridge';
 import { searchGitHubRepos } from './githubService';
+import { generateAIResponse } from './aiService';
+import { logger } from '../utils/logger';
 
-// --- Helpers ---
+// Re-export from aiService for backward compatibility
+export {
+  generateAIResponse,
+  chatWithAI,
+  transcribeAudio,
+  generateSpeech,
+  callOpenAICompatible,
+  detectTaskComplexity,
+  getManagerContext,
+} from './aiService';
 
-export const getManagerContext = (pm: PackageManagerType) => {
-    switch (pm) {
-        case 'winget': return { name: 'Windows Package Manager', cmd: 'winget' };
-        case 'chocolatey': return { name: 'Chocolatey', cmd: 'choco' };
-        case 'scoop': return { name: 'Scoop', cmd: 'scoop' };
-        case 'brew': return { name: 'Homebrew', cmd: 'brew' };
-        case 'apt': return { name: 'APT', cmd: 'apt' };
-        case 'github': return { name: 'GitHub', cmd: 'git' };
-        default: return { name: 'Package Manager', cmd: 'pkg' };
-    }
-};
+// Re-export from promptService for backward compatibility
+export {
+  generateAppDetailsPrompt,
+  generateAlternativesPrompt,
+  generateEvaluationPrompt,
+  generateComparisonPrompt,
+} from './promptService';
 
-export const detectTaskComplexity = (message: string): 'simple' | 'complex' => {
-    const complexKeywords = ['script', 'compare', 'difference', 'code', 'json', 'analysis', 'explain', 'why', 'review', 'create'];
-    if (message.length > 80 || complexKeywords.some(k => message.toLowerCase().includes(k))) return 'complex';
-    return 'simple';
-};
+// --- Package Parsing ---
 
 export const parseWingetOutput = (output: string): WingetPackage[] => {
-    try {
-        // Try to parse as JSON first (if the CLI command outputs JSON)
-        const parsed = JSON.parse(output);
-        if (Array.isArray(parsed)) return parsed;
-        return [];
-    } catch (e) {
-        console.error("Failed to parse Winget output as JSON:", e);
-        // Fallback or empty if not JSON
-        return [];
-    }
+  try {
+    const parsed = JSON.parse(output);
+    if (Array.isArray(parsed)) return parsed;
+    return [];
+  } catch (e) {
+    logger.error('Failed to parse Winget output as JSON', e);
+    return [];
+  }
 };
 
-export const callOpenAICompatible = async (aiConfig: AiConfig, messages: any[], systemInstruction: string, signal?: AbortSignal): Promise<string> => {
-    if (!aiConfig.baseUrl || !aiConfig.modelId) throw new Error("Invalid AI Configuration for Custom Provider");
+// --- Web-mode AI search ---
+// In the browser there is no winget CLI or Tauri backend, so with an API key
+// configured we ask the AI provider for a strict JSON array of matching
+// packages (a real search against the configured model). Without an API key
+// there is no provider to search with, so search returns no results and the
+// UI shows a "set your API key" prompt.
 
-    const finalMessages = [
-        { role: 'system', content: systemInstruction },
-        ...messages
-    ];
+const buildWebSearchPrompt = (query: string, manager: PackageManagerType): string => `
+Search for "${query}" packages available in the "${manager}" package manager.
+Return a strict JSON array of objects. Each object must have these fields:
+- id: string (package identifier)
+- name: string (package name)
+- version: string (latest version)
+- description: string (short description)
+- source: string (must be "${manager}")
 
-    const response = await fetch(`${aiConfig.baseUrl}/chat/completions`, {
-        method: 'POST',
-        headers: {
-            'Content-Type': 'application/json',
-            'Authorization': `Bearer ${aiConfig.apiKey}`
-        },
-        body: JSON.stringify({
-            model: aiConfig.modelId,
-            messages: finalMessages,
-        }),
-        signal
-    });
+Limit to 12 results.
+Ensure the response is ONLY valid JSON. No markdown formatting or explanations.
+`;
 
-    if (!response.ok) {
-        throw new Error(`AI Request Failed: ${response.statusText}`);
-    }
-
-    const data = await response.json();
-    return data.choices?.[0]?.message?.content || "";
+/**
+ * Extract a JSON array from an AI response, tolerating markdown fences or
+ * surrounding prose. Returns the parsed array, or null when no valid JSON
+ * array is present (so callers can distinguish "no results" from "the
+ * provider returned something that isn't JSON").
+ */
+export const parseAIJsonArray = (text: string): unknown[] | null => {
+  const cleaned = text
+    .replace(/```json/gi, '')
+    .replace(/```/g, '')
+    .trim();
+  const start = cleaned.indexOf('[');
+  const end = cleaned.lastIndexOf(']');
+  if (start === -1 || end === -1 || end <= start) return null;
+  try {
+    const parsed = JSON.parse(cleaned.slice(start, end + 1));
+    return Array.isArray(parsed) ? parsed : null;
+  } catch {
+    return null;
+  }
 };
 
-// --- Exported Services ---
+/**
+ * Search packages via the configured AI provider (web mode). The provider is
+ * asked to return a strict JSON array; results are stamped with the active
+ * package manager. Throws a descriptive error when the provider call or the
+ * JSON parsing fails so the UI can surface it.
+ */
+export const searchPackagesWithAI = async (query: string, settings: AppSettings): Promise<WingetPackage[]> => {
+  const { activePackageManager, aiConfig } = settings;
+  if (aiConfig.provider === 'local-llama' || aiConfig.provider === 'local-ollama') {
+    throw new Error('Local models are only available in the desktop app. Choose a cloud provider in Settings.');
+  }
+  const prompt = buildWebSearchPrompt(query, activePackageManager);
+  try {
+    const aiResponse = await generateAIResponse(
+      settings,
+      prompt,
+      'You are a package manager search assistant. Output strict JSON only.'
+    );
+    const results = parseAIJsonArray(aiResponse);
+    if (!results) throw new Error('AI response was not valid JSON');
+    return results.map((pkg) => ({ ...(pkg as WingetPackage), source: activePackageManager }));
+  } catch (e) {
+    console.error('AI Search failed:', e);
+    throw new Error(
+      `Failed to fetch results via AI. ${aiConfig.provider === 'ollama' ? 'Check if Ollama is running.' : 'Check your API Key and Settings.'}`
+    );
+  }
+};
 
-export const searchPackages = async (query: string, installed: WingetPackage[], settings: AppSettings, signal?: AbortSignal): Promise<WingetPackage[]> => {
-    if (settings.activePackageManager === 'github') {
-        return searchGitHubRepos(query, settings.githubToken);
-    }
+// --- Package Search & Operations ---
 
-    try {
-        const result = await executeCliSearch(settings.activePackageManager, query);
-        return parseWingetOutput(result);
-    } catch (e) {
-        console.error("CLI Search failed:", e);
-        throw e; // Propagate error to UI
+export const searchPackages = async (
+  query: string,
+  settings: AppSettings,
+  _signal?: AbortSignal
+): Promise<WingetPackage[]> => {
+  if (settings.activePackageManager === 'github') {
+    return searchGitHubRepos(query, settings.githubToken);
+  }
+
+  // In the browser there is no winget CLI or Tauri backend. Without an API key
+  // there is no AI provider to search with, so return no results and let the UI
+  // show a "set your API key" prompt. Otherwise run a real AI-powered search.
+  if (!isTauri()) {
+    if (!settings.aiConfig.apiKey) return [];
+    return searchPackagesWithAI(query, settings);
+  }
+
+  try {
+    const result = await executeCliSearch(settings.activePackageManager, query);
+    return parseWingetOutput(result);
+  } catch (e) {
+    console.error('CLI Search failed:', e);
+    if (e instanceof Error) {
+      throw e.message;
     }
+    throw e;
+  }
 };
 
 export const executeRealCommand = async (manager: PackageManagerType, mode: string, packages: string[]) => {
-    await executeCliOperation(manager, mode, packages);
+  await executeCliOperation(manager, mode, packages);
 };
 
-// --- Prompt Generators ---
-
-export const generateAppDetailsPrompt = (name: string, id: string) => `Briefly explain what ${name} (${id}) is and its main features.`;
-export const generateAlternativesPrompt = (name: string) => `List 5 best alternatives to ${name}.`;
-export const generateEvaluationPrompt = (name: string) => `Evaluate ${name} based on performance, security, and user ratings.`;
-export const generateComparisonPrompt = (packages: WingetPackage[]) => `Compare these packages: ${packages.map(p => p.name).join(', ')}. Return a JSON object with keys: apps (array of names), features (array of objects {name, values[]}), pros (array of objects {app, items[]}), cons (array of objects {app, items[]}), verdict (string).`;
-
-// --- AI Interaction ---
-
-export const generateAIResponse = async (settings: AppSettings, prompt: string, systemInstruction: string, jsonMode: boolean = false): Promise<string> => {
-    if (settings.aiConfig.provider === 'gemini') {
-        const apiKey = settings.aiConfig.apiKey || process.env.API_KEY;
-        if (!apiKey) throw new Error("No API Key configured.");
-
-        const ai = new GoogleGenAI({ apiKey });
-        const config: any = { systemInstruction };
-        if (jsonMode) config.responseMimeType = 'application/json';
-
-        const response = await ai.models.generateContent({
-            model: settings.aiConfig.modelId || 'gemini-2.5-flash',
-            contents: prompt,
-            config
-        });
-        return response.text || '';
-    }
-
-    return callOpenAICompatible(settings.aiConfig, [{ role: 'user', content: prompt }], systemInstruction);
+export const listInstalledPackages = async (): Promise<WingetPackage[]> => {
+  try {
+    const result = await executeListInstalled();
+    return parseWingetOutput(result);
+  } catch (e) {
+    console.error('List installed failed:', e);
+    throw e instanceof Error ? e.message : e;
+  }
 };
 
-export const transcribeAudio = async (base64Audio: string, mimeType: string, settings: AppSettings): Promise<string> => {
-    if (settings.aiConfig.provider !== 'gemini') return "";
-    const apiKey = settings.aiConfig.apiKey || process.env.API_KEY;
-    if (!apiKey) return "";
-
-    try {
-        const ai = new GoogleGenAI({ apiKey });
-        const response = await ai.models.generateContent({
-            model: 'gemini-2.5-flash',
-            contents: {
-                parts: [
-                    { inlineData: { mimeType, data: base64Audio } },
-                    { text: "Transcribe this audio exactly." }
-                ]
-            }
-        });
-        return response.text || "";
-    } catch (e) {
-        console.error("Transcription error:", e);
-        return "";
-    }
-};
-
-export const generateSpeech = async (text: string, settings: AppSettings): Promise<string> => {
-    if (settings.aiConfig.provider !== 'gemini') return "";
-    const apiKey = settings.aiConfig.apiKey || process.env.API_KEY;
-    if (!apiKey) return "";
-
-    try {
-        const ai = new GoogleGenAI({ apiKey });
-        const response = await ai.models.generateContent({
-            model: 'gemini-2.5-flash-preview-tts',
-            contents: { parts: [{ text }] },
-            config: {
-                responseModalities: [Modality.AUDIO],
-                speechConfig: {
-                    voiceConfig: { prebuiltVoiceConfig: { voiceName: 'Kore' } }
-                }
-            }
-        });
-        return response.candidates?.[0]?.content?.parts?.[0]?.inlineData?.data || "";
-    } catch (e) {
-        console.error("TTS error:", e);
-        return "";
-    }
-};
-
-export const chatWithAI = async (
-    message: string,
-    history: { role: string, parts: { text: string }[] }[],
-    modelType: ChatModelType,
-    settings: AppSettings,
-    signal?: AbortSignal
-) => {
-    const { activePackageManager, aiConfig } = settings;
-    const managerInfo = getManagerContext(activePackageManager);
-
-    const CHAT_SYSTEM_INSTRUCTION = `
-You are an expert, helpful assistant for the ${managerInfo.name}.
-Your goal is to assist users in finding, installing, upgrading, and removing software on using ${managerInfo.cmd}.
-
-**Response Guidelines:**
-1. **Formatting:** Use standard Markdown. Use bold for package names and code blocks for commands.
-2. **Comparisons:** When asked to compare packages, **YOU MUST** use a strict Markdown Table format to present features side-by-side. 
-   - The first column must be the Feature Name (e.g., License, Price, Platform).
-   - Subsequent columns must be the App Names.
-   - Use concise text in cells.
-   Example Table:
-   | Feature | App A | App B |
-   | --- | --- | --- |
-   | License | Open Source | Paid |
-   | OS | Windows | Multi-platform |
-   
-3. **Commands:** When suggesting commands, use code blocks (e.g., \`${managerInfo.cmd} <id>\`).
-4. **Package Lists:** If asked to find apps, include a structured JSON array at the end in a \`\`\`json\`\`\` block.
-5. **Context:** You are currently configured for **${managerInfo.name}**. Do not provide commands for other package managers unless asked.
-`;
-
-    // If Provider is Gemini
-    if (aiConfig.provider === 'gemini') {
-        const apiKey = aiConfig.apiKey || process.env.API_KEY;
-        if (!apiKey) throw new Error("No API Key. Check Settings.");
-
-        const ai = new GoogleGenAI({ apiKey });
-
-        let modelName = aiConfig.modelId || 'gemini-2.5-flash';
-        let thinkingConfig = undefined;
-
-        const isDefaultModelConfig = ['gemini-2.5-flash', 'gemini-2.5-flash-lite', 'gemini-3-pro-preview', 'gemini-2.0-flash-exp'].some(m => aiConfig.modelId?.includes(m));
-
-        if (isDefaultModelConfig || !aiConfig.modelId) {
-            if (modelType === 'fast') modelName = 'gemini-2.5-flash-lite';
-            else if (modelType === 'balanced') modelName = 'gemini-2.5-flash';
-            else if (modelType === 'smart') modelName = 'gemini-3-pro-preview';
-            else if (modelType === 'thinking') {
-                modelName = 'gemini-3-pro-preview';
-                thinkingConfig = { thinkingBudget: 32768 };
-            }
-        }
-
-        const complexity = detectTaskComplexity(message);
-        if (complexity === 'complex' && modelType === 'balanced' && ['gemini-2.5-flash'].includes(modelName)) {
-            console.log("Auto-upgrading Chat model to Pro for complex task");
-            modelName = 'gemini-3-pro-preview';
-        }
-
-        const createChatAndSend = async (useSearch: boolean) => {
-            const config: any = {
-                systemInstruction: CHAT_SYSTEM_INSTRUCTION,
-                thinkingConfig
-            };
-
-            if (useSearch) {
-                config.tools = [{ googleSearch: {} }];
-            }
-
-            const chat = ai.chats.create({
-                model: modelName,
-                history: history,
-                config
-            });
-
-            return await chat.sendMessage({ message });
-        };
-
-        try {
-            const result = await createChatAndSend(true);
-
-            const sources = result.candidates?.[0]?.groundingMetadata?.groundingChunks
-                ?.map((chunk: any) => ({
-                    uri: chunk.web?.uri,
-                    title: chunk.web?.title || 'Source Link'
-                }))
-                .filter((s: any) => s.uri) || [];
-
-            return { text: result.text || "No response text.", sources };
-
-        } catch (error: any) {
-            const errStr = error.message || JSON.stringify(error);
-            const isSearchQuotaError = errStr.includes('search_grounding_request_per_project_per_day_per_user') ||
-                errStr.includes('RESOURCE_EXHAUSTED');
-
-            if (isSearchQuotaError) {
-                console.warn("Chat Search Quota Exceeded. Retrying without search.");
-                try {
-                    const retryResult = await createChatAndSend(false);
-                    return { text: retryResult.text || "No response text. (Search disabled due to quota)", sources: [] };
-                } catch (retryError: any) {
-                    throw new Error("Chat failed even after disabling search: " + (retryError.message || 'Unknown error'));
-                }
-            }
-            throw error;
-        }
-    }
-
-    // Generic Provider (OpenAI/Ollama)
-    const messages = history.map(h => ({
-        role: h.role === 'model' ? 'assistant' : 'user',
-        content: h.parts[0].text
-    }));
-    messages.push({ role: 'user', content: message });
-
-    const text = await callOpenAICompatible(aiConfig, messages, CHAT_SYSTEM_INSTRUCTION, signal);
-    return { text, sources: [] };
+export const listUpgradablePackages = async (): Promise<WingetPackage[]> => {
+  try {
+    const result = await executeListUpgradable();
+    return parseWingetOutput(result);
+  } catch (e) {
+    console.error('List upgradable failed:', e);
+    throw e instanceof Error ? e.message : e;
+  }
 };

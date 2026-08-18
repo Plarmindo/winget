@@ -1,5 +1,5 @@
-use tauri::{Window, Manager};
 use serde::Serialize;
+use tauri::{Emitter, Window};
 
 #[derive(Clone, Serialize)]
 pub struct ProgressEvent {

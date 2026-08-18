@@ -1,112 +1,130 @@
-import React, { useState, useEffect, useRef } from 'react';
-import { RefreshCw, Trash2, Download, Scale, X, Sparkles } from 'lucide-react';
-import { AppMode, WingetPackage } from './types';
-import { parseWingetOutput, generateAppDetailsPrompt, generateComparisonPrompt, generateAIResponse, executeRealCommand } from './services/wingetService';
-import { isTauri } from './services/tauriBridge';
-import { PRESET_CATEGORIES, STORAGE_KEYS, DEFAULT_THEMES } from './constants';
+import { useState, useEffect, lazy, Suspense } from 'react';
+import { WingetPackage } from './types';
+import { generateAppDetailsPrompt, generateAIResponse } from './services/wingetService';
+import { openUrl } from './services/tauriBridge';
 import { useAppStore } from './stores/store';
 import { usePackageOperations } from './hooks/usePackageOperations';
 import { useSearchLogic } from './hooks/useSearchLogic';
+import { useKeyboardShortcuts } from './hooks/useKeyboardShortcuts';
+import { useThemeSync } from './hooks/useThemeSync';
+import { useAppController } from './hooks/useAppController';
+import { STORAGE_KEYS } from './constants';
+import { logger } from './utils/logger';
 
-// Components
-import { PackageGrid } from './components/PackageGrid';
+// Components - eagerly loaded (always visible)
+import { HistoryModal } from './components/HistoryModal';
+import type { SettingsTab } from './components/SettingsModal';
 import { ScriptDrawer } from './components/ScriptDrawer';
-import { ChatInterface } from './components/ChatInterface';
-import { SettingsModal } from './components/SettingsModal';
 import { Navbar } from './components/Navbar';
-import { MaintenanceImport } from './components/MaintenanceImport';
-import { SearchInput } from './components/SearchInput';
-import { CompareModal } from './components/CompareModal';
-import { HelpModal } from './components/HelpModal';
+import { ProgressBar } from './components/ProgressBar';
+import { StatusBar } from './components/StatusBar';
+import ErrorBoundary from './components/ErrorBoundary';
+import { ModeNavigation } from './components/layout/ModeNavigation';
+import { CompareBar } from './components/CompareBar';
+import { ContentArea } from './components/ContentArea';
+import { Toaster } from './components/Toaster';
+import { ConfirmDialog } from './components/ConfirmDialog';
+
+// Heavy components - lazy loaded
+const ChatInterface = lazy(() => import('./components/ChatInterface').then((m) => ({ default: m.ChatInterface })));
+const SettingsModal = lazy(() => import('./components/SettingsModal').then((m) => ({ default: m.SettingsModal })));
+const CompareModal = lazy(() => import('./components/CompareModal').then((m) => ({ default: m.CompareModal })));
+const HelpModal = lazy(() => import('./components/HelpModal').then((m) => ({ default: m.HelpModal })));
+const OnboardingModal = lazy(() =>
+  import('./components/OnboardingModal').then((m) => ({ default: m.OnboardingModal }))
+);
 
 function App() {
-  // Global Store
+  const settings = useAppStore((s) => s.settings);
+  const mode = useAppStore((s) => s.mode);
+  const setMode = useAppStore((s) => s.setMode);
+  const updateSettings = useAppStore((s) => s.updateSettings);
+  const query = useAppStore((s) => s.query);
+  const setQuery = useAppStore((s) => s.setQuery);
+  const packages = useAppStore((s) => s.packages);
+  const setPackages = useAppStore((s) => s.setPackages);
+  const loading = useAppStore((s) => s.loading);
+  const setLoading = useAppStore((s) => s.setLoading);
+  const error = useAppStore((s) => s.error);
+  const setError = useAppStore((s) => s.setError);
+  const compareList = useAppStore((s) => s.compareList);
+  const clearCompare = useAppStore((s) => s.clearCompare);
+  const pendingChatQuery = useAppStore((s) => s.pendingChatQuery);
+  const setPendingChatQuery = useAppStore((s) => s.setPendingChatQuery);
+
+  // Sync mode with provider: GitHub tab → github provider, other tabs → non-github provider
+  // Also fix stale persisted state where activePackageManager is 'github' but mode is not
+  useEffect(() => {
+    if (mode !== 'github' && settings.activePackageManager === 'github') {
+      updateSettings({ activePackageManager: 'winget' });
+    }
+  }, [mode, settings.activePackageManager, updateSettings]);
+
+  const handleModeChange = (newMode: typeof mode) => {
+    const currentProvider = settings.activePackageManager;
+    if (newMode === 'github' && currentProvider !== 'github') {
+      updateSettings({ activePackageManager: 'github' });
+    } else if (newMode !== 'github' && currentProvider === 'github') {
+      updateSettings({ activePackageManager: 'winget' });
+    }
+    setMode(newMode);
+  };
+
+  const { executeOperation, CloneDialogComponent, handleDirectInstall } = usePackageOperations();
+  const { handleSearch, handleStopSearch, searched, setSearched, setHasMore, storePackagesForFiltering } =
+    useSearchLogic();
+
   const {
-    settings,
-    mode, setMode,
-    query, setQuery,
-    packages, setPackages,
-    loading, setLoading,
-    setError,
-    clearCart,
-    compareList, clearCompare,
-    setPendingChatQuery, pendingChatQuery
-  } = useAppStore();
+    isDesktop,
+    showOnboarding,
+    setShowOnboarding,
+    isComparing,
+    compareResult,
+    refreshPackages,
+    handleClearData,
+    handleImport,
+    runComparison,
+  } = useAppController(handleSearch, handleStopSearch, storePackagesForFiltering);
 
-  // Custom Hooks
-  const { executeOperation } = usePackageOperations();
-  const { handleSearch, handleStopSearch, searched, setSearched, setHasMore } = useSearchLogic();
-
-  // Local UI State (Modals)
-  const [isSettingsOpen, setIsSettingsOpen] = useState(false);
-  const [isHelpOpen, setIsHelpOpen] = useState(false);
-  const [isDrawerOpen, setIsDrawerOpen] = useState(false);
-  const [isCompareModalOpen, setIsCompareModalOpen] = useState(false);
-  const [compareResult, setCompareResult] = useState<string | null>(null);
-  const [isComparing, setIsComparing] = useState(false);
-
-  // Import State
+  // Modals Local State
+  const [activeModal, setActiveModal] = useState<string | null>(null);
+  const [settingsInitialTab, setSettingsInitialTab] = useState<SettingsTab>('general');
+  // True only for deep-link opens (an explicit tab was requested), so Settings
+  // can auto-focus the AI tab's primary field. Generic opens (navbar, Ctrl+,
+  // help) keep it false so browsing settings never yanks focus.
+  const [settingsFocusOnOpen, setSettingsFocusOnOpen] = useState(false);
   const [importText, setImportText] = useState('');
-  const [isImporting, setIsImporting] = useState(false);
   const [importError, setImportError] = useState<string | null>(null);
 
-  // Desktop State
-  const [isDesktop, setIsDesktop] = useState(false);
+  const SETTINGS_TABS: SettingsTab[] = ['general', 'ai', 'connections', 'data', 'about'];
 
-  useEffect(() => {
-    setIsDesktop(isTauri());
-  }, []);
+  const readLastSettingsTab = (): SettingsTab => {
+    const saved = localStorage.getItem(STORAGE_KEYS.SETTINGS_TAB);
+    return SETTINGS_TABS.includes(saved as SettingsTab) ? (saved as SettingsTab) : 'general';
+  };
 
-  // Listen for progress events
-  useEffect(() => {
-    if (!isTauri()) return;
+  // Remember where the user left off in Settings, so the navbar reopens on the
+  // same tab. Deep links pass an explicit tab and override the remembered one.
+  const openSettings = (tab?: SettingsTab) => {
+    setSettingsFocusOnOpen(tab !== undefined);
+    setSettingsInitialTab(tab ?? readLastSettingsTab());
+    setActiveModal('settings');
+  };
 
-    // We need to dynamically import the event module or use window.__TAURI__
-    // Since we don't have the tauri API types fully set up in this context, we'll use the window object
-    const setupListener = async () => {
-      try {
-        // @ts-ignore
-        if (window.__TAURI__ && window.__TAURI__.event) {
-          // @ts-ignore
-          const unlisten = await window.__TAURI__.event.listen('operation-progress', (event) => {
-            const progress = event.payload;
-            // console.log('Progress:', progress);
+  useThemeSync(settings);
 
-            if (progress.percent === 100) {
-              setLoading(false);
-            }
-          });
-          return unlisten;
-        }
-      } catch (e) {
-        console.error("Failed to setup progress listener", e);
-      }
-    };
+  useKeyboardShortcuts([
+    { key: '1', ctrl: true, handler: () => handleModeChange('install'), description: 'Switch to Install' },
+    { key: '2', ctrl: true, handler: () => handleModeChange('upgrade'), description: 'Switch to Upgrade' },
+    { key: '3', ctrl: true, handler: () => handleModeChange('uninstall'), description: 'Switch to Uninstall' },
+    { key: '4', ctrl: true, handler: () => handleModeChange('github'), description: 'Switch to GitHub' },
+    { key: ',', ctrl: true, handler: () => openSettings(), description: 'Open settings' },
+    { key: '/', ctrl: true, handler: () => setActiveModal('help'), description: 'Open help' },
+    { key: 'h', ctrl: true, handler: () => setActiveModal('history'), description: 'Installation history' },
+    { key: 'Escape', handler: () => setActiveModal(null), description: 'Close modal' },
+  ]);
 
-    let unlistenFn: (() => void) | undefined;
-    setupListener().then(fn => unlistenFn = fn);
-
-    return () => {
-      if (unlistenFn) unlistenFn();
-    };
-  }, []);
-
-  // Apply Theme
-  useEffect(() => {
-    const activeTheme = settings.themes.find(t => t.id === settings.activeThemeId) || DEFAULT_THEMES[0];
-    if (activeTheme && activeTheme.colors) {
-      const root = document.documentElement;
-      root.style.setProperty('--app-bg', activeTheme.colors.bg);
-      root.style.setProperty('--app-surface', activeTheme.colors.surface);
-      root.style.setProperty('--app-border', activeTheme.colors.border);
-      root.style.setProperty('--app-text', activeTheme.colors.text);
-      root.style.setProperty('--app-text-muted', activeTheme.colors.textMuted);
-      root.style.setProperty('--app-primary', activeTheme.colors.primary);
-      root.style.setProperty('--app-primary-hover', activeTheme.colors.primaryHover);
-    }
-  }, [settings.activeThemeId, settings.themes]);
-
-  // Reset on Mode Change
+  // Reset logic when mode or environment changes
   useEffect(() => {
     setPackages([]);
     setSearched(false);
@@ -118,184 +136,166 @@ function App() {
     setLoading(false);
     handleStopSearch();
     clearCompare();
-  }, [mode]);
-
-  const handleClearData = (type: 'cart' | 'chat' | 'all') => {
-    if (type === 'cart' || type === 'all') clearCart();
-    if (type === 'chat' || type === 'all') { localStorage.removeItem(STORAGE_KEYS.CHAT); window.location.reload(); }
-    if (type === 'all') { useAppStore.persist.clearStorage(); window.location.reload(); }
-  };
-
-  const handleImport = () => {
-    if (!importText.trim()) return;
-    setIsImporting(true); setImportError(null); setError(null);
-    setTimeout(() => {
-      try {
-        const parsed = parseWingetOutput(importText);
-        if (parsed.length === 0) { setImportError("No packages found."); setPackages([]); }
-        else { setPackages(parsed); setSearched(true); setImportText(''); }
-      } catch { setImportError("Parsing error."); } finally { setIsImporting(false); }
-    }, 500);
-  };
-
-  const runComparison = async () => {
-    if (compareList.length < 2) return;
-    setIsCompareModalOpen(true);
-    setIsComparing(true);
-    setCompareResult(null);
-
-    try {
-      const prompt = generateComparisonPrompt(compareList);
-      const result = await generateAIResponse(settings, prompt, "You are a software comparison expert. Provide detailed, unbiased comparisons in markdown format.");
-      setCompareResult(result);
-    } catch (e) {
-      setCompareResult("Failed to generate comparison. Please check AI settings.");
-    } finally {
-      setIsComparing(false);
-    }
-  };
+    refreshPackages();
+    // We only want this to run when the mode or desktop status actually changes.
+    // Including all setters and refreshPackages in the dependency array
+    // causes infinite loops because refreshPackages depends on query,
+    // and we call setQuery('') here.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [mode, isDesktop]);
 
   const handleFetchAiDetails = async (pkg: WingetPackage): Promise<string> => {
-    const basePrompt = generateAppDetailsPrompt(pkg.name, pkg.id);
-    const prompt = `${basePrompt}\nConstraint: Keep the response under 80 words. Focus on key features.`;
-    return await generateAIResponse(settings, prompt, "You are a helpful software assistant.", false);
-  };
-
-  const handleDirectExecution = (id: string, currentMode: AppMode) => {
-    executeOperation(id, currentMode);
-  };
-
-  const renderContent = () => {
-    if (error) {
-      return (
-        <div className="flex flex-col items-center justify-center py-12 text-center animate-in fade-in slide-in-from-bottom-4 duration-500">
-          <div className="bg-red-500/10 text-red-500 p-4 rounded-full mb-4">
-            <X size={32} />
-          </div>
-          <h3 className="text-xl font-bold mb-2">Something went wrong</h3>
-          <p className="text-[var(--app-text-muted)] max-w-md mb-6">
-            {typeof error === 'string' ? error : (error.message || "An unexpected error occurred.")}
-          </p>
-          <button
-            onClick={() => { setError(null); handleSearch(query || "POPULAR_ESSENTIALS"); }}
-            className="px-6 py-2 bg-[var(--app-primary)] text-white rounded-lg font-medium hover:opacity-90 transition-opacity"
-          >
-            Try Again
-          </button>
-        </div>
-      );
-    }
-
-    if (packages.length === 0 && !searched && !loading) {
-      return (
-        <MaintenanceImport
-          importText={importText}
-          setImportText={setImportText}
-          importError={importError}
-          handleImport={handleImport}
-        />
-      );
-    }
-
-    if (packages.length === 0 && searched && !loading) {
-      return (
-        <div className="text-center py-12">
-          <p className="text-[var(--app-text-muted)]">No packages found.</p>
-        </div>
-      );
-    }
-
-    return (
-      <>
-        <div className="flex flex-wrap gap-2 mb-8">
-          <button onClick={() => handleSearch("POPULAR_ESSENTIALS")} className="px-4 py-1.5 rounded-full text-xs font-medium border bg-[var(--app-primary)]/10 text-[var(--app-primary)] border-[var(--app-primary)]/30">Essentials</button>
-          {PRESET_CATEGORIES.map(cat => <button key={cat} onClick={() => handleSearch(cat.toLowerCase())} className="px-4 py-1.5 rounded-full text-xs font-medium bg-[var(--app-surface)] text-[var(--app-text-muted)] border border-[var(--app-border)] hover:bg-[var(--app-border)] hover:text-[var(--app-text)]">{cat}</button>)}
-        </div>
-        <div className="flex items-center justify-between mb-6">
-          <h2 className="text-2xl font-bold">{searched ? (query ? `Results for "${query}"` : 'Recommended') : 'Popular'}</h2>
-        </div>
-
-        <div className="w-full mb-8">
-          <PackageGrid
-            packages={packages}
-            onExecute={handleDirectExecution}
-            handleSearch={handleSearch}
-            onFetchDetails={handleFetchAiDetails}
-            isDesktop={isDesktop}
-          />
-        </div>
-      </>
-    );
+    const prompt = `${generateAppDetailsPrompt(pkg.name, pkg.id)} \nConstraint: Keep the response under 80 words.`;
+    return await generateAIResponse(settings, prompt, 'You are a helpful software assistant.');
   };
 
   return (
-    <div className="min-h-screen bg-[var(--app-bg)] text-[var(--app-text)] flex flex-col font-sans relative transition-colors duration-300">
-      <SettingsModal
-        isOpen={isSettingsOpen}
-        onClose={() => setIsSettingsOpen(false)}
-        onClearData={handleClearData}
-      />
-      <HelpModal isOpen={isHelpOpen} onClose={() => setIsHelpOpen(false)} />
-      <CompareModal isOpen={isCompareModalOpen} onClose={() => setIsCompareModalOpen(false)} result={compareResult} isLoading={isComparing} />
+    <div
+      className="min-h-screen bg-[var(--app-bg)] text-[var(--app-text)] flex flex-col font-sans relative transition-colors duration-300"
+      data-testid="app-container"
+    >
+      <ProgressBar />
+
+      <Suspense fallback={null}>
+        <SettingsModal
+          isOpen={activeModal === 'settings'}
+          onClose={() => setActiveModal(null)}
+          onClearData={handleClearData}
+          initialTab={settingsInitialTab}
+          focusOnOpen={settingsFocusOnOpen}
+          onTabChange={(tab) => localStorage.setItem(STORAGE_KEYS.SETTINGS_TAB, tab)}
+        />
+      </Suspense>
+      <Suspense fallback={null}>
+        <HelpModal
+          isOpen={activeModal === 'help'}
+          onClose={() => setActiveModal(null)}
+          onOpenSettings={() => openSettings()}
+        />
+      </Suspense>
+      <HistoryModal isOpen={activeModal === 'history'} onClose={() => setActiveModal(null)} />
+      <Suspense fallback={null}>
+        <CompareModal
+          isOpen={activeModal === 'compare'}
+          onClose={() => setActiveModal(null)}
+          result={compareResult}
+          isLoading={isComparing}
+        />
+      </Suspense>
+      {showOnboarding && (
+        <Suspense fallback={null}>
+          <OnboardingModal
+            onClose={() => {
+              setShowOnboarding(false);
+              localStorage.setItem('onboarding_seen', 'true');
+            }}
+          />
+        </Suspense>
+      )}
 
       <Navbar
         handleSearch={handleSearch}
         stopSearch={handleStopSearch}
-        openDrawer={() => setIsDrawerOpen(true)}
-        openSettings={() => setIsSettingsOpen(true)}
-        openHelp={() => setIsHelpOpen(true)}
+        openDrawer={() => setActiveModal('cart')}
+        openSettings={() => openSettings()}
+        openHelp={() => setActiveModal('help')}
+        resetState={() => {
+          handleModeChange('install');
+          window.location.reload();
+        }}
+        onRefresh={refreshPackages}
         isDesktop={isDesktop}
-        resetState={() => { setMode('install'); setSearched(false); setPackages([]); setQuery(''); setError(null); }}
       />
 
-      <div className="bg-[var(--app-surface)] border-b border-[var(--app-border)] py-2"><div className="max-w-7xl mx-auto px-4 flex gap-1 justify-center sm:justify-start">
-        {['install', 'upgrade', 'uninstall'].map(m => <button key={m} onClick={() => setMode(m as AppMode)} className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-all ${mode === m ? (m === 'upgrade' ? 'bg-emerald-600 text-white' : m === 'uninstall' ? 'bg-red-600 text-white' : 'bg-[var(--app-primary)] text-white') : 'text-[var(--app-text-muted)] hover:bg-[var(--app-bg)]'}`}>{m === 'install' ? <Download size={16} /> : m === 'upgrade' ? <RefreshCw size={16} /> : <Trash2 size={16} />} <span className="capitalize">{m}</span></button>)}
-      </div></div>
+      <ModeNavigation mode={mode} setMode={handleModeChange} />
 
-      {mode === 'install' && (
-        <div className="md:hidden p-4 border-b border-[var(--app-border)] bg-[var(--app-surface)]/50">
-          <SearchInput
-            value={query}
-            onChange={setQuery}
-            onSearch={handleSearch}
-            onStop={handleStopSearch}
-            loading={loading}
-            placeholder="Search..."
-          />
-        </div>
-      )}
+      <main className="flex-1 max-w-[1920px] w-full mx-auto px-4 sm:px-6 lg:px-8 py-8 mb-20">
+        <ContentArea
+          packages={packages}
+          mode={mode}
+          loading={loading}
+          searched={searched}
+          query={query}
+          error={error}
+          isDesktop={isDesktop}
+          importText={importText}
+          setImportText={setImportText}
+          importError={importError}
+          handleSearch={handleSearch}
+          handleImport={() => handleImport(importText, setImportText, setImportError)}
+          handleDirectExecution={(id, m) => executeOperation(id, m)}
+          handleFetchAiDetails={handleFetchAiDetails}
+          handleDirectInstall={handleDirectInstall}
+          handleGitHubAction={(id, action) => {
+            const baseUrl = id.startsWith('http') ? id : `https://github.com/${id}`;
+            logger.debug('[GitHub Action]', { id, action, baseUrl });
 
-      <main className="flex-1 max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8 py-8 mb-20">{renderContent()}</main>
+            switch (action) {
+              case 'clone':
+                executeOperation(id, 'install');
+                break;
+              case 'open':
+              case 'star':
+              case 'fork':
+              case 'watch':
+              case 'details':
+                // All these actions open the GitHub page
+                openUrl(baseUrl);
+                break;
+              default:
+                console.warn('Unknown GitHub action:', action);
+                openUrl(baseUrl);
+            }
+          }}
+          executeOperation={executeOperation}
+          openSettings={() => openSettings('ai')}
+          setError={setError}
+          setPackages={setPackages}
+          setSearched={setSearched}
+          setQuery={setQuery}
+        />
+      </main>
 
-      {/* Comparison Floating Bar */}
-      {compareList.length > 0 && (
-        <div className="fixed bottom-6 left-1/2 transform -translate-x-1/2 z-40 animate-in slide-in-from-bottom-6 fade-in duration-300">
-          <div className="bg-[var(--app-surface)] border border-[var(--app-border)] shadow-2xl rounded-full px-6 py-3 flex items-center gap-4">
-            <div className="flex items-center gap-2 text-sm font-semibold">
-              <Scale size={18} className="text-[var(--app-primary)]" />
-              <span>{compareList.length} Selected</span>
-            </div>
-            <div className="h-6 w-[1px] bg-[var(--app-border)]"></div>
-            <button onClick={runComparison} disabled={compareList.length < 2} className={`flex items-center gap-2 px-4 py-1.5 rounded-full text-xs font-bold transition-all ${compareList.length >= 2 ? 'bg-[var(--app-primary)] text-white hover:opacity-90' : 'bg-[var(--app-bg)] text-[var(--app-text-muted)] cursor-not-allowed'}`}>
-              <Sparkles size={14} /> Compare Selected
-            </button>
-            <button onClick={clearCompare} className="p-1 hover:bg-[var(--app-bg)] rounded-full text-[var(--app-text-muted)] hover:text-[var(--app-text)] transition-colors"><X size={16} /></button>
-          </div>
-        </div>
-      )}
+      <CompareBar
+        compareList={compareList}
+        onCompare={() => {
+          setActiveModal('compare');
+          runComparison();
+        }}
+        onClear={clearCompare}
+      />
 
       <ScriptDrawer
-        isOpen={isDrawerOpen}
-        onClose={() => setIsDrawerOpen(false)}
-        onSwitchToUpgrade={() => setMode('upgrade')}
-        onDeepScan={() => { setMode('upgrade'); setPackages([]); }}
+        isOpen={activeModal === 'cart'}
+        onClose={() => setActiveModal(null)}
+        onSwitchToUpgrade={() => handleModeChange('upgrade')}
+        onDeepScan={() => {
+          handleModeChange('upgrade');
+          setPackages([]);
+        }}
       />
 
-      <ChatInterface
-        onShowResults={(res) => { setMode('install'); setPackages(res); setSearched(true); window.scrollTo({ top: 0, behavior: 'smooth' }); }}
-        pendingMessage={pendingChatQuery}
-        onClearPendingMessage={() => setPendingChatQuery('')}
-      />
+      <ErrorBoundary>
+        <Suspense fallback={<div className="p-4 text-center text-[var(--app-text-muted)]">Loading chat...</div>}>
+          <ChatInterface
+            onShowResults={(res) => {
+              handleModeChange('install');
+              setPackages(res);
+              setSearched(true);
+              window.scrollTo({ top: 0, behavior: 'smooth' });
+            }}
+            pendingMessage={pendingChatQuery}
+            onClearPendingMessage={() => setPendingChatQuery('')}
+          />
+        </Suspense>
+      </ErrorBoundary>
+
+      <StatusBar />
+      {CloneDialogComponent}
+
+      {/* Global transient UI: toasts and promise-based confirmations */}
+      <Toaster />
+      <ConfirmDialog />
     </div>
   );
 }

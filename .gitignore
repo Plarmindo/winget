@@ -8,8 +8,10 @@ pnpm-debug.log*
 lerna-debug.log*
 
 node_modules
+src-tauri/target
 dist
 dist-ssr
+coverage
 *.local
 
 # Editor directories and files
@@ -24,3 +26,44 @@ dist-ssr
 *.sw?
 
 tsc_output.txt
+tsc_errors.txt
+build_error.txt
+
+# Playwright test artifacts
+test-results/e2e-results.json
+test-results/flaky-tests.txt
+playwright-report/
+
+# Debug and temp files
+error_*
+upgrade*.txt
+wingetdata*.txt
+test_*
+help.txt
+output.txt
+*.backup
+top_files*.txt
+tsc_*.txt
+build_error.txt
+*.bat
+
+# Stale build / tooling artifacts
+build_errors.txt
+build_log.txt
+cargo_check_error.txt
+cargo_output.txt
+check_error.txt
+debug_tests*.out
+*_error.txt
+*_output.txt
+
+# IDE and editor files
+.vscode/settings.json
+.idea/
+*.swp
+*.swo
+*~
+
+# OS files
+.DS_Store
+Thumbs.db

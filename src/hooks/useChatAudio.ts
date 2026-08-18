@@ -1,7 +1,7 @@
-
 import React, { useState, useRef, useCallback } from 'react';
 import { transcribeAudio, generateSpeech } from '../services/wingetService';
 import { AppSettings } from '../types';
+import { showToast } from '../stores/toastStore';
 
 export const useChatAudio = (settings: AppSettings, setInput: React.Dispatch<React.SetStateAction<string>>) => {
   const [isRecording, setIsRecording] = useState(false);
@@ -14,7 +14,7 @@ export const useChatAudio = (settings: AppSettings, setInput: React.Dispatch<Rea
 
   const getSupportedMimeType = () => {
     const types = ['audio/webm;codecs=opus', 'audio/webm', 'audio/ogg;codecs=opus', 'audio/mp4'];
-    return types.find(type => MediaRecorder.isTypeSupported(type)) || '';
+    return types.find((type) => MediaRecorder.isTypeSupported(type)) || '';
   };
 
   const startRecording = async () => {
@@ -22,7 +22,7 @@ export const useChatAudio = (settings: AppSettings, setInput: React.Dispatch<Rea
     try {
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
       const mimeType = getSupportedMimeType();
-      
+
       const mediaRecorder = new MediaRecorder(stream, mimeType ? { mimeType } : undefined);
       mediaRecorderRef.current = mediaRecorder;
       audioChunksRef.current = [];
@@ -32,7 +32,7 @@ export const useChatAudio = (settings: AppSettings, setInput: React.Dispatch<Rea
       };
 
       mediaRecorder.onstop = async () => {
-        stream.getTracks().forEach(track => track.stop());
+        stream.getTracks().forEach((track) => track.stop());
         if (audioChunksRef.current.length === 0) return;
 
         const audioBlob = new Blob(audioChunksRef.current, { type: mimeType || 'audio/webm' });
@@ -44,15 +44,15 @@ export const useChatAudio = (settings: AppSettings, setInput: React.Dispatch<Rea
             const base64Audio = result.split(',')[1];
             setIsProcessingAudio(true);
             try {
-               const text = await transcribeAudio(base64Audio, mimeType || 'audio/webm', settings);
-               if (text) {
-                 const cleanText = text.trim();
-                 setInput(prev => prev ? `${prev} ${cleanText}` : cleanText);
-               }
+              const text = await transcribeAudio(base64Audio, mimeType || 'audio/webm', settings);
+              if (text) {
+                const cleanText = text.trim();
+                setInput((prev) => (prev ? `${prev} ${cleanText}` : cleanText));
+              }
             } catch (e) {
-               console.error("Transcription failed", e);
+              console.error('Transcription failed', e);
             } finally {
-               setIsProcessingAudio(false);
+              setIsProcessingAudio(false);
             }
           }
         };
@@ -61,8 +61,8 @@ export const useChatAudio = (settings: AppSettings, setInput: React.Dispatch<Rea
       mediaRecorder.start();
       setIsRecording(true);
     } catch (err) {
-      console.error("Error accessing microphone:", err);
-      alert("Could not access microphone. Please allow permissions.");
+      console.error('Error accessing microphone:', err);
+      showToast('Could not access microphone. Please allow permissions.', 'error');
     }
   };
 
@@ -97,7 +97,10 @@ export const useChatAudio = (settings: AppSettings, setInput: React.Dispatch<Rea
       const base64Audio = await generateSpeech(text, settings);
       if (base64Audio) {
         if (!audioContextRef.current) {
-          audioContextRef.current = new (window.AudioContext || (window as any).webkitAudioContext)();
+          audioContextRef.current = new (
+            window.AudioContext ||
+            (window as unknown as { webkitAudioContext?: typeof AudioContext }).webkitAudioContext
+          )();
         }
         const audioBuffer = decodePCM(base64Audio, audioContextRef.current);
         const source = audioContextRef.current.createBufferSource();
@@ -109,7 +112,7 @@ export const useChatAudio = (settings: AppSettings, setInput: React.Dispatch<Rea
         setPlayingMessageId(null);
       }
     } catch (e) {
-      console.error("Audio playback error", e);
+      console.error('Audio playback error', e);
       setPlayingMessageId(null);
     }
   };

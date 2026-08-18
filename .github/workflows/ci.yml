@@ -1,0 +1,131 @@
+name: CI
+
+on:
+  push:
+    branches: [main, develop]
+  pull_request:
+    branches: [main]
+
+jobs:
+  frontend:
+    name: Frontend (TypeScript)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+          cache-dependency-path: package-lock.json
+      - run: npm ci
+      - run: npm run lint
+      - run: npm run format:check
+      - run: npx tsc --noEmit
+      - run: npm run test -- --coverage
+      - run: npm run build
+
+  backend:
+    name: Backend (Rust)
+    runs-on: windows-latest
+    defaults:
+      run:
+        working-directory: src-tauri
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - run: cargo check
+      - run: cargo test
+      - run: cargo clippy -- -D warnings
+      - run: cargo fmt -- --check
+
+  e2e:
+    name: E2E Tests
+    runs-on: ubuntu-latest
+    needs: [frontend, backend]
+    permissions:
+      contents: read
+      pull-requests: write
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+          cache-dependency-path: package-lock.json
+      - run: npm ci
+      - run: npx playwright install --with-deps chromium webkit
+      - run: npm run test:e2e:ci
+      # Only reached when the gate above failed. Posts a PR comment listing the
+      # flaky tests (check-e2e-flaky.mjs writes test-results/flaky-tests.txt before
+      # exiting non-zero); skips silently when the failure was something else.
+      # Sticky: finds the previous comment via a hidden marker and updates it in
+      # place, so repeated flaky runs pile up one comment instead of many.
+      - name: Comment flaky tests on the PR
+        if: failure()
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const fs = require('node:fs');
+            const reportPath = 'test-results/flaky-tests.txt';
+            if (!fs.existsSync(reportPath)) {
+              console.log('No flaky-tests report found; e2e failed for another reason. Skipping PR comment.');
+              return;
+            }
+            const pr = context.payload.pull_request;
+            if (!pr) {
+              console.log('Not a pull_request event; nothing to comment on.');
+              return;
+            }
+            const tests = fs
+              .readFileSync(reportPath, 'utf8')
+              .trim()
+              .split('\n')
+              .map((line) => `- \`${line}\``)
+              .join('\n');
+            // Hidden marker lets us find and update this comment on later runs.
+            const marker = '<!-- flaky-e2e-gate -->';
+            const body = [
+              '## ⚠️ Flaky e2e tests detected',
+              '',
+              `The e2e flake gate found **${tests.length} test(s)** that passed only after a retry (run: ${context.runId}):`,
+              '',
+              tests,
+              '',
+              'Flakiness is surfaced on purpose — please root-cause these instead of relying on retries.',
+              marker,
+            ].join('\n');
+            const owner = context.repo.owner;
+            const repo = context.repo.repo;
+            const { data: comments } = await github.rest.issues.listComments({
+              owner,
+              repo,
+              issue_number: pr.number,
+              per_page: 100,
+            });
+            const previous = comments.find((c) => c.body.includes(marker));
+            if (previous) {
+              await github.rest.issues.updateComment({
+                owner,
+                repo,
+                comment_id: previous.id,
+                body,
+              });
+              console.log(`Updated sticky flaky-test comment (id ${previous.id}) on PR #${pr.number}.`);
+            } else {
+              await github.rest.issues.createComment({
+                owner,
+                repo,
+                issue_number: pr.number,
+                body,
+              });
+              console.log(`Posted sticky flaky-test comment on PR #${pr.number}.`);
+            }
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: playwright-report
+          path: |
+            playwright-report/
+            test-results/
+          if-no-files-found: ignore
+          retention-days: 30
