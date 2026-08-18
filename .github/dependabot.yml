@@ -1,0 +1,37 @@
+version: 2
+updates:
+  # SHA-pinned GitHub Actions: Dependabot reads the version from the
+  # trailing comment (e.g. "# v4.4.0") and bumps the SHA + comment together.
+  # The verify-action-pins workflow is the tripwire for anything missed.
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: weekly
+      day: monday
+      time: '06:00'
+      timezone: 'Etc/UTC'
+    commit-message:
+      prefix: ci
+      include: scope
+
+  - package-ecosystem: npm
+    directory: /
+    schedule:
+      interval: weekly
+      day: monday
+      time: '06:00'
+      timezone: 'Etc/UTC'
+    commit-message:
+      prefix: build
+      include: scope
+
+  - package-ecosystem: cargo
+    directory: /src-tauri
+    schedule:
+      interval: weekly
+      day: monday
+      time: '06:00'
+      timezone: 'Etc/UTC'
+    commit-message:
+      prefix: build
+      include: scope
