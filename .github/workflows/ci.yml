@@ -53,7 +53,7 @@ jobs:
           cache: 'npm'
           cache-dependency-path: package-lock.json
       - run: npm ci
-      - run: npx playwright install --with-deps chromium
+      - run: npx playwright install --with-deps chromium webkit
       - run: npm run test:e2e:ci
       # Only reached when the gate above failed. Posts a PR comment listing the
       # flaky tests (check-e2e-flaky.mjs writes test-results/flaky-tests.txt before
