@@ -1,0 +1,3 @@
+# Default code owners: the repository maintainer must review every PR.
+# Required by branch protection's "require code owner reviews" setting.
+* @Plarmindo
