@@ -1,4 +1,4 @@
-import { describe, it, expect, vi } from 'vitest';
+import { describe, it, expect, vi, afterEach } from 'vitest';
 import { render } from '@testing-library/react';
 import { AiTab } from './AiTab';
 import { AppSettings } from '../../types';
@@ -111,5 +111,80 @@ describe('AiTab deep-link focus', () => {
     const providerSelect = container.querySelector('[data-testid="ai-provider-select"]') as HTMLSelectElement;
     expect(document.activeElement).not.toBe(keyInput);
     expect(document.activeElement).not.toBe(providerSelect);
+  });
+});
+
+describe('AiTab Test Connection', () => {
+  afterEach(() => {
+    vi.restoreAllMocks();
+  });
+
+  it('reports failure with the provider message when the API rejects', async () => {
+    const fetchMock = vi.spyOn(globalThis, 'fetch').mockResolvedValue(
+      new Response(JSON.stringify({ error: { message: 'API key not valid' } }), {
+        status: 400,
+        statusText: 'Bad Request',
+      })
+    );
+    const { getByText, findByText } = render(
+      <AiTab
+        settings={makeSettings({
+          provider: 'openai',
+          modelId: 'gpt-4o',
+          baseUrl: 'https://example.com/v1',
+          apiKey: 'test-key',
+        })}
+        onUpdateSettings={vi.fn()}
+      />
+    );
+
+    getByText('Test Connection').click();
+    expect(await findByText(/Connection failed: API key not valid/)).toBeTruthy();
+    expect(fetchMock).toHaveBeenCalledWith(
+      'https://example.com/v1/models',
+      expect.objectContaining({ headers: expect.objectContaining({ Authorization: 'Bearer test-key' }) })
+    );
+  });
+
+  it('reports success on a 2xx from the models endpoint', async () => {
+    vi.spyOn(globalThis, 'fetch').mockResolvedValue(new Response('{"data":[]}', { status: 200 }));
+    const { getByText, findByText } = render(
+      <AiTab
+        settings={makeSettings({ provider: 'openai', modelId: 'gpt-4o', baseUrl: 'https://example.com/v1' })}
+        onUpdateSettings={vi.fn()}
+      />
+    );
+
+    getByText('Test Connection').click();
+    expect(await findByText('Connection successful!')).toBeTruthy();
+  });
+
+  it('rejects local providers instead of pretending they work', async () => {
+    const { getByText, findByText } = render(
+      <AiTab
+        settings={makeSettings({ provider: 'local-llama', modelId: 'llama3.gguf' })}
+        onUpdateSettings={vi.fn()}
+      />
+    );
+
+    getByText('Test Connection').click();
+    expect(await findByText(/Local models are only available in the desktop app/)).toBeTruthy();
+  });
+
+  it('uses the Gemini OpenAI-compatible default when testing a Gemini config without a Base URL', async () => {
+    const fetchMock = vi.spyOn(globalThis, 'fetch').mockResolvedValue(new Response('{"data":[]}', { status: 200 }));
+    const { getByText, findByText } = render(
+      <AiTab
+        settings={makeSettings({ provider: 'gemini', modelId: 'gemini-2.5-flash', baseUrl: '' })}
+        onUpdateSettings={vi.fn()}
+      />
+    );
+
+    getByText('Test Connection').click();
+    expect(await findByText('Connection successful!')).toBeTruthy();
+    expect(fetchMock).toHaveBeenCalledWith(
+      'https://generativelanguage.googleapis.com/v1beta/openai/models',
+      expect.anything()
+    );
   });
 });

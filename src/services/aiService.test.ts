@@ -28,7 +28,7 @@ describe('aiService', () => {
       expect(result.baseUrl).toBe('http://custom:8000/v1');
     });
 
-    it('should not modify Gemini config', () => {
+    it('should default the Gemini base URL to the OpenAI-compatible endpoint', () => {
       const config: AiConfig = {
         provider: 'gemini',
         apiKey: 'test-key',
@@ -37,8 +37,20 @@ describe('aiService', () => {
       };
 
       const result = normalizeAiConfig(config);
-      expect(result.baseUrl).toBe('');
+      expect(result.baseUrl).toBe('https://generativelanguage.googleapis.com/v1beta/openai');
       expect(result.apiKey).toBe('test-key');
+    });
+
+    it('should preserve an explicitly set Gemini base URL', () => {
+      const config: AiConfig = {
+        provider: 'gemini',
+        apiKey: 'test-key',
+        baseUrl: 'https://custom.example.com/v1',
+        modelId: 'gemini-2.5-flash',
+      };
+
+      const result = normalizeAiConfig(config);
+      expect(result.baseUrl).toBe('https://custom.example.com/v1');
     });
   });
 

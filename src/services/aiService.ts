@@ -20,6 +20,11 @@ export const normalizeAiConfig = (aiConfig: AiConfig): AiConfig => {
   if (aiConfig.provider === 'ollama' && !aiConfig.baseUrl) {
     normalized.baseUrl = 'http://localhost:11434/v1';
   }
+  if (aiConfig.provider === 'gemini' && !aiConfig.baseUrl) {
+    // Gemini's OpenAI-compatible layer; the Settings UI hides the Base URL
+    // field for Gemini, so the default must live here for calls to work.
+    normalized.baseUrl = 'https://generativelanguage.googleapis.com/v1beta/openai';
+  }
   return normalized;
 };
 
