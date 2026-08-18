@@ -1,7 +1,8 @@
+#![cfg_attr(fuzzing, no_main)]
 //! Fuzzes the input validators that gate every winget operation. These run
 //! user input through regexes and character checks before it reaches the
 //! process boundary.
-use winget_interface::validation::{validate_package_id, validate_search_query};
+use winget_core::validation::{validate_package_id, validate_search_query};
 
 fn run(data: &[u8]) {
     let input = String::from_utf8_lossy(data);

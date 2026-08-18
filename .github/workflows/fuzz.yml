@@ -17,7 +17,10 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        sanitizer: [address, undefined]
+        # cargo-fuzz supports only address/leak/memory/thread/none (no UBSan),
+        # and MSan link fails in the base image (compiler_builtins rlib
+        # mismatch), so address is the reliable instrumenter here.
+        sanitizer: [address]
     permissions:
       # ClusterFuzzLite files crash reports as GitHub issues.
       issues: write

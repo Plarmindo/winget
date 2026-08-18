@@ -1,7 +1,8 @@
+#![cfg_attr(fuzzing, no_main)]
 //! Fuzzes the serde parser for `winget export` JSON files. The export is
 //! parsed from disk bytes in `get_installed_package_ids`, so arbitrary bytes
 //! are fed straight to serde_json.
-use winget_interface::winget_commands::WingetExport;
+use winget_core::parsing::WingetExport;
 
 fn run(data: &[u8]) {
     let _ = serde_json::from_slice::<WingetExport>(data);
