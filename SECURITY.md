@@ -6,9 +6,9 @@ Please report suspected security vulnerabilities privately so they can be
 assessed and fixed before public disclosure.
 
 **Preferred channel:** open a private vulnerability report via the GitHub
-Security tab (Repository → Security → **Report a vulnerability**). This works
-on private repositories and gives maintainers a confidential thread to
-coordinate a fix.
+Security tab — [Report a vulnerability](https://github.com/Plarmindo/winget/security/advisories/new).
+This works on private repositories and gives maintainers a confidential
+thread to coordinate a fix.
 
 **Fallback:** if private vulnerability reporting is disabled, open a GitHub
 issue with a `security` label, or contact the maintainers directly.
