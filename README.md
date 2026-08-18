@@ -92,5 +92,23 @@ cargo test
 This project is designed with automation in mind:
 
 * **Strict Typing:** TypeScript interfaces for all data structures.
-* **Modular Backend:** `main.rs` splits logic from Tauri boilerplate for easier unit testing.
+* **Modular Backend:** `lib.rs` splits logic from Tauri boilerplate for easier unit testing and fuzzing.
 * **Error Codes:** The backend returns specific string error codes ("Security Violation", "System Error") that can be parsed by automated agents.
+
+## 🔄 CI & Supply Chain
+
+Every push runs five pipelines (all action pins are SHA-locked):
+
+* **CI** — lint, format, typecheck, unit tests with 70% coverage, build, and Rust `check`/`test`/`clippy`/`fmt`.
+* **E2E** — Playwright suite against per-worker Vite servers; flaky tests are surfaced in a PR comment, not silently retried.
+* **CodeQL** — static analysis on every push (scans TypeScript, JavaScript, and Actions files).
+* **Scorecard** — OSSF supply-chain scoring (6.5/10 and climbing); skips until a `SCORECARD_TOKEN` secret exists.
+* **Fuzz** — ClusterFuzzLite sanitizer fuzzing of the Rust backend (libFuzzer targets in `src-tauri/fuzz/`).
+
+Local verification mirrors the gates:
+
+```bash
+npm run test && npx tsc --noEmit
+cd src-tauri && cargo test && cargo clippy && cargo fmt --check
+node scripts/check-action-pins.mjs   # verifies every pinned action SHA is current
+```
