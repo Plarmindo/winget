@@ -17,7 +17,8 @@
     "lint:fix": "eslint . --ext ts,tsx --fix",
     "format": "prettier --write \"src/**/*.{ts,tsx,css,json}\"",
     "format:check": "prettier --check \"src/**/*.{ts,tsx,css,json}\"",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "version:check": "node scripts/check-version-sync.mjs"
   },
   "dependencies": {
     "@google/genai": "^1.30.0",
