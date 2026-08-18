@@ -17,8 +17,12 @@ import path from 'node:path';
 const WORKFLOW_DIR = path.join(process.cwd(), '.github', 'workflows');
 const REPORT_PATH = path.join(process.cwd(), 'action-pins-stale.txt');
 
-const usesRe = /uses:\s+([\w.-]+\/[\w.-]+)@([0-9a-f]{40})(?:\s*#\s*(.+))?/g;
-const semverRe = /^v?(\d+)\.(\d+)\.(\d+)$/;
+// Matches both `owner/repo@sha` and composite actions with a subpath, e.g.
+// `google/clusterfuzzlite/actions/build_fuzzers@sha`.
+const usesRe = /uses:\s+([\w.-]+\/[\w.-]+(?:\/[\w.-]+)*)@([0-9a-f]{40})(?:\s*#\s*(.+))?/g;
+// Full `vX.Y.Z` comments, plus major-only `v1` (rolling tags like
+// google/clusterfuzzlite that never get a patch-level release).
+const semverRe = /^v?(\d+)(?:\.(\d+))?(?:\.(\d+))?$/;
 
 function runGit(args) {
   return execFileSync('git', args, { encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'] });
@@ -109,6 +113,22 @@ for (const file of files) {
       tags = listTags(owner, repo);
     } catch (e) {
       report(`${file}: ${owner}/${repo} — git ls-remote failed: ${e.message.split('\n')[0]}`);
+      continue;
+    }
+
+    // Major-only pin (e.g. `# v1`): the tag is a moving ref, so staleness is
+    // simply "the tag head moved past the pinned SHA", like the stable-branch
+    // case above. (Missing groups map to NaN, not undefined.)
+    if (Number.isNaN(minor) || Number.isNaN(patch)) {
+      const claimedTag = `v${major}`;
+      const claimedSha = tags.get(claimedTag);
+      if (!claimedSha) {
+        report(`${owner}/${repo}: claimed tag ${claimedTag} no longer exists`);
+      } else if (claimedSha !== sha) {
+        report(`${owner}/${repo}: rolling tag ${claimedTag} moved (pin ${short} -> ${claimedSha.slice(0, 12)})`);
+      } else {
+        console.log(`  ${owner}/${repo} ${claimedTag} (${short}) current`);
+      }
       continue;
     }
 

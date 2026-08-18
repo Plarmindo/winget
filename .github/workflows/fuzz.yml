@@ -1,0 +1,47 @@
+name: Fuzz (ClusterFuzzLite)
+
+on:
+  push:
+    branches: [main]
+  schedule:
+    - cron: '15 3 * * 3' # Wednesdays 03:15 UTC
+  workflow_dispatch:
+
+# Least privilege: only the job overrides what ClusterFuzzLite needs.
+permissions: read-all
+
+jobs:
+  fuzz:
+    name: ${{ matrix.sanitizer }}
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        sanitizer: [address, undefined]
+    permissions:
+      # ClusterFuzzLite files crash reports as GitHub issues.
+      issues: write
+      actions: read
+      contents: read
+    steps:
+      - name: Checkout
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+
+      - name: Build Fuzzers
+        id: build
+        uses: google/clusterfuzzlite/actions/build_fuzzers@884713a6c30a92e5e8544c39945cd7cb630abcd1 # v1
+        with:
+          language: rust
+          sanitizer: ${{ matrix.sanitizer }}
+          args: build_fuzzers
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Run Fuzzers
+        id: run
+        uses: google/clusterfuzzlite/actions/run_fuzzers@884713a6c30a92e5e8544c39945cd7cb630abcd1 # v1
+        with:
+          language: rust
+          sanitizer: ${{ matrix.sanitizer }}
+          fuzz-seconds: 300
+          args: run_fuzzers
+          github-token: ${{ secrets.GITHUB_TOKEN }}

@@ -1,0 +1,9 @@
+# Keep the ClusterFuzzLite build context small.
+.git/
+node_modules/
+src-tauri/target/
+test-results/
+dist/
+coverage/
+*.txt
+*.bat

@@ -1,0 +1,8 @@
+# ClusterFuzzLite project metadata (same schema as OSS-Fuzz project.yaml).
+# ClusterFuzzLite runs on this repo's own CI, so it works on private repos.
+language: rust
+sanitizers:
+  - address
+  - undefined
+fuzzing_engines:
+  - libfuzzer
