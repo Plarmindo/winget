@@ -13,6 +13,10 @@ permissions: read-all
 jobs:
   analysis:
     name: Scorecard analysis
+    # Private repos need a classic PAT with `repo` scope for the GraphQL
+    # commit queries (GITHUB_TOKEN is denied). Until the SCORECARD_TOKEN
+    # secret exists, the job skips green instead of failing on every run.
+    if: secrets.SCORECARD_TOKEN != ''
     runs-on: ubuntu-latest
     permissions:
       # Needed to upload the results to the code-scanning dashboard.
@@ -33,10 +37,12 @@ jobs:
           # Private repo: results stay in-repo (code scanning + log); the
           # public OpenSSF dashboard only accepts public repositories.
           publish_results: false
-          # Private repos need the token passed explicitly for the GraphQL
-          # commit-history queries; without it scorecard fails with
-          # "Resource not accessible by integration".
-          repo_token: ${{ secrets.GITHUB_TOKEN }}
+          # Private repos need a classic PAT with `repo` scope for the
+          # GraphQL commit-history queries; GITHUB_TOKEN is denied with
+          # "Resource not accessible by integration". Create one at
+          # github.com/settings/tokens and store it as the SCORECARD_TOKEN
+          # repo secret (Settings > Secrets and variables > Actions).
+          repo_token: ${{ secrets.SCORECARD_TOKEN }}
 
       - name: Upload artifact
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
