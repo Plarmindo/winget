@@ -13,11 +13,14 @@ permissions: read-all
 jobs:
   analysis:
     name: Scorecard analysis
-    # Private repos need a classic PAT with `repo` scope for the GraphQL
-    # commit queries (GITHUB_TOKEN is denied). Until the SCORECARD_TOKEN
-    # secret exists, the job skips green instead of failing on every run.
-    if: secrets.SCORECARD_TOKEN != ''
     runs-on: ubuntu-latest
+    # Private repos need a classic PAT with `repo` scope for the GraphQL
+    # commit queries (GITHUB_TOKEN is denied with "Resource not accessible
+    # by integration"). GitHub does not allow `secrets` in job/step `if`
+    # conditions, so the secret is probed via job-level env instead: until
+    # SCORECARD_TOKEN exists, every step is skipped and the run stays green.
+    env:
+      HAS_SCORECARD_TOKEN: ${{ secrets.SCORECARD_TOKEN != '' }}
     permissions:
       # Needed to upload the results to the code-scanning dashboard.
       security-events: write
@@ -25,11 +28,13 @@ jobs:
       actions: read
     steps:
       - name: Checkout code
+        if: env.HAS_SCORECARD_TOKEN == 'true'
         uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
         with:
           persist-credentials: false
 
       - name: Run analysis
+        if: env.HAS_SCORECARD_TOKEN == 'true'
         uses: ossf/scorecard-action@2d1146689b8cda280b9bc96326124645441f03bc # v2.4.4
         with:
           results_file: results.sarif
@@ -37,14 +42,13 @@ jobs:
           # Private repo: results stay in-repo (code scanning + log); the
           # public OpenSSF dashboard only accepts public repositories.
           publish_results: false
-          # Private repos need a classic PAT with `repo` scope for the
-          # GraphQL commit-history queries; GITHUB_TOKEN is denied with
-          # "Resource not accessible by integration". Create one at
-          # github.com/settings/tokens and store it as the SCORECARD_TOKEN
-          # repo secret (Settings > Secrets and variables > Actions).
+          # Create a classic PAT (repo scope) at github.com/settings/tokens
+          # and store it as the SCORECARD_TOKEN repo secret (Settings >
+          # Secrets and variables > Actions) to enable this analysis.
           repo_token: ${{ secrets.SCORECARD_TOKEN }}
 
       - name: Upload artifact
+        if: env.HAS_SCORECARD_TOKEN == 'true'
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         with:
           name: SARIF file
@@ -52,6 +56,7 @@ jobs:
           retention-days: 5
 
       - name: Upload to code-scanning
+        if: env.HAS_SCORECARD_TOKEN == 'true'
         uses: github/codeql-action/upload-sarif@f3712979fa5f215279b101dd0a2e3bdfb4353324 # v3.37.7
         with:
           sarif_file: results.sarif
