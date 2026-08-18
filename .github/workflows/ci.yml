@@ -7,6 +7,10 @@ on:
     branches: [main]
   workflow_dispatch:
 
+# Declare default permissions as read only (the e2e job overrides with the
+# pull-requests: write it needs for the flaky-gate comment).
+permissions: read-all
+
 jobs:
   frontend:
     name: Frontend (TypeScript)
