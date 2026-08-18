@@ -38,6 +38,7 @@ playwright-report/
 error_*
 upgrade*.txt
 wingetdata*.txt
+winget*.txt
 test_*
 help.txt
 output.txt
