@@ -11,7 +11,7 @@
 //   `stable` branch: stale when the branch head moves past the pin.
 
 import { execFileSync } from 'node:child_process';
-import { readdirSync, readFileSync, writeFileSync } from 'node:fs';
+import { readdirSync, readFileSync, unlinkSync, writeFileSync } from 'node:fs';
 import path from 'node:path';
 
 const WORKFLOW_DIR = path.join(process.cwd(), '.github', 'workflows');
@@ -145,5 +145,13 @@ if (unique.length > 0) {
   writeFileSync(REPORT_PATH, unique.join('\n') + '\n');
   console.log(`\n${unique.length} issue(s) found — wrote ${REPORT_PATH}`);
   process.exit(0); // alerting is the workflow's job; keep the job green
+}
+// A previous run may have left a report behind; a clean run must clear it so
+// the workflow's hashFiles() gate doesn't alert on stale data.
+try {
+  unlinkSync(REPORT_PATH);
+  console.log(`\nRemoved stale ${REPORT_PATH} from a previous run.`);
+} catch (e) {
+  if (e.code !== 'ENOENT') throw e;
 }
 console.log('\nAll action pins are current.');
