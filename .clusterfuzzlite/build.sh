@@ -3,7 +3,9 @@
 # copies the binaries into $OUT. The base-builder-rust image ships nightly
 # Rust and cargo-fuzz pre-installed.
 cd $SRC/winget/src-tauri
-cargo fuzz build -O --debug-assertions
+# ClusterFuzzLite exports SANITIZER (address|undefined|memory); cargo-fuzz
+# defaults to address, so pass it through or the UBSan job ships ASan builds.
+cargo fuzz build -O --debug-assertions --sanitizer "${SANITIZER:-address}"
 
 # cargo-fuzz runs a plain `cargo build --manifest-path fuzz/Cargo.toml`, so the
 # target dir depends on the layout: a standalone fuzz workspace puts binaries in
