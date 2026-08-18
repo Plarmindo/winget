@@ -10,6 +10,10 @@ export default defineConfig({
   server: {
     port: 1420,
     strictPort: false,
+    watch: {
+      // Release builds write into src-tauri/target; don't hot-reload the dev app for them
+      ignored: ['**/src-tauri/target/**'],
+    },
   },
   // to make use of `TAURI_PLATFORM`, `TAURI_ARCH`, `TAURI_FAMILY`,
   // `TAURI_PLATFORM_VERSION`, `TAURI_PLATFORM_TYPE` and `TAURI_DEBUG`
@@ -54,13 +58,15 @@ export default defineConfig({
     coverage: {
       provider: 'v8',
       reporter: ['text', 'json', 'html'],
-      // Baseline floors set to current coverage so the gate blocks regressions.
-      // Raise these as tests are added — see docs/PRODUCTION_READINESS_TASKS.md.
+      // Coverage floors: branches holds a 70% bar; lines/functions/statements are
+      // set to current measured coverage so the gate blocks regressions. Raising
+      // these toward 70 requires UI/component tests for the untested component
+      // layer (AiTab, ChatInterface, GitHubPanel, settings tabs, etc.).
       thresholds: {
-        lines: 40,
-        branches: 60,
-        functions: 20,
-        statements: 40,
+        lines: 50,
+        branches: 70,
+        functions: 40,
+        statements: 50,
       },
       include: ['src/**/*.{ts,tsx}'],
       exclude: [

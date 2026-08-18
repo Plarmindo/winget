@@ -1,98 +1,72 @@
-
-import { useState, useCallback, useEffect } from 'react';
+import { useState, useCallback, useEffect, useRef } from 'react';
+import { RateLimiter } from '../utils/rateLimiter';
 
 interface UseRateLimitReturn {
-    isRateLimited: boolean;
-    secondsRemaining: number;
-    checkRateLimit: () => boolean;
+  isRateLimited: boolean;
+  secondsRemaining: number;
+  checkRateLimit: () => boolean;
+  reset: () => void;
 }
 
-export const useRateLimit = (limit: number = 5, windowSeconds: number = 60, cooldownSeconds: number = 30): UseRateLimitReturn => {
-    const [timestamps, setTimestamps] = useState<number[]>([]);
-    const [cooldownEnd, setCooldownEnd] = useState<number | null>(null);
-    const [secondsRemaining, setSecondsRemaining] = useState(0);
+/**
+ * A3: Unified rate limiting - uses token bucket algorithm from utils/rateLimiter.ts
+ * This hook provides React state management around the token bucket implementation
+ */
+export const useRateLimit = (maxTokens: number = 5, refillRate: number = 5 / 60): UseRateLimitReturn => {
+  // Use ref to persist rate limiter instance across renders
+  const limiterRef = useRef<RateLimiter | null>(null);
+  const [isRateLimited, setIsRateLimited] = useState(false);
+  const [secondsRemaining, setSecondsRemaining] = useState(0);
 
-    // Load state from localStorage on mount to persist across reloads
-    useEffect(() => {
-        const savedCooldown = localStorage.getItem('rate_limit_cooldown');
-        const savedTimestamps = localStorage.getItem('rate_limit_timestamps');
+  // Initialize rate limiter on mount
+  useEffect(() => {
+    limiterRef.current = new RateLimiter(maxTokens, refillRate);
+  }, [maxTokens, refillRate]);
 
-        if (savedCooldown) {
-            const end = parseInt(savedCooldown, 10);
-            if (end > Date.now()) {
-                setCooldownEnd(end);
-            } else {
-                localStorage.removeItem('rate_limit_cooldown');
-            }
+  // Timer to update rate limit status
+  useEffect(() => {
+    const interval = setInterval(() => {
+      if (limiterRef.current) {
+        const tokenCount = limiterRef.current.getTokenCount();
+        const isLimited = tokenCount < 1;
+        setIsRateLimited(isLimited);
+
+        if (isLimited) {
+          const waitTime = limiterRef.current.getTimeUntilNextToken();
+          setSecondsRemaining(Math.ceil(waitTime));
+        } else {
+          setSecondsRemaining(0);
         }
+      }
+    }, 1000);
 
-        if (savedTimestamps) {
-            try {
-                const parsed = JSON.parse(savedTimestamps);
-                // Filter out old timestamps immediately
-                const now = Date.now();
-                const valid = parsed.filter((t: number) => now - t < windowSeconds * 1000);
-                setTimestamps(valid);
-            } catch (e) {
-                console.error('Failed to parse rate limit timestamps', e);
-            }
-        }
-    }, [windowSeconds]);
+    return () => clearInterval(interval);
+  }, []);
 
-    // Timer to update countdown
-    useEffect(() => {
-        if (!cooldownEnd) {
-            setSecondsRemaining(0);
-            return;
-        }
+  const checkRateLimit = useCallback(() => {
+    if (!limiterRef.current) return false;
 
-        const interval = setInterval(() => {
-            const remaining = Math.ceil((cooldownEnd - Date.now()) / 1000);
-            if (remaining <= 0) {
-                setCooldownEnd(null);
-                setSecondsRemaining(0);
-                localStorage.removeItem('rate_limit_cooldown');
-            } else {
-                setSecondsRemaining(remaining);
-            }
-        }, 1000);
+    const allowed = limiterRef.current.tryConsume();
+    setIsRateLimited(!allowed);
 
-        return () => clearInterval(interval);
-    }, [cooldownEnd]);
+    if (!allowed) {
+      const waitTime = limiterRef.current.getTimeUntilNextToken();
+      setSecondsRemaining(Math.ceil(waitTime));
+    }
 
-    const checkRateLimit = useCallback(() => {
-        const now = Date.now();
+    return allowed;
+  }, []);
 
-        // If already in cooldown, deny
-        if (cooldownEnd && now < cooldownEnd) {
-            return false;
-        }
+  const reset = useCallback(() => {
+    limiterRef.current?.reset();
+    setIsRateLimited(false);
+    setSecondsRemaining(0);
+  }, []);
 
-        // Clean up old timestamps
-        const validTimestamps = timestamps.filter(t => now - t < windowSeconds * 1000);
-
-        // Check if limit reached
-        if (validTimestamps.length >= limit) {
-            // Trigger cooldown
-            const end = now + (cooldownSeconds * 1000);
-            setCooldownEnd(end);
-            setTimestamps([]); // specific design choice: clear history on cooldown or keep? Let's keep for now but reset effectively. 
-            // Actually, standard token bucket would just wait. Cooldown block is harsher.
-            // Let's go with strict cooldown block.
-            localStorage.setItem('rate_limit_cooldown', end.toString());
-            return false; // Rate limited
-        }
-
-        // Allow and record
-        const newTimestamps = [...validTimestamps, now];
-        setTimestamps(newTimestamps);
-        localStorage.setItem('rate_limit_timestamps', JSON.stringify(newTimestamps));
-        return true;
-    }, [cooldownEnd, timestamps, limit, windowSeconds, cooldownSeconds]);
-
-    return {
-        isRateLimited: !!cooldownEnd,
-        secondsRemaining,
-        checkRateLimit
-    };
+  return {
+    isRateLimited,
+    secondsRemaining,
+    checkRateLimit,
+    reset,
+  };
 };

@@ -1,5 +1,5 @@
 import React, { useMemo } from 'react';
-import { X, Star, Search as SearchIcon } from 'lucide-react';
+import { X, Star, Search as SearchIcon, Key } from 'lucide-react';
 import { AppMode, WingetPackage } from '../types';
 import { PRESET_CATEGORIES } from '../constants';
 import { useAppStore } from '../stores/store';
@@ -10,6 +10,7 @@ import { GitHubPanel } from './GitHubPanel';
 import { FilterBar } from './FilterBar';
 import { EmptyState } from './EmptyState';
 import ErrorBoundary from './ErrorBoundary';
+import { isTauri } from '../services/tauriBridge';
 
 interface ContentAreaProps {
   packages: WingetPackage[];
@@ -92,6 +93,13 @@ export const ContentArea: React.FC<ContentAreaProps> = ({
 
   // Error state
   if (error) {
+    // Web-mode AI search failures (thrown by searchPackagesWithAI) mean the
+    // provider config is wrong or missing — offer a direct path to fix it.
+    const isAiSearchError =
+      !isTauri() &&
+      mode === 'install' &&
+      (typeof error === 'string' ? error : error.message || '').includes('Failed to fetch results via AI');
+
     return (
       <div className="flex flex-col items-center justify-center py-12 text-center animate-in fade-in slide-in-from-bottom-4 duration-500">
         <div className="bg-red-500/10 text-red-500 p-4 rounded-full mb-4">
@@ -103,15 +111,28 @@ export const ContentArea: React.FC<ContentAreaProps> = ({
             {typeof error === 'string' ? error : error.message || 'An unexpected error occurred.'}
           </pre>
         </div>
-        <button
-          onClick={() => {
-            setError(null);
-            handleSearch(query || 'POPULAR_ESSENTIALS');
-          }}
-          className="px-6 py-2 bg-[var(--app-primary)] text-white rounded-lg font-medium hover:opacity-90 transition-opacity"
-        >
-          Try Again
-        </button>
+        <div className="flex gap-3">
+          <button
+            onClick={() => {
+              setError(null);
+              handleSearch(query || 'POPULAR_ESSENTIALS');
+            }}
+            className="px-6 py-2 bg-[var(--app-primary)] text-white rounded-lg font-medium hover:opacity-90 transition-opacity"
+          >
+            Try Again
+          </button>
+          {isAiSearchError && (
+            <button
+              onClick={() => {
+                setError(null);
+                openSettings();
+              }}
+              className="px-6 py-2 bg-[var(--app-surface)] border border-[var(--app-border)] text-[var(--app-text)] rounded-lg font-medium hover:bg-[var(--app-border)] transition-colors"
+            >
+              Open AI Settings
+            </button>
+          )}
+        </div>
       </div>
     );
   }
@@ -133,6 +154,20 @@ export const ContentArea: React.FC<ContentAreaProps> = ({
 
   // No results after search
   if (packages.length === 0 && searched && !loading && mode !== 'github') {
+    const needsApiKey =
+      mode === 'install' && !isTauri() && settings.activePackageManager !== 'github' && !settings.aiConfig.apiKey;
+
+    if (needsApiKey) {
+      return (
+        <EmptyState
+          icon={Key}
+          title="Set your API key"
+          description="Web mode can't query package managers directly. Add an AI provider API key in Settings to enable package search."
+          action={{ label: 'Open Settings', onClick: openSettings }}
+        />
+      );
+    }
+
     return (
       <div className="text-center py-12">
         <p className="text-[var(--app-text-muted)]">No packages found.</p>

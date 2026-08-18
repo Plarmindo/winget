@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from 'react';
 import { WingetPackage, AppMode, GitHubAction } from '../types';
 import { PackageCard } from './PackageCard';
@@ -18,7 +17,14 @@ interface PackageGridProps {
 }
 
 export const PackageGrid: React.FC<PackageGridProps> = ({
-  packages, onExecute, handleSearch, onFetchDetails, onGitHubAction, onDirectInstall, isDesktop, loading = false
+  packages,
+  onExecute,
+  handleSearch,
+  onFetchDetails,
+  onGitHubAction,
+  onDirectInstall,
+  isDesktop,
+  loading = false,
 }) => {
   const { settings } = useAppStore();
   const [currentPage, setCurrentPage] = useState(1);
@@ -31,7 +37,9 @@ export const PackageGrid: React.FC<PackageGridProps> = ({
   // Show skeletons while loading
   if (loading) {
     return (
-      <div className={`grid grid-cols-1 ${settings.compactMode ? 'md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4' : 'md:grid-cols-2 lg:grid-cols-3'} gap-4`}>
+      <div
+        className={`grid grid-cols-1 ${settings.compactMode ? 'md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4' : 'md:grid-cols-2 lg:grid-cols-3'} gap-4`}
+      >
         {Array.from({ length: 8 }).map((_, i) => (
           <PackageCardSkeleton key={i} />
         ))}
@@ -50,13 +58,15 @@ export const PackageGrid: React.FC<PackageGridProps> = ({
   const startIndex = (safePage - 1) * itemsPerPage;
   const currentPackages = packages.slice(startIndex, startIndex + itemsPerPage);
 
-  const handlePrev = () => setCurrentPage(p => Math.max(1, p - 1));
-  const handleNext = () => setCurrentPage(p => Math.min(totalPages, p + 1));
+  const handlePrev = () => setCurrentPage((p) => Math.max(1, p - 1));
+  const handleNext = () => setCurrentPage((p) => Math.min(totalPages, p + 1));
 
   return (
     <div className="w-full flex flex-col space-y-6">
       {/* Grid Layout */}
-      <div className={`grid grid-cols-1 ${settings.compactMode ? 'md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4' : 'md:grid-cols-2 lg:grid-cols-3'} gap-4`}>
+      <div
+        className={`grid grid-cols-1 ${settings.compactMode ? 'md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4' : 'md:grid-cols-2 lg:grid-cols-3'} gap-4`}
+      >
         {currentPackages.map((pkg) => (
           <div key={pkg.id} className="h-full">
             <PackageCard

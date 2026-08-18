@@ -27,7 +27,19 @@ export const useAppStore = create<AppState>()(
       name: 'winget-app-storage',
       storage: createJSONStorage(() => localStorage),
       partialize: (state) => ({
-        settings: state.settings,
+        // S2: Exclude aiConfig.apiKey from localStorage (stored securely in OS keychain)
+        settings: {
+          ...state.settings,
+          aiConfig: state.settings.aiConfig
+            ? {
+                provider: state.settings.aiConfig.provider,
+                baseUrl: state.settings.aiConfig.baseUrl,
+                modelId: state.settings.aiConfig.modelId,
+                localModelPath: state.settings.aiConfig.localModelPath,
+                // apiKey excluded - stored in secure_storage
+              }
+            : state.settings.aiConfig,
+        },
         cart: state.cart,
         favorites: state.favorites,
         history: state.history,

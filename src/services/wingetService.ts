@@ -7,6 +7,7 @@ import {
   isTauri,
 } from './tauriBridge';
 import { searchGitHubRepos } from './githubService';
+import { generateAIResponse } from './aiService';
 import { logger } from '../utils/logger';
 
 // Re-export from aiService for backward compatibility
@@ -28,9 +29,6 @@ export {
   generateComparisonPrompt,
 } from './promptService';
 
-// Import for internal use
-import { generateAIResponse } from './aiService';
-
 // --- Package Parsing ---
 
 export const parseWingetOutput = (output: string): WingetPackage[] => {
@@ -41,6 +39,77 @@ export const parseWingetOutput = (output: string): WingetPackage[] => {
   } catch (e) {
     logger.error('Failed to parse Winget output as JSON', e);
     return [];
+  }
+};
+
+// --- Web-mode AI search ---
+// In the browser there is no winget CLI or Tauri backend, so with an API key
+// configured we ask the AI provider for a strict JSON array of matching
+// packages (a real search against the configured model). Without an API key
+// there is no provider to search with, so search returns no results and the
+// UI shows a "set your API key" prompt.
+
+const buildWebSearchPrompt = (query: string, manager: PackageManagerType): string => `
+Search for "${query}" packages available in the "${manager}" package manager.
+Return a strict JSON array of objects. Each object must have these fields:
+- id: string (package identifier)
+- name: string (package name)
+- version: string (latest version)
+- description: string (short description)
+- source: string (must be "${manager}")
+
+Limit to 12 results.
+Ensure the response is ONLY valid JSON. No markdown formatting or explanations.
+`;
+
+/**
+ * Extract a JSON array from an AI response, tolerating markdown fences or
+ * surrounding prose. Returns the parsed array, or null when no valid JSON
+ * array is present (so callers can distinguish "no results" from "the
+ * provider returned something that isn't JSON").
+ */
+export const parseAIJsonArray = (text: string): unknown[] | null => {
+  const cleaned = text
+    .replace(/```json/gi, '')
+    .replace(/```/g, '')
+    .trim();
+  const start = cleaned.indexOf('[');
+  const end = cleaned.lastIndexOf(']');
+  if (start === -1 || end === -1 || end <= start) return null;
+  try {
+    const parsed = JSON.parse(cleaned.slice(start, end + 1));
+    return Array.isArray(parsed) ? parsed : null;
+  } catch {
+    return null;
+  }
+};
+
+/**
+ * Search packages via the configured AI provider (web mode). The provider is
+ * asked to return a strict JSON array; results are stamped with the active
+ * package manager. Throws a descriptive error when the provider call or the
+ * JSON parsing fails so the UI can surface it.
+ */
+export const searchPackagesWithAI = async (query: string, settings: AppSettings): Promise<WingetPackage[]> => {
+  const { activePackageManager, aiConfig } = settings;
+  if (aiConfig.provider === 'local-llama' || aiConfig.provider === 'local-ollama') {
+    throw new Error('Local models are only available in the desktop app. Choose a cloud provider in Settings.');
+  }
+  const prompt = buildWebSearchPrompt(query, activePackageManager);
+  try {
+    const aiResponse = await generateAIResponse(
+      settings,
+      prompt,
+      'You are a package manager search assistant. Output strict JSON only.'
+    );
+    const results = parseAIJsonArray(aiResponse);
+    if (!results) throw new Error('AI response was not valid JSON');
+    return results.map((pkg) => ({ ...(pkg as WingetPackage), source: activePackageManager }));
+  } catch (e) {
+    console.error('AI Search failed:', e);
+    throw new Error(
+      `Failed to fetch results via AI. ${aiConfig.provider === 'ollama' ? 'Check if Ollama is running.' : 'Check your API Key and Settings.'}`
+    );
   }
 };
 
@@ -55,46 +124,12 @@ export const searchPackages = async (
     return searchGitHubRepos(query, settings.githubToken);
   }
 
-  // If running in browser (not Tauri), use AI to simulate search
+  // In the browser there is no winget CLI or Tauri backend. Without an API key
+  // there is no AI provider to search with, so return no results and let the UI
+  // show a "set your API key" prompt. Otherwise run a real AI-powered search.
   if (!isTauri()) {
-    const prompt = `
-    Search for "${query}" packages available in the "${settings.activePackageManager}" package manager.
-    Return a strict JSON array of objects. Each object must have these fields:
-    - id: string (package identifier)
-    - name: string (package name)
-    - version: string (latest version)
-    - description: string (short description)
-    - source: string (must be "${settings.activePackageManager}")
-    
-    Limit to 12 results.
-    Ensure the response is ONLY valid JSON. No markdown formatting or explanations.
-    `;
-
-    try {
-      const aiResponse = await generateAIResponse(
-        settings,
-        prompt,
-        'You are a package manager search assistant. Output strict JSON only.'
-      );
-      const cleanJson = aiResponse
-        .replace(/```json/g, '')
-        .replace(/```/g, '')
-        .trim();
-      const results = JSON.parse(cleanJson);
-
-      if (Array.isArray(results)) {
-        return results.map((pkg: WingetPackage) => ({
-          ...pkg,
-          source: settings.activePackageManager,
-        }));
-      }
-      return [];
-    } catch (e) {
-      console.error('AI Search failed:', e);
-      throw new Error(
-        `Failed to fetch results via AI. ${settings.aiConfig.provider === 'ollama' ? 'Check if Ollama is running.' : 'Check your API Key and Settings.'}`
-      );
-    }
+    if (!settings.aiConfig.apiKey) return [];
+    return searchPackagesWithAI(query, settings);
   }
 
   try {
