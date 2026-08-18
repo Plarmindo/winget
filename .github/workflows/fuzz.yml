@@ -17,7 +17,10 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        sanitizer: [address, undefined]
+        # cargo-fuzz supports only address/leak/memory/thread/none (no UBSan);
+        # memory (MSan) is the closest second instrumenter and needs -Zbuild-std,
+        # which cargo-fuzz wires up automatically.
+        sanitizer: [address, memory]
     permissions:
       # ClusterFuzzLite files crash reports as GitHub issues.
       issues: write
