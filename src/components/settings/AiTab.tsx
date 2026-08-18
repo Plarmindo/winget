@@ -2,6 +2,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import { Eye, Activity, Save, Loader2, Check, X } from 'lucide-react';
 import { AppSettings, AiConfig, AiProviderType } from '../../types';
 import { logger } from '../../utils/logger';
+import { normalizeAiConfig } from '../../services/aiService';
 
 interface AiTabProps {
   settings: AppSettings;
@@ -338,21 +339,38 @@ export const AiTab: React.FC<AiTabProps> = ({ settings, onUpdateSettings, focusO
     setTestStatus('loading');
     setTestMessage('');
     try {
-      const urlToCheck =
-        localAiConfig.baseUrl || (localAiConfig.provider === 'ollama' ? 'http://localhost:11434/v1' : '');
-
-      if (localAiConfig.provider === 'ollama') {
-        await fetch(urlToCheck.replace(/\/v1\/?$/, '') + '/api/tags');
-      } else if (localAiConfig.provider !== 'gemini' && urlToCheck) {
-        await fetch(urlToCheck, { method: 'OPTIONS' }).catch(() => {});
-      } else if (localAiConfig.provider === 'gemini') {
-        await new Promise((resolve) => setTimeout(resolve, 500));
+      if (localAiConfig.provider === 'local-llama' || localAiConfig.provider === 'local-ollama') {
+        throw new Error('Local models are only available in the desktop app.');
       }
 
-      setTimeout(() => {
-        setTestStatus('success');
-        setTestMessage('Connection successful!');
-      }, 800);
+      const config = normalizeAiConfig(localAiConfig);
+      if (!config.baseUrl) {
+        throw new Error('A Base URL is required for this provider.');
+      }
+
+      if (localAiConfig.provider === 'ollama') {
+        const res = await fetch(config.baseUrl.replace(/\/v1\/?$/, '') + '/api/tags');
+        if (!res.ok) throw new Error('Ollama connection failed (' + res.status + ')');
+      } else {
+        // Real validation: list models with the configured key. Any 2xx means
+        // the endpoint + key work; errors surface the provider's message.
+        const res = await fetch(config.baseUrl + '/models', {
+          headers: config.apiKey ? { Authorization: 'Bearer ' + config.apiKey } : {},
+        });
+        if (!res.ok) {
+          let detail = res.statusText;
+          try {
+            const body = await res.json();
+            detail = body?.error?.message || detail;
+          } catch {
+            // keep statusText
+          }
+          throw new Error('Connection failed: ' + detail);
+        }
+      }
+
+      setTestStatus('success');
+      setTestMessage('Connection successful!');
     } catch (e: unknown) {
       setTestStatus('error');
       setTestMessage(e instanceof Error ? e.message : 'Connection failed');
