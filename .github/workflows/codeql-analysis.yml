@@ -18,9 +18,12 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 20
     permissions:
-      # Job-level permissions replace the workflow default, so contents must
-      # be re-declared for checkout; security-events is needed to upload
-      # SARIF results to the code-scanning dashboard.
+      # Job-level permissions replace the workflow default, so each scope must
+      # be re-declared: contents for checkout, security-events to upload SARIF
+      # to the code-scanning dashboard, and actions for the upload step's
+      # workflow-run API call (private repos 403 without it — see
+      # github/codeql-action#2117).
+      actions: read
       contents: read
       security-events: write
     strategy:
