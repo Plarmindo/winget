@@ -61,7 +61,24 @@ jobs:
           cache: 'npm'
           cache-dependency-path: package-lock.json
       - run: npm ci
-      - run: npx playwright install --with-deps chromium webkit
+      # The browser download can stall for tens of minutes with no output (a
+      # Playwright CDN/apt degradation wedged every E2E job for 40+ min once).
+      # Fail fast per attempt, retry, and cap the whole step so a stall becomes
+      # a quick surfaced failure instead of a 6-hour silent hang.
+      - name: Install Playwright browsers (retried)
+        timeout-minutes: 30
+        run: |
+          for attempt in 1 2 3; do
+            echo "playwright install attempt $attempt/3"
+            if timeout 600 npx playwright install --with-deps chromium webkit; then
+              echo "playwright browsers installed"
+              exit 0
+            fi
+            echo "attempt $attempt failed; retrying in 30s"
+            sleep 30
+          done
+          echo "::error::playwright install failed after 3 attempts"
+          exit 1
       - run: npm run test:e2e:ci
       # Only reached when the gate above failed. Posts a PR comment listing the
       # flaky tests (check-e2e-flaky.mjs writes test-results/flaky-tests.txt before
