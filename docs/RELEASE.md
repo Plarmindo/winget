@@ -65,8 +65,9 @@ On a Windows runner:
 
 1. `npm ci` + `npm run tauri build` (rust-cached) produce the NSIS (`.exe`) and WiX MSI (`.msi`) installers under `src-tauri/target/release/bundle/`.
 2. The job fails loudly if no installer artifacts are found.
-3. `node scripts/extract-release-notes.mjs <ver> release-notes.md` pulls the matching `## [<ver>] - <date>` section out of `CHANGELOG.md` — the job fails if that section is missing.
-4. `gh release create vX.Y.Z` publishes the release with the installers attached.
+3. A `SHA256SUMS-<version>.txt` file is generated, listing a clean relative hash for every installer artifact.
+4. `node scripts/extract-release-notes.mjs <ver> release-notes.md` pulls the matching `## [<ver>] - <date>` section out of `CHANGELOG.md` — the job fails if that section is missing — and appends the hashes to the release notes.
+5. `gh release create vX.Y.Z` publishes the release with the installers **and** the `SHA256SUMS-<version>.txt` file attached.
 
 ---
 
@@ -80,7 +81,9 @@ On a Windows runner:
 4. Watch the **Prepare release** job. When it finishes it opens a PR titled `chore(release): v1.6.0`.
 5. Review the PR (see checklist below), then merge it.
 6. Stage 2 tags the merge commit automatically; Stage 3 builds and publishes. Watch the **Publish installer** job on the tag push.
-7. Verify the release under **Releases** — title `v1.6.0`, notes from the changelog, and the `.exe`/`.msi` artifacts attached.
+7. Verify the release under **Releases** — title `v1.6.0`, notes from the changelog, the `.exe`/`.msi` artifacts, and the `SHA256SUMS-1.6.0.txt` file attached.
+
+**Verifying a downloaded installer:** download the installer and its `SHA256SUMS-<version>.txt` into the same folder, then run `sha256sum -c SHA256SUMS-<version>.txt` (or `Get-FileHash <installer> -Algorithm SHA256` on PowerShell and compare against the listed hash).
 
 ### From the CLI
 
@@ -104,7 +107,9 @@ git tag -a v1.6.0 -m "Release v1.6.0" <merge-commit-sha>
 git push origin v1.6.0  # or build locally and publish manually:
 # npm run tauri build
 # node scripts/extract-release-notes.mjs 1.6.0 release-notes.md
-# gh release create v1.6.0 --notes-file release-notes.md src-tauri/target/release/bundle/nsis/*.exe src-tauri/target/release/bundle/msi/*.msi
+# ( cd src-tauri/target/release/bundle/nsis && sha256sum *.exe ) > SHA256SUMS-1.6.0.txt
+# ( cd src-tauri/target/release/bundle/msi && sha256sum *.msi ) >> SHA256SUMS-1.6.0.txt
+# gh release create v1.6.0 --notes-file release-notes.md src-tauri/target/release/bundle/nsis/*.exe src-tauri/target/release/bundle/msi/*.msi SHA256SUMS-1.6.0.txt
 ```
 
 ---
@@ -124,7 +129,7 @@ A release PR is small and mechanical; verify these before approving:
 **After merge** (Stage 2/3 run automatically):
 
 - [ ] A `vX.Y.Z` tag exists on the merge commit (`git ls-remote --tags origin vX.Y.Z`).
-- [ ] The **Publish installer** job succeeded and the GitHub Release `vX.Y.Z` shows the changelog notes plus `.exe` and `.msi` artifacts.
+- [ ] The **Publish installer** job succeeded and the GitHub Release `vX.Y.Z` shows the changelog notes, the `.exe`/`.msi` artifacts, and the `SHA256SUMS-<version>.txt` file (whose hashes are also printed in the job log).
 
 ---
 
@@ -143,4 +148,5 @@ A release PR is small and mechanical; verify these before approving:
 - **Stage 2 only fires on merged `release/*` PRs.** Closing without merging (or merging a non-release branch) does nothing.
 - **Installers are Windows-only.** The publish job runs on `windows-latest`; the installers are NSIS (`.exe`) and WiX (`.msi`).
 - **Release notes come from `CHANGELOG.md`.** If the publish job fails with "no CHANGELOG.md section found", the release section is missing or mis-titled — fix the changelog and re-run the job (the tag already exists, so re-run the **publish** job, not the whole workflow).
+- **Every release ships a `SHA256SUMS-<version>.txt` file.** The publish job generates it from the same artifact list it uploads, so the hashes always match what's attached. Verify downloaded binaries with `sha256sum -c` — the SUMS file uses clean relative filenames, so keep the installer and the SUMS file in the same folder.
 - **Keep `CHANGELOG.md` truthful.** The changelog is the release's public record; entries must correspond to real commits. If you need to tweak an entry, do it in the release PR *before* merging.
