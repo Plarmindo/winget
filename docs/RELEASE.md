@@ -67,8 +67,9 @@ On a Windows runner:
 2. The job fails loudly if no installer artifacts are found.
 3. The frontend bundle is packaged into `winget-system-manager-web-<version>.zip` (a `dist/` copy for web-mode deployments).
 4. A `SHA256SUMS-<version>.txt` file is generated, listing a clean relative hash for every installer artifact **and** the web bundle.
-5. `node scripts/extract-release-notes.mjs <ver> release-notes.md` pulls the matching `## [<ver>] - <date>` section out of `CHANGELOG.md` — the job fails if that section is missing — and appends the hashes to the release notes.
-6. `gh release create vX.Y.Z` publishes the release with the installers, the web bundle, **and** the `SHA256SUMS-<version>.txt` file attached.
+5. The checksums file is **GPG-signed** with the release key, producing `SHA256SUMS-<version>.txt.asc` (see [Release signing key](#release-signing-key)). The job refuses to publish an unsigned release if the signing secret is missing.
+6. `node scripts/extract-release-notes.mjs <ver> release-notes.md` pulls the matching `## [<ver>] - <date>` section out of `CHANGELOG.md` — the job fails if that section is missing — and appends the hashes to the release notes.
+7. `gh release create vX.Y.Z` publishes the release with the installers, the web bundle, the `SHA256SUMS-<version>.txt` file, **and** its `.asc` signature.
 
 ---
 
@@ -82,9 +83,18 @@ On a Windows runner:
 4. Watch the **Prepare release** job. When it finishes it opens a PR titled `chore(release): v1.6.0`.
 5. Review the PR (see checklist below), then merge it.
 6. Stage 2 tags the merge commit automatically; Stage 3 builds and publishes. Watch the **Publish installer** job on the tag push.
-7. Verify the release under **Releases** — title `v1.6.0`, notes from the changelog, the `.exe`/`.msi` artifacts, the `winget-system-manager-web-1.6.0.zip` bundle, and the `SHA256SUMS-1.6.0.txt` file attached.
+7. Verify the release under **Releases** — title `v1.6.0`, notes from the changelog, the `.exe`/`.msi` artifacts, the `winget-system-manager-web-1.6.0.zip` bundle, and the `SHA256SUMS-1.6.0.txt` file with its `.asc` signature attached.
 
 **Verifying a downloaded artifact:** download the artifact and its `SHA256SUMS-<version>.txt` into the same folder, then run `sha256sum -c SHA256SUMS-<version>.txt` (or `Get-FileHash <artifact> -Algorithm SHA256` on PowerShell and compare against the listed hash).
+
+**Verifying the signature:** import the release key from the repo and check the detached signature against the checksums file:
+
+```bash
+gpg --import release-key.asc
+gpg --verify SHA256SUMS-<version>.txt.asc SHA256SUMS-<version>.txt
+```
+
+A `Good signature` line (matching the fingerprint below) means the checksums file is genuinely from this project — you can then trust `sha256sum -c` on the artifacts it lists.
 
 ### From the CLI
 
@@ -112,8 +122,23 @@ git push origin v1.6.0  # or build locally and publish manually:
 # ( cd src-tauri/target/release/bundle/nsis && sha256sum *.exe ) > SHA256SUMS-1.6.0.txt
 # ( cd src-tauri/target/release/bundle/msi && sha256sum *.msi ) >> SHA256SUMS-1.6.0.txt
 # sha256sum winget-system-manager-web-1.6.0.zip >> SHA256SUMS-1.6.0.txt
-# gh release create v1.6.0 --notes-file release-notes.md src-tauri/target/release/bundle/nsis/*.exe src-tauri/target/release/bundle/msi/*.msi winget-system-manager-web-1.6.0.zip SHA256SUMS-1.6.0.txt
+# gpg --batch --detach-sign --armor -o SHA256SUMS-1.6.0.txt.asc SHA256SUMS-1.6.0.txt
+# gh release create v1.6.0 --notes-file release-notes.md src-tauri/target/release/bundle/nsis/*.exe src-tauri/target/release/bundle/msi/*.msi winget-system-manager-web-1.6.0.zip SHA256SUMS-1.6.0.txt SHA256SUMS-1.6.0.txt.asc
 ```
+
+---
+
+## Release signing key
+
+Every release's `SHA256SUMS-<version>.txt` is signed with the **WinGet System Manager Releases** key, so users can verify that the checksums came from this project — not just that they match the download.
+
+- **Public key:** `release-key.asc` at the repository root
+- **Fingerprint:** `7264 1CDD A8A5 E56B D0A3 B145 9F18 448D 65F4 3555`
+- **Signature:** `SHA256SUMS-<version>.txt.asc` — an ASCII-armored detached signature attached to every release
+
+**How it works in the pipeline:** the publish job imports the private key from the `RELEASE_GPG_PRIVATE_KEY` repository secret into a throwaway keyring, detach-signs the checksums file, and attaches both files to the release. If the secret is missing, the job **fails** — unsigned releases are never published.
+
+**Operators:** the private key lives only in GitHub secrets (encrypted at rest), never in the repo. To rotate the key, generate a new pair, commit the public half as `release-key.asc`, and store the private half as the `RELEASE_GPG_PRIVATE_KEY` secret (plus `RELEASE_GPG_PASSPHRASE` if the key is passphrase-protected).
 
 ---
 
@@ -132,7 +157,7 @@ A release PR is small and mechanical; verify these before approving:
 **After merge** (Stage 2/3 run automatically):
 
 - [ ] A `vX.Y.Z` tag exists on the merge commit (`git ls-remote --tags origin vX.Y.Z`).
-- [ ] The **Publish installer** job succeeded and the GitHub Release `vX.Y.Z` shows the changelog notes, the `.exe`/`.msi` artifacts, the `winget-system-manager-web-<version>.zip` bundle, and the `SHA256SUMS-<version>.txt` file (whose hashes are also printed in the job log).
+- [ ] The **Publish installer** job succeeded and the GitHub Release `vX.Y.Z` shows the changelog notes, the `.exe`/`.msi` artifacts, the `winget-system-manager-web-<version>.zip` bundle, and the `SHA256SUMS-<version>.txt` file **with its `.asc` signature** (hashes and signing fingerprint are also printed in the job log).
 
 ---
 
@@ -152,4 +177,5 @@ A release PR is small and mechanical; verify these before approving:
 - **Installers are Windows-only.** The publish job runs on `windows-latest`; the installers are NSIS (`.exe`) and WiX (`.msi`).
 - **Release notes come from `CHANGELOG.md`.** If the publish job fails with "no CHANGELOG.md section found", the release section is missing or mis-titled — fix the changelog and re-run the job (the tag already exists, so re-run the **publish** job, not the whole workflow).
 - **Every release ships a `SHA256SUMS-<version>.txt` file.** The publish job generates it from the same artifact list it uploads, so the hashes always match what's attached — installers *and* the `winget-system-manager-web-<version>.zip` web bundle. Verify downloaded binaries with `sha256sum -c` — the SUMS file uses clean relative filenames, so keep the artifact and the SUMS file in the same folder.
+- **Releases are signed or they don't ship.** The publish job requires the `RELEASE_GPG_PRIVATE_KEY` secret and fails if it's missing — an unsigned checksums file would defeat the point of verification. Set the secret (and `RELEASE_GPG_PASSPHRASE` if the key has one) before your first release.
 - **Keep `CHANGELOG.md` truthful.** The changelog is the release's public record; entries must correspond to real commits. If you need to tweak an entry, do it in the release PR *before* merging.
