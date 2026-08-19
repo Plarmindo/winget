@@ -170,6 +170,31 @@ jobs:
           echo "Generated $SUMS:"
           cat "$SUMS"
 
+      - name: Sign checksums with the release key
+        shell: bash
+        env:
+          GPG_PRIVATE_KEY: ${{ secrets.RELEASE_GPG_PRIVATE_KEY }}
+          GPG_PASSPHRASE: ${{ secrets.RELEASE_GPG_PASSPHRASE }}
+        run: |
+          VERSION="${GITHUB_REF#refs/tags/v}"
+          SUMS="SHA256SUMS-$VERSION.txt"
+          if [ -z "$GPG_PRIVATE_KEY" ]; then
+            echo "::error::RELEASE_GPG_PRIVATE_KEY secret is not set — refusing to publish an unsigned release"
+            echo "::error::add the release signing key (see docs/RELEASE.md) then re-run this job"
+            exit 1
+          fi
+          export GNUPGHOME="$RUNNER_TEMP/gnupg"
+          mkdir -p "$GNUPGHOME" && chmod 700 "$GNUPGHOME"
+          echo "$GPG_PRIVATE_KEY" | gpg --batch --import
+          if [ -n "$GPG_PASSPHRASE" ]; then
+            gpg --batch --yes --pinentry-mode loopback --passphrase "$GPG_PASSPHRASE" \
+              --detach-sign --armor -o "$SUMS.asc" "$SUMS"
+          else
+            gpg --batch --yes --detach-sign --armor -o "$SUMS.asc" "$SUMS"
+          fi
+          echo "Signed $SUMS with key:"
+          gpg --batch --with-colons --fingerprint | awk -F: '$1 == "fpr" { print $10 }'
+
       - name: Extract release notes
         run: |
           VERSION="${GITHUB_REF#refs/tags/v}"
@@ -191,4 +216,5 @@ jobs:
             --notes-file release-notes.md \
             ${{ steps.artifacts.outputs.artifacts }} \
             "${{ steps.web.outputs.web_archive }}" \
-            "SHA256SUMS-$VERSION.txt"
+            "SHA256SUMS-$VERSION.txt" \
+            "SHA256SUMS-$VERSION.txt.asc"
