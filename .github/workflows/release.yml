@@ -139,6 +139,21 @@ jobs:
           fi
           echo "artifacts=$ARTIFACTS" >> "$GITHUB_OUTPUT"
 
+      - name: Package web bundle
+        id: web
+        shell: pwsh
+        run: |
+          $version = $env:GITHUB_REF -replace '^refs/tags/v', ''
+          if (-not (Test-Path 'dist')) {
+            Write-Error "dist/ not found — frontend bundle missing after build"
+            exit 1
+          }
+          $archive = "winget-system-manager-web-$version.zip"
+          Compress-Archive -Path 'dist' -DestinationPath $archive -Force
+          # AppendAllText is always UTF-8 without BOM, so GITHUB_OUTPUT
+          # parses correctly under both pwsh and Windows PowerShell
+          [System.IO.File]::AppendAllText($env:GITHUB_OUTPUT, "web_archive=$archive`n")
+
       - name: Generate SHA256 checksums
         id: checksums
         shell: bash
@@ -146,7 +161,7 @@ jobs:
           VERSION="${GITHUB_REF#refs/tags/v}"
           SUMS="SHA256SUMS-$VERSION.txt"
           : > "$SUMS"
-          for f in ${{ steps.artifacts.outputs.artifacts }}; do
+          for f in ${{ steps.artifacts.outputs.artifacts }} ${{ steps.web.outputs.web_archive }}; do
             # hash from each artifact's directory so the SUMS file lists
             # clean relative filenames (verifiable with sha256sum -c)
             ( cd "$(dirname "$f")" && sha256sum "$(basename "$f")" ) >> "$SUMS"
@@ -175,4 +190,5 @@ jobs:
             --title "v$VERSION" \
             --notes-file release-notes.md \
             ${{ steps.artifacts.outputs.artifacts }} \
+            "${{ steps.web.outputs.web_archive }}" \
             "SHA256SUMS-$VERSION.txt"
