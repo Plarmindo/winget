@@ -64,6 +64,8 @@ npm run tauri dev
 npm run tauri build
 ```
 
+For the end-to-end release process — version bump, changelog generation, tagged installer release — see [`docs/RELEASE.md`](docs/RELEASE.md).
+
 ## 🌐 Running as Web App
 
 If you only need script generation or discovery:
