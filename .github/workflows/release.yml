@@ -139,10 +139,33 @@ jobs:
           fi
           echo "artifacts=$ARTIFACTS" >> "$GITHUB_OUTPUT"
 
+      - name: Generate SHA256 checksums
+        id: checksums
+        shell: bash
+        run: |
+          VERSION="${GITHUB_REF#refs/tags/v}"
+          SUMS="SHA256SUMS-$VERSION.txt"
+          : > "$SUMS"
+          for f in ${{ steps.artifacts.outputs.artifacts }}; do
+            # hash from each artifact's directory so the SUMS file lists
+            # clean relative filenames (verifiable with sha256sum -c)
+            ( cd "$(dirname "$f")" && sha256sum "$(basename "$f")" ) >> "$SUMS"
+          done
+          echo "checksums=$SUMS" >> "$GITHUB_OUTPUT"
+          echo "Generated $SUMS:"
+          cat "$SUMS"
+
       - name: Extract release notes
         run: |
           VERSION="${GITHUB_REF#refs/tags/v}"
           node scripts/extract-release-notes.mjs "$VERSION" release-notes.md
+          # surface the hashes on the release page so users can verify
+          # without downloading the SUMS file first
+          {
+            printf '\n## Checksums (SHA256)\n\n```text\n'
+            cat "SHA256SUMS-$VERSION.txt"
+            printf '```\n'
+          } >> release-notes.md
 
       - name: Create GitHub Release
         run: |
@@ -151,4 +174,5 @@ jobs:
           gh release create "v$VERSION" \
             --title "v$VERSION" \
             --notes-file release-notes.md \
-            ${{ steps.artifacts.outputs.artifacts }}
+            ${{ steps.artifacts.outputs.artifacts }} \
+            "SHA256SUMS-$VERSION.txt"
