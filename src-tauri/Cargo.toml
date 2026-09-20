@@ -37,7 +37,7 @@ llama_cpp = "0.3"
 tracing = "0.1"
 tracing-subscriber = { version = "0.3", features = ["env-filter"] }
 # SHA-256 hash verification for installer integrity
-sha2 = "0.10"
+sha2 = "0.11"
 
 [features]
 # this feature is used for production builds or when `devPath` points to the filesystem
