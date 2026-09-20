@@ -132,6 +132,13 @@ jobs:
       contents: write
     env:
       GH_TOKEN: ${{ github.token }}
+    # windows-latest defaults `run:` to pwsh, where a bare $VAR is a PowerShell
+    # variable (empty!) rather than the environment variable GITHUB_ENV set —
+    # which silently passed an empty version argument. Default to bash and let
+    # the one pwsh step opt in explicitly.
+    defaults:
+      run:
+        shell: bash
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
         with:
