@@ -15,7 +15,7 @@ export const AboutTab: React.FC = () => {
       <div>
         <h3 className="text-3xl font-bold mb-2 tracking-tight">WinGet Web Interface</h3>
         <p className="text-[var(--app-primary)] font-mono text-sm bg-[var(--app-primary)]/10 px-3 py-1 rounded-full inline-block mb-4">
-          v1.5.0 • Stable
+          v{__APP_VERSION__} • Stable
         </p>
         <p className="text-[var(--app-text-muted)] max-w-sm mx-auto leading-relaxed">
           A sovereign, intelligent interface for package management. Designed for power users who prefer visual

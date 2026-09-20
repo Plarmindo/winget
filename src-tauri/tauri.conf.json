@@ -1,6 +1,6 @@
 {
   "productName": "winget-web-interface",
-  "version": "1.5.0",
+  "version": "../package.json",
   "identifier": "com.winget.web",
   "build": {
     "beforeDevCommand": "npm run dev",
