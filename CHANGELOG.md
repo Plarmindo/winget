@@ -10,7 +10,7 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 > described a released `1.0.0` (2025-01-01) and a dated `1.5.0` (2026-05-18); both predate or
 > misdate the actual commit history, which begins 2025-11-26, and have been corrected here.
 
-## [Unreleased]
+## [1.6.0] - 2026-09-20
 
 Features are grouped by the development windows in which they landed.
 
@@ -85,3 +85,5 @@ Initial build-out of the application from first commit (2025-11-26):
 - SECURITY.md, CodeQL SAST workflow, CODEOWNERS, branch-protection script
 - ClusterFuzzLite fuzz workflow (address sanitizer) with digest-pinned base image
 - Untracked build artifacts and root debug dumps from version control
+
+
