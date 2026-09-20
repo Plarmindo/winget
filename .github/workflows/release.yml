@@ -10,12 +10,18 @@ on:
         description: 'New semver to release, e.g. 1.6.0'
         required: true
         type: string
-  # Stage 2: when a release/v* PR merges to main, tag the merge commit so
-  # stage 3 picks it up. (Human reviews and merges the stage-1 PR.)
+  # Stage 2 + 3: when a release/v* PR merges to main, the `tag` job tags the
+  # merge commit and `publish` runs in the same workflow run to build the
+  # installer and publish the GitHub Release. (A human reviews and merges the
+  # stage-1 PR.)
+  #
+  # Publishing must be part of this run: a tag pushed with GITHUB_TOKEN does
+  # not fire a `push` workflow event, so a tag-triggered publish stage would
+  # silently never run. The tag trigger below is kept for human-pushed tags
+  # and as a re-publish path.
   pull_request:
     types: [closed]
     branches: [main]
-  # Stage 3: build the installer from the tag and publish the GitHub Release.
   push:
     tags:
       - 'v*'
@@ -102,7 +108,15 @@ jobs:
 
   publish:
     name: Publish installer
-    if: github.event_name == 'push' && startsWith(github.ref, 'refs/tags/v')
+    needs: [tag]
+    # Runs either in the same run that created the tag (release PR merged), or
+    # when a human pushes / re-pushes a v* tag. `always()` is required so this
+    # job still runs when the `tag` job was skipped (push event).
+    if: |
+      always() && (
+        (github.event_name == 'push' && startsWith(github.ref, 'refs/tags/v')) ||
+        needs.tag.result == 'success'
+      )
     runs-on: windows-latest
     permissions:
       contents: write
@@ -110,6 +124,26 @@ jobs:
       GH_TOKEN: ${{ github.token }}
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+
+      - name: Resolve version
+        shell: bash
+        run: |
+          # On a tag push the ref carries the version; when this job runs after
+          # `tag` in a release-PR run, the version comes from the PR branch
+          # name. Both paths export VERSION/RELEASE_TAG for the steps below.
+          if [ "${{ github.event_name }}" = "pull_request" ]; then
+            VERSION="${{ github.event.pull_request.head.ref }}"
+            VERSION="${VERSION#release/}"
+          else
+            VERSION="${GITHUB_REF#refs/tags/v}"
+          fi
+          if ! echo "$VERSION" | grep -qE '^[0-9]+\.[0-9]+\.[0-9]+$'; then
+            echo "::error::could not resolve a release version from this run (got '$VERSION')"
+            exit 1
+          fi
+          echo "VERSION=$VERSION" >> "$GITHUB_ENV"
+          echo "RELEASE_TAG=v$VERSION" >> "$GITHUB_ENV"
+          echo "Resolved version $VERSION (tag v$VERSION)"
 
       - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
         with:
@@ -143,7 +177,7 @@ jobs:
         id: web
         shell: pwsh
         run: |
-          $version = $env:GITHUB_REF -replace '^refs/tags/v', ''
+          $version = $env:VERSION
           if (-not (Test-Path 'dist')) {
             Write-Error "dist/ not found — frontend bundle missing after build"
             exit 1
@@ -158,7 +192,6 @@ jobs:
         id: checksums
         shell: bash
         run: |
-          VERSION="${GITHUB_REF#refs/tags/v}"
           SUMS="SHA256SUMS-$VERSION.txt"
           : > "$SUMS"
           for f in ${{ steps.artifacts.outputs.artifacts }} ${{ steps.web.outputs.web_archive }}; do
@@ -176,7 +209,6 @@ jobs:
           GPG_PRIVATE_KEY: ${{ secrets.RELEASE_GPG_PRIVATE_KEY }}
           GPG_PASSPHRASE: ${{ secrets.RELEASE_GPG_PASSPHRASE }}
         run: |
-          VERSION="${GITHUB_REF#refs/tags/v}"
           SUMS="SHA256SUMS-$VERSION.txt"
           if [ -z "$GPG_PRIVATE_KEY" ]; then
             echo "::error::RELEASE_GPG_PRIVATE_KEY secret is not set — refusing to publish an unsigned release"
@@ -197,7 +229,6 @@ jobs:
 
       - name: Extract release notes
         run: |
-          VERSION="${GITHUB_REF#refs/tags/v}"
           node scripts/extract-release-notes.mjs "$VERSION" release-notes.md
           # surface the hashes on the release page so users can verify
           # without downloading the SUMS file first
@@ -209,9 +240,8 @@ jobs:
 
       - name: Create GitHub Release
         run: |
-          VERSION="${GITHUB_REF#refs/tags/v}"
           # shellcheck disable=SC2086
-          gh release create "v$VERSION" \
+          gh release create "$RELEASE_TAG" \
             --title "v$VERSION" \
             --notes-file release-notes.md \
             ${{ steps.artifacts.outputs.artifacts }} \
