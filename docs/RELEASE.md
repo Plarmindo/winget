@@ -26,11 +26,11 @@ This project ships through an automated release train (`.github/workflows/releas
 │   tag merge commit      │  ubuntu-latest
 │   vX.Y.Z → git push     │
 └─────────────────────────┘
-        │  tag push
+        │  needs: tag (same run)
         ▼
 ┌─────────────────────────┐
-│ Stage 3 — Publish       │  push (tag v*)
-│   npm run tauri build   │  windows-latest
+│ Stage 3 — Publish       │  needs: tag · windows-latest
+│   npm run tauri build   │  (also: push of a v* tag)
 │   extract-release-notes │
 │   gh release create     │
 └─────────────────────────┘
@@ -59,7 +59,13 @@ The job cannot push to `main` directly: branch protection requires a review and 
 
 When a PR whose head branch is `release/*` is **merged** to `main`, the workflow tags the merge commit with an annotated `vX.Y.Z` tag and pushes it. The guard `merged == true` means closing a release PR *without* merging does nothing.
 
-### Stage 3 — Publish (`push` of a `v*` tag)
+### Stage 3 — Publish (`needs: tag`, same run as Stage 2)
+
+Publish runs **in the same workflow run as Stage 2**, gated by `needs: tag`. It is deliberately not
+waiting on the tag-push event: a tag pushed with `GITHUB_TOKEN` does not trigger a `push` workflow
+run, so a tag-triggered publish stage would silently never fire and releases would never be
+published. The `push: tags: v*` trigger is still honoured (for a human-pushed tag, and as a
+re-publish path when a publish run has to be retried by re-pushing the tag).
 
 On a Windows runner:
 
@@ -82,7 +88,7 @@ On a Windows runner:
 3. Enter the new version (e.g. `1.6.0`) and click **Run workflow**.
 4. Watch the **Prepare release** job. When it finishes it opens a PR titled `chore(release): v1.6.0`.
 5. Review the PR (see checklist below), then merge it.
-6. Stage 2 tags the merge commit automatically; Stage 3 builds and publishes. Watch the **Publish installer** job on the tag push.
+6. Stage 2 tags the merge commit automatically and Stage 3 builds and publishes **in the same workflow run**. Watch the **Publish installer** job that follows **Tag release**.
 7. Verify the release under **Releases** — title `v1.6.0`, notes from the changelog, the `.exe`/`.msi` artifacts, the `winget-system-manager-web-1.6.0.zip` bundle, and the `SHA256SUMS-1.6.0.txt` file with its `.asc` signature attached.
 
 **Verifying a downloaded artifact:** download the artifact and its `SHA256SUMS-<version>.txt` into the same folder, then run `sha256sum -c SHA256SUMS-<version>.txt` (or `Get-FileHash <artifact> -Algorithm SHA256` on PowerShell and compare against the listed hash).
@@ -174,8 +180,9 @@ A release PR is small and mechanical; verify these before approving:
 
 - **A version can only be released once.** The prepare job rejects a version whose `vX.Y.Z` tag already exists — hotfixes bump the patch, never re-release.
 - **Stage 2 only fires on merged `release/*` PRs.** Closing without merging (or merging a non-release branch) does nothing.
+- **Publish is part of the tag run, not the tag event.** A `GITHUB_TOKEN`-pushed tag does not trigger a `push` workflow, so Stage 3 is wired with `needs: tag` in the same run. To retry a failed publish, re-run the failed job of that run; re-pushing the tag by hand also triggers the job (the tag-push path is kept for exactly this).
 - **Installers are Windows-only.** The publish job runs on `windows-latest`; the installers are NSIS (`.exe`) and WiX (`.msi`).
-- **Release notes come from `CHANGELOG.md`.** If the publish job fails with "no CHANGELOG.md section found", the release section is missing or mis-titled — fix the changelog and re-run the job (the tag already exists, so re-run the **publish** job, not the whole workflow).
+- **Release notes come from `CHANGELOG.md`.** If the publish job fails with "no CHANGELOG.md section found", the release section is missing or mis-titled — fix the changelog and re-run the failed **publish** job of that run (the tag already exists; do not re-dispatch the release). Note the run must be less than ~30 days old for GitHub to allow a re-run.
 - **Every release ships a `SHA256SUMS-<version>.txt` file.** The publish job generates it from the same artifact list it uploads, so the hashes always match what's attached — installers *and* the `winget-system-manager-web-<version>.zip` web bundle. Verify downloaded binaries with `sha256sum -c` — the SUMS file uses clean relative filenames, so keep the artifact and the SUMS file in the same folder.
 - **Releases are signed or they don't ship.** The publish job requires the `RELEASE_GPG_PRIVATE_KEY` secret and fails if it's missing — an unsigned checksums file would defeat the point of verification. Set the secret (and `RELEASE_GPG_PASSPHRASE` if the key has one) before your first release.
 - **Keep `CHANGELOG.md` truthful.** The changelog is the release's public record; entries must correspond to real commits. If you need to tweak an entry, do it in the release PR *before* merging.
