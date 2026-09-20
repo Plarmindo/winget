@@ -7,10 +7,9 @@
 //     Security, everything else (refactor, chore, docs, ci, perf, build,
 //     test) -> Changed.
 //   - Skips merge commits and "chore(release)" self-commits.
-//   - If a `[Unreleased]` section already exists at the top of CHANGELOG.md,
-//     its content is folded into the new release section instead (preferring
-//     curated entries over the raw commit list), then the raw commit list is
-//     appended for any types the curated section does not mention.
+//   - If a `[Unreleased]` section already exists in CHANGELOG.md, its content is
+//     folded into the new release section instead — the curated, human-written
+//     summary wins over the raw commit list (see docs/RELEASE.md).
 //
 // Usage: node scripts/generate-changelog.mjs <version>
 // e.g.   node scripts/generate-changelog.mjs 1.6.0
@@ -62,7 +61,9 @@ for (const subject of commits) {
 const today = new Date().toISOString().slice(0, 10);
 const changelogPath = path.join(root, 'CHANGELOG.md');
 let changelog = readFileSync(changelogPath, 'utf8');
-const unreleasedRe = /^## \[Unreleased\]\s*\n([\s\S]*?)(?=^## )/m;
+// The block runs until the next `## ` heading, or to the end of the file when
+// `[Unreleased]` is the last section — which it usually is.
+const unreleasedRe = /^## \[Unreleased\][^\S\n]*\n([\s\S]*?)(?=^## |$(?![\s\S]))/m;
 const unreleased = changelog.match(unreleasedRe);
 const curatedBody = unreleased?.[1]?.trim();
 
