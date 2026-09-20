@@ -73,7 +73,7 @@ On a Windows runner:
 2. The job fails loudly if no installer artifacts are found.
 3. The frontend bundle is packaged into `winget-system-manager-web-<version>.zip` (a `dist/` copy for web-mode deployments).
 4. A `SHA256SUMS-<version>.txt` file is generated, listing a clean relative hash for every installer artifact **and** the web bundle.
-5. The checksums file is **GPG-signed** with the release key, producing `SHA256SUMS-<version>.txt.asc` (see [Release signing key](#release-signing-key)). The job refuses to publish an unsigned release if the signing secret is missing.
+5. The checksums file is **GPG-signed** with the release key, producing `SHA256SUMS-<version>.txt.asc` (see [Release signing key](#release-signing-key)). The job refuses to publish an unsigned release if the signing secret is missing. (The step converts `$RUNNER_TEMP` with `cygpath` first: it is a Windows path on `windows-latest`, and Git Bash's `gpg` cannot build a keyring from `D:\a\_temp`.)
 6. `node scripts/extract-release-notes.mjs <ver> release-notes.md` pulls the matching `## [<ver>] - <date>` section out of `CHANGELOG.md` — the job fails if that section is missing — and appends the hashes to the release notes.
 7. `gh release create vX.Y.Z` publishes the release with the installers, the web bundle, the `SHA256SUMS-<version>.txt` file, **and** its `.asc` signature.
 
@@ -109,6 +109,22 @@ gh workflow run release.yml -f version=1.6.0
 gh run watch            # follow the prepare job
 gh pr list --head release/1.6.0
 ```
+
+### (Re)publishing an existing tag
+
+If a tag exists but has no release — because the publish job failed, or because the tag was
+created by a workflow snapshot that could not publish — publish it from the current workflow
+without cutting a new version and **without moving the tag**:
+
+```bash
+gh workflow run release.yml -f publish_tag=v1.6.0
+```
+
+The **Prepare release** and **Tag release** jobs are skipped; **Publish installer** checks out the
+named tag, builds the installers from it, and creates the release. It fails fast if the tag does not
+exist or is not a bare `vX.Y.Z` semver, so a typo cannot publish the wrong thing.
+
+The publish job runs on `windows-latest`, so expect 10–20 minutes for the Rust release build.
 
 ### Manual fallback
 

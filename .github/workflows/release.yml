@@ -7,8 +7,12 @@ on:
   workflow_dispatch:
     inputs:
       version:
-        description: 'New semver to release, e.g. 1.6.0'
-        required: true
+        description: 'New semver to release, e.g. 1.6.0 (leave empty to only (re)publish a tag)'
+        required: false
+        type: string
+      publish_tag:
+        description: 'Existing vX.Y.Z tag to (re)publish without cutting a new release'
+        required: false
         type: string
   # Stage 2 + 3: when a release/v* PR merges to main, the `tag` job tags the
   # merge commit and `publish` runs in the same workflow run to build the
@@ -31,7 +35,7 @@ permissions: read-all
 jobs:
   prepare:
     name: Prepare release
-    if: github.event_name == 'workflow_dispatch'
+    if: github.event_name == 'workflow_dispatch' && inputs.version != ''
     runs-on: ubuntu-latest
     permissions:
       contents: write
@@ -90,6 +94,8 @@ jobs:
     name: Tag release
     if: github.event_name == 'pull_request' && github.event.pull_request.merged == true && startsWith(github.event.pull_request.head.ref, 'release/')
     runs-on: ubuntu-latest
+    outputs:
+      tag: ${{ steps.create.outputs.tag }}
     permissions:
       contents: write
     steps:
@@ -97,6 +103,7 @@ jobs:
         with:
           fetch-depth: 0
       - name: Tag the merge commit
+        id: create
         run: |
           VERSION="${{ github.event.pull_request.head.ref }}"
           VERSION="${VERSION#release/}"
@@ -104,17 +111,20 @@ jobs:
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git tag -a "v$VERSION" -m "Release v$VERSION" "${{ github.event.pull_request.merge_commit_sha }}"
           git push origin "v$VERSION"
+          echo "tag=v$VERSION" >> "$GITHUB_OUTPUT"
           echo "Pushed tag v$VERSION at ${{ github.event.pull_request.merge_commit_sha }}"
 
   publish:
     name: Publish installer
     needs: [tag]
-    # Runs either in the same run that created the tag (release PR merged), or
-    # when a human pushes / re-pushes a v* tag. `always()` is required so this
-    # job still runs when the `tag` job was skipped (push event).
+    # Runs in the same run that created the tag (release PR merged), when a
+    # human pushes / re-pushes a v* tag, or when dispatched with publish_tag to
+    # (re)publish an existing tag. `always()` is required so this job still runs
+    # when the `tag` job was skipped (push/dispatch events).
     if: |
       always() && (
         (github.event_name == 'push' && startsWith(github.ref, 'refs/tags/v')) ||
+        (github.event_name == 'workflow_dispatch' && inputs.publish_tag != '') ||
         needs.tag.result == 'success'
       )
     runs-on: windows-latest
@@ -124,14 +134,21 @@ jobs:
       GH_TOKEN: ${{ github.token }}
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+        with:
+          # Build from the tag itself: the tag created moments ago by `tag`, an
+          # explicitly requested existing tag, or the pushed tag ref.
+          ref: ${{ needs.tag.outputs.tag || inputs.publish_tag || github.ref }}
 
       - name: Resolve version
         shell: bash
         run: |
-          # On a tag push the ref carries the version; when this job runs after
-          # `tag` in a release-PR run, the version comes from the PR branch
-          # name. Both paths export VERSION/RELEASE_TAG for the steps below.
-          if [ "${{ github.event_name }}" = "pull_request" ]; then
+          # A tag push carries the version in the ref; a same-run publish takes
+          # it from the PR branch name; a (re)publish dispatch names the tag.
+          # All paths export VERSION/RELEASE_TAG for the steps below.
+          if [ -n "${{ inputs.publish_tag }}" ]; then
+            VERSION="${{ inputs.publish_tag }}"
+            VERSION="${VERSION#v}"
+          elif [ "${{ github.event_name }}" = "pull_request" ]; then
             VERSION="${{ github.event.pull_request.head.ref }}"
             VERSION="${VERSION#release/}"
           else
@@ -139,6 +156,10 @@ jobs:
           fi
           if ! echo "$VERSION" | grep -qE '^[0-9]+\.[0-9]+\.[0-9]+$'; then
             echo "::error::could not resolve a release version from this run (got '$VERSION')"
+            exit 1
+          fi
+          if ! git rev-parse -q --verify "refs/tags/v$VERSION" >/dev/null; then
+            echo "::error::tag v$VERSION does not exist — publish requires an existing tag"
             exit 1
           fi
           echo "VERSION=$VERSION" >> "$GITHUB_ENV"
@@ -215,7 +236,15 @@ jobs:
             echo "::error::add the release signing key (see docs/RELEASE.md) then re-run this job"
             exit 1
           fi
-          export GNUPGHOME="$RUNNER_TEMP/gnupg"
+          # $RUNNER_TEMP is a Windows path on windows-latest, and Git Bash's
+          # gpg needs a POSIX one — otherwise the keyring path is mangled
+          # ("D:\a\_temp/gnupg/pubring.kbx": No such file or directory).
+          if command -v cygpath >/dev/null 2>&1; then
+            GNUPG_HOME="$(cygpath -u "$RUNNER_TEMP")/gnupg"
+          else
+            GNUPG_HOME="$RUNNER_TEMP/gnupg"
+          fi
+          export GNUPGHOME="$GNUPG_HOME"
           mkdir -p "$GNUPGHOME" && chmod 700 "$GNUPGHOME"
           echo "$GPG_PRIVATE_KEY" | gpg --batch --import
           if [ -n "$GPG_PASSPHRASE" ]; then
