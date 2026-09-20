@@ -5,16 +5,14 @@ All notable changes to the WinGet System Manager will be documented in this file
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this project
 adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-> **Note on version history.** This project has not yet been tagged or released. The version
-> string in the manifests has read `1.5.0` since 2025-11-28 (the day Tauri support landed); no
-> `1.0.0` or other version has ever been tagged. Earlier drafts of this file described a released
-> `1.0.0` (2025-01-01) and a dated `1.5.0` (2026-05-18); both predate or misdate the actual
-> commit history, which begins 2025-11-26, and have been corrected here.
+> **Note on version history.** The version string in the manifests read `1.5.0` from 2025-11-28
+> (the day Tauri support landed) until the first tagged release below. Earlier drafts of this file
+> described a released `1.0.0` (2025-01-01) and a dated `1.5.0` (2026-05-18); both predate or
+> misdate the actual commit history, which begins 2025-11-26, and have been corrected here.
 
 ## [Unreleased]
 
-Version `1.5.0` (unreleased) — the only version this project has ever carried. Features are
-grouped by the development windows in which they landed.
+Features are grouped by the development windows in which they landed.
 
 ### Added — 2025-11-27 to 2025-12-31 (initial development)
 
